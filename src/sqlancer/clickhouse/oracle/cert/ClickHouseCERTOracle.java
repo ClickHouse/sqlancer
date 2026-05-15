@@ -26,23 +26,36 @@ import sqlancer.common.oracle.CERTOracleBase;
 import sqlancer.common.oracle.TestOracle;
 
 /**
- * Cardinality Estimation Restriction Testing for ClickHouse.
+ * Cardinality Estimation Restriction Testing for ClickHouse, following Ba and Rigger, ICSE 2024
+ * (CERT: Finding Performance Issues in Database Systems Through the Lens of Cardinality Estimation,
+ * <a href="https://doi.org/10.1145/3597503.3639076">DOI 10.1145/3597503.3639076</a>).
  *
- * Pattern follows {@code CockroachDBCERTOracle}: build a random {@code SELECT},
- * mutate it through one of the {@code Mutator} hooks with a known monotonicity
- * direction, then assert that the actual row count moves the way the mutation
- * predicts. A structural-similarity gate on {@code EXPLAIN PLAN} skips cases
- * where the query plan diverges enough that the comparison stops being
- * meaningful.
+ * <p>
+ * Generates a random query Q, derives a strictly more restrictive query Q' from it through a single
+ * one-directional mutation (add or AND-tighten a WHERE predicate, drop an OR operand from an
+ * existing disjunction, or promote a non-DISTINCT SELECT to DISTINCT), then asserts the
+ * <em>cardinality restriction monotonicity</em> property:
+ * </p>
  *
- * ClickHouse doesn't surface single-number cardinality estimates through any
- * {@code EXPLAIN} variant the JDBC client can read, so we use actual row counts
- * — which still catches optimizer-driven row loss (e.g. predicate pushdown bugs
- * dropping rows, AND/OR rewriting producing wrong counts, faulty DISTINCT
- * dedup). The {@code JOIN}, {@code GROUPBY}, {@code HAVING}, {@code LIMIT}
- * mutators are intentionally not wired up: {@code LIMIT} isn't serialized by
- * the fork's visitor, and the others need richer query shapes than the existing
- * generator produces.
+ * <pre>EstCard(Q', D) &le; EstCard(Q, D)</pre>
+ *
+ * <p>
+ * The estimate is read from {@code EXPLAIN ESTIMATE}, which in ClickHouse returns one row per table
+ * read with {@code parts}, {@code rows}, and {@code marks} columns -- the sum of {@code rows}
+ * across those tuples is the estimator's projection of how many rows the query has to read. In
+ * keeping with the paper, the queries themselves are <strong>never executed</strong>; this oracle
+ * tests the estimator, not the runtime.
+ * </p>
+ *
+ * <p>
+ * {@code EXPLAIN ESTIMATE} only meaningfully responds to filters that reference an indexed column
+ * (MergeTree primary key, partition key, projections). For tables stored with engines {@code Log},
+ * {@code Memory}, {@code TinyLog}, or {@code StripeLog}, or for MergeTree tables ordered by
+ * {@code tuple()}, the statement returns an empty result; the oracle skips such attempts via
+ * {@link IgnoreMeException}. Likewise, queries whose plans become structurally dissimilar after the
+ * mutation are skipped, because in that regime the two estimates are no longer comparable along a
+ * single axis -- this is the structural-similarity gate from the paper (Section 4.3).
+ * </p>
  */
 public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
         implements TestOracle<ClickHouseGlobalState> {
@@ -80,14 +93,27 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
         }
 
         String q1 = ClickHouseVisitor.asString(select);
-        long count1 = countRows(q1);
-        queryPlan1Sequences = explainPlan(q1);
+        long card1 = explainEstimateRows(q1);
+        if (card1 < 0) {
+            throw new IgnoreMeException();
+        }
+        queryPlan1Sequences = explainPlanSequence(q1);
 
-        boolean increase = mutate(Mutator.JOIN, Mutator.GROUPBY, Mutator.HAVING, Mutator.LIMIT);
+        // Restrict to the mutators we implement one-directionally below. The other CERT mutators
+        // in the base class would either need richer query shapes than this generator produces or
+        // rely on syntax (LIMIT, GROUP BY) the ClickHouse visitor does not emit.
+        boolean expectedIncrease = mutate(Mutator.JOIN, Mutator.GROUPBY, Mutator.HAVING, Mutator.LIMIT);
+        // All our mutators are strictly restrictive, so expectedIncrease must be false.
+        if (expectedIncrease) {
+            throw new IgnoreMeException();
+        }
 
         String q2 = ClickHouseVisitor.asString(select);
-        long count2 = countRows(q2);
-        queryPlan2Sequences = explainPlan(q2);
+        long card2 = explainEstimateRows(q2);
+        if (card2 < 0) {
+            throw new IgnoreMeException();
+        }
+        queryPlan2Sequences = explainPlanSequence(q2);
 
         if (queryPlan1Sequences.isEmpty() || queryPlan2Sequences.isEmpty()) {
             return;
@@ -96,31 +122,77 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
             return;
         }
 
-        boolean violated = increase ? count1 > count2 : count1 < count2;
-        if (violated) {
+        if (card2 > card1) {
             throw new AssertionError(String.format(
-                    "CERT monotonicity violation: q1=%d rows, q2=%d rows, expected_increase=%s%n  q1: %s%n  q2: %s",
-                    count1, count2, increase, q1, q2));
+                    "CERT: more-restrictive query has higher estimated cardinality (%d > %d)%n  Q1: %s%n  Q2: %s",
+                    card2, card1, q1, q2));
         }
     }
 
-    private long countRows(String query) throws SQLException {
+    @Override
+    protected boolean mutateWhere() {
+        ClickHouseExpression extra = gen.generateExpressionWithColumns(columns, 3);
+        ClickHouseExpression w = select.getWhereClause();
+        if (w == null) {
+            select.setWhereClause(extra);
+        } else {
+            select.setWhereClause(new ClickHouseBinaryLogicalOperation(w, extra, ClickHouseBinaryLogicalOperator.AND));
+        }
+        return false;
+    }
+
+    @Override
+    protected boolean mutateAnd() {
+        return mutateWhere();
+    }
+
+    /**
+     * Restrictive OR mutation per the paper: if the existing WHERE has a top-level OR, drop one
+     * of its operands. If there is no OR to drop, fall back to AND with a fresh predicate, which
+     * is also restrictive.
+     *
+     * @return always {@code false} -- restrictive direction, estimate must not grow.
+     */
+    @Override
+    protected boolean mutateOr() {
+        ClickHouseExpression w = select.getWhereClause();
+        if (w instanceof ClickHouseBinaryLogicalOperation) {
+            ClickHouseBinaryLogicalOperation bl = (ClickHouseBinaryLogicalOperation) w;
+            if (bl.getOp() == ClickHouseBinaryLogicalOperator.OR) {
+                select.setWhereClause(Randomly.getBoolean() ? bl.getLeft() : bl.getRight());
+                return false;
+            }
+        }
+        return mutateWhere();
+    }
+
+    @Override
+    protected boolean mutateDistinct() {
+        if (select.getFromOptions() == SelectType.DISTINCT) {
+            // Already DISTINCT; fall through to AND-tightening which is always available.
+            return mutateWhere();
+        }
+        select.setSelectType(SelectType.DISTINCT);
+        return false;
+    }
+
+    private long explainEstimateRows(String query) {
         try (Statement s = state.getConnection().createStatement();
-                ResultSet rs = s.executeQuery(query)) {
-            long c = 0;
+                ResultSet rs = s.executeQuery("EXPLAIN ESTIMATE " + query)) {
+            long total = 0;
+            boolean any = false;
             while (rs.next()) {
-                c++;
+                any = true;
+                total += rs.getLong("rows");
             }
-            return c;
-        } catch (SQLException ex) {
-            if (ex.getMessage() != null && errors.errorIsExpected(ex.getMessage())) {
-                throw new IgnoreMeException();
-            }
-            throw ex;
+            return any ? total : -1;
+        } catch (SQLException ignored) {
+            // Non-MergeTree engines, unsupported expressions, etc. -- signal "no estimate".
+            return -1;
         }
     }
 
-    private List<String> explainPlan(String query) {
+    private List<String> explainPlanSequence(String query) {
         List<String> plan = new ArrayList<>();
         try (Statement s = state.getConnection().createStatement();
                 ResultSet rs = s.executeQuery("EXPLAIN PLAN " + query)) {
@@ -135,52 +207,8 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
                 }
             }
         } catch (SQLException ignored) {
-            // EXPLAIN may fail for the same reasons the query fails; the
-            // outer count step already triggers IgnoreMeException in that
-            // case, so just return an empty plan and let the caller skip.
+            // Empty plan => caller treats as "skip".
         }
         return plan;
-    }
-
-    @Override
-    protected boolean mutateWhere() {
-        boolean hadWhere = select.getWhereClause() != null;
-        if (hadWhere) {
-            select.setWhereClause(null);
-            return true;
-        }
-        select.setWhereClause(gen.generateExpressionWithColumns(columns, 4));
-        return false;
-    }
-
-    @Override
-    protected boolean mutateAnd() {
-        ClickHouseExpression extra = gen.generateExpressionWithColumns(columns, 3);
-        ClickHouseExpression w = select.getWhereClause();
-        if (w == null) {
-            select.setWhereClause(extra);
-        } else {
-            select.setWhereClause(new ClickHouseBinaryLogicalOperation(w, extra, ClickHouseBinaryLogicalOperator.AND));
-        }
-        return false;
-    }
-
-    @Override
-    protected boolean mutateOr() {
-        ClickHouseExpression w = select.getWhereClause();
-        ClickHouseExpression extra = gen.generateExpressionWithColumns(columns, 3);
-        if (w == null) {
-            select.setWhereClause(extra);
-            return false;
-        }
-        select.setWhereClause(new ClickHouseBinaryLogicalOperation(w, extra, ClickHouseBinaryLogicalOperator.OR));
-        return true;
-    }
-
-    @Override
-    protected boolean mutateDistinct() {
-        boolean wasDistinct = select.getFromOptions() == SelectType.DISTINCT;
-        select.setSelectType(wasDistinct ? SelectType.ALL : SelectType.DISTINCT);
-        return wasDistinct;
     }
 }
