@@ -174,7 +174,7 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
     public static class ClickHouseRowValue
             extends AbstractRowValue<ClickHouseTables, ClickHouseColumn, ClickHouseConstant> {
 
-        ClickHouseRowValue(ClickHouseSchema.ClickHouseTables tables,
+        public ClickHouseRowValue(ClickHouseSchema.ClickHouseTables tables,
                 Map<ClickHouseSchema.ClickHouseColumn, ClickHouseConstant> values) {
             super(tables, values);
         }
