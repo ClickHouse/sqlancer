@@ -432,7 +432,7 @@ public final class Main {
 
         public void testConnection() throws Exception {
             G state = getInitializedGlobalState(options.getRandomSeed());
-            try (SQLancerDBConnection con = provider.createDatabase(state)) {
+            try (SQLancerDBConnection _ = provider.createDatabase(state)) {
                 return;
             }
         }
