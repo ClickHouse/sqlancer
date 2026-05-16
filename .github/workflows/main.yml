@@ -29,7 +29,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Verify
         run: mvn -B verify -DskipTests=true
@@ -51,7 +51,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -99,7 +99,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -126,7 +126,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -152,7 +152,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -184,7 +184,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -220,7 +220,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -250,7 +250,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build
         run: mvn -B package -DskipTests=true
@@ -268,7 +268,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -302,7 +302,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -338,7 +338,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
 
       - name: Build SQLancer
@@ -356,7 +356,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -383,7 +383,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -406,7 +406,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -430,7 +430,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -456,7 +456,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -478,7 +478,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -508,7 +508,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -528,7 +528,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Set up Presto
         run: |
@@ -553,7 +553,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build
         run: mvn -B package -DskipTests=true
@@ -574,7 +574,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build
         run: mvn -B package -DskipTests=true
@@ -591,7 +591,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -616,7 +616,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -639,7 +639,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: Build SQLancer
         run: mvn -B package -DskipTests=true
@@ -664,7 +664,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '26'
           cache: 'maven'
       - name: install mysql client
         run: |
