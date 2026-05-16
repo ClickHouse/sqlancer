@@ -43,6 +43,7 @@ public class ClickHouseExpressionGenerator
 
     private final ClickHouseGlobalState globalState;
     public boolean allowAggregateFunctions;
+    private boolean allowNullLiterals;
 
     private List<ClickHouseTable> tables;
     private final List<ClickHouseColumnReference> columnRefs;
@@ -54,6 +55,11 @@ public class ClickHouseExpressionGenerator
 
     public final void addColumns(List<ClickHouseColumnReference> col) {
         this.columnRefs.addAll(col);
+    }
+
+    public ClickHouseExpressionGenerator allowNullLiterals(boolean value) {
+        this.allowNullLiterals = value;
+        return this;
     }
 
     private enum ColumnLike {
@@ -68,6 +74,9 @@ public class ClickHouseExpressionGenerator
     public ClickHouseExpression generateExpressionWithColumns(List<ClickHouseColumnReference> columns,
             int remainingDepth) {
         if (columns.isEmpty() || remainingDepth <= 2 && Randomly.getBooleanWithRatherLowProbability()) {
+            if (allowNullLiterals && Randomly.getBooleanWithSmallProbability()) {
+                return ClickHouseCreateConstant.createNullConstant();
+            }
             return generateConstant(null);
         }
 

@@ -34,7 +34,7 @@ import sqlancer.common.query.Query;
 import sqlancer.common.query.SQLQueryAdapter;
 
 /**
- * Pivoted Query Synthesis (PQS) for ClickHouse, following Rigger & Su, OSDI 2020.
+ * Pivoted Query Synthesis (PQS) for ClickHouse, following Rigger &amp; Su, OSDI 2020.
  *
  * The classical SQLancer PQS implementation (e.g. SQLite3) requires every AST
  * node to expose a Java-side {@code getExpectedValue()} that mirrors the DBMS'
@@ -49,6 +49,13 @@ import sqlancer.common.query.SQLQueryAdapter;
  * either keep the predicate, negate it, or wrap it in {@code IS NULL} so that
  * the conjunction is guaranteed to hold for the pivot row.
  *
+ * The pivot row may span 1-3 tables (paper Figure 1 / Section 3.1): each pivot
+ * "row" is the cross-product of one randomly-selected row from each chosen
+ * table, and predicates reference table-qualified columns from any of them.
+ * The optional query elaborations from Section 3.2 (DISTINCT, GROUP BY all
+ * pivot columns, ORDER BY) are attached probabilistically; each preserves
+ * containment by construction.
+ *
  * Containment is checked with {@code INTERSECT}, which treats NULLs as equal
  * in ClickHouse and so handles nullable columns without explicit
  * {@code IS NOT DISTINCT FROM} comparisons.
@@ -56,9 +63,11 @@ import sqlancer.common.query.SQLQueryAdapter;
 public class ClickHousePivotedQuerySynthesisOracle extends
         PivotedQuerySynthesisBase<ClickHouseGlobalState, ClickHouseRowValue, ClickHouseExpression, SQLConnection> {
 
-    private ClickHouseTable pivotTable;
-    private LinkedHashMap<ClickHouseColumn, ClickHouseConstant> pivotValues;
+    private static final int MAX_PIVOT_TABLES = 3;
+
     private final ExpectedErrors expectedErrors;
+    private LinkedHashMap<ClickHouseTable, LinkedHashMap<ClickHouseColumn, ClickHouseConstant>> pivotByTable;
+    private List<ClickHouseConstant> flatPivotValues;
 
     public ClickHousePivotedQuerySynthesisOracle(ClickHouseGlobalState globalState) {
         super(globalState);
@@ -76,23 +85,39 @@ public class ClickHousePivotedQuerySynthesisOracle extends
         if (nonEmpty.isEmpty()) {
             throw new IgnoreMeException();
         }
-        pivotTable = Randomly.fromList(nonEmpty);
-        List<ClickHouseColumn> columns = pivotTable.getColumns();
-        if (columns.isEmpty()) {
-            throw new IgnoreMeException();
+
+        // Paper Section 3.1: the pivot row may consist of columns drawn from
+        // multiple tables / views. Choose 1-3 distinct tables.
+        int desired = (int) Randomly.getNotCachedInteger(1, Math.min(nonEmpty.size(), MAX_PIVOT_TABLES) + 1);
+        List<ClickHouseTable> pivotTables = Randomly.nonEmptySubset(nonEmpty, desired);
+
+        pivotByTable = new LinkedHashMap<>();
+        flatPivotValues = new ArrayList<>();
+        Map<ClickHouseColumn, ClickHouseConstant> diagnosticRowMap = new LinkedHashMap<>();
+        for (ClickHouseTable t : pivotTables) {
+            List<ClickHouseColumn> cols = t.getColumns();
+            if (cols.isEmpty()) {
+                throw new IgnoreMeException();
+            }
+            LinkedHashMap<ClickHouseColumn, ClickHouseConstant> row = fetchPivotRow(t, cols);
+            pivotByTable.put(t, row);
+            flatPivotValues.addAll(row.values());
+            diagnosticRowMap.putAll(row);
         }
 
-        pivotValues = fetchPivotRow(pivotTable, columns);
+        pivotRow = new ClickHouseRowValue(new ClickHouseTables(new ArrayList<>(pivotByTable.keySet())),
+                diagnosticRowMap);
 
-        // Build the row value used by the base class for diagnostics.
-        ClickHouseTables singleTable = new ClickHouseTables(List.of(pivotTable));
-        Map<ClickHouseColumn, ClickHouseConstant> rowMap = new LinkedHashMap<>(pivotValues);
-        pivotRow = new ClickHouseRowValue(singleTable, rowMap);
+        List<ClickHouseColumnReference> columnRefs = new ArrayList<>();
+        for (Map.Entry<ClickHouseTable, LinkedHashMap<ClickHouseColumn, ClickHouseConstant>> e : pivotByTable
+                .entrySet()) {
+            String tableName = e.getKey().getName();
+            for (ClickHouseColumn c : e.getValue().keySet()) {
+                columnRefs.add(c.asColumnReference(tableName));
+            }
+        }
 
-        List<ClickHouseColumnReference> columnRefs = columns.stream().map(c -> c.asColumnReference(pivotTable.getName()))
-                .collect(Collectors.toList());
-
-        ClickHouseExpressionGenerator gen = new ClickHouseExpressionGenerator(globalState);
+        ClickHouseExpressionGenerator gen = new ClickHouseExpressionGenerator(globalState).allowNullLiterals(true);
         gen.addColumns(columnRefs);
 
         int nrPredicates = 1 + Randomly.smallNumber();
@@ -104,21 +129,13 @@ public class ClickHousePivotedQuerySynthesisOracle extends
             rectifiedPredicates.add(r);
         }
 
-        StringBuilder sb = new StringBuilder("SELECT ");
-        sb.append(columns.stream().map(c -> quote(pivotTable.getName()) + "." + quote(c.getName()))
-                .collect(Collectors.joining(", ")));
-        sb.append(" FROM ").append(quote(pivotTable.getName()));
-        sb.append(" WHERE ");
-        sb.append(rectified.stream().map(p -> "(" + ClickHouseVisitor.asString(p) + ")")
-                .collect(Collectors.joining(" AND ")));
-
-        return new SQLQueryAdapter(sb.toString(), expectedErrors);
+        return new SQLQueryAdapter(buildPivotQuery(columnRefs, rectified), expectedErrors);
     }
 
     @Override
     protected Query<SQLConnection> getContainmentCheckQuery(Query<?> pivotRowQuery) throws Exception {
         StringBuilder sb = new StringBuilder("SELECT ");
-        sb.append(pivotValues.values().stream().map(ClickHouseConstant::toString).collect(Collectors.joining(", ")));
+        sb.append(flatPivotValues.stream().map(ClickHouseConstant::toString).collect(Collectors.joining(", ")));
         sb.append(" INTERSECT SELECT * FROM (").append(pivotRowQuery.getUnterminatedQueryString()).append(")");
         return new SQLQueryAdapter(sb.toString(), expectedErrors);
     }
@@ -128,6 +145,31 @@ public class ClickHousePivotedQuerySynthesisOracle extends
         // ClickHouse expressions don't carry per-node expected values; the
         // base class uses this only for the post-failure diagnostic log.
         return ClickHouseVisitor.asString(expr);
+    }
+
+    private String buildPivotQuery(List<ClickHouseColumnReference> columnRefs, List<ClickHouseExpression> rectified) {
+        String projection = columnRefs.stream().map(ClickHouseVisitor::asString).collect(Collectors.joining(", "));
+        String from = pivotByTable.keySet().stream().map(t -> quote(t.getName())).collect(Collectors.joining(", "));
+        String whereClause = rectified.stream().map(p -> "(" + ClickHouseVisitor.asString(p) + ")")
+                .collect(Collectors.joining(" AND "));
+
+        StringBuilder sb = new StringBuilder("SELECT ");
+        // Optional DISTINCT (Section 3.2): preserves the pivot row.
+        if (Randomly.getBooleanWithSmallProbability()) {
+            sb.append("DISTINCT ");
+        }
+        sb.append(projection).append(" FROM ").append(from).append(" WHERE ").append(whereClause);
+
+        // Optional GROUP BY (Section 3.2): must include every pivot-row
+        // column to keep the row in the grouped result.
+        if (Randomly.getBooleanWithSmallProbability()) {
+            sb.append(" GROUP BY ").append(projection);
+        }
+        // Optional ORDER BY (Section 3.2): does not influence membership.
+        if (Randomly.getBooleanWithSmallProbability()) {
+            sb.append(" ORDER BY ").append(Randomly.fromOptions("rand()", projection));
+        }
+        return sb.toString();
     }
 
     private LinkedHashMap<ClickHouseColumn, ClickHouseConstant> fetchPivotRow(ClickHouseTable table,
@@ -164,6 +206,12 @@ public class ClickHousePivotedQuerySynthesisOracle extends
      * row: {@code pred} itself if it was TRUE, {@code NOT pred} if it was
      * FALSE, or {@code pred IS NULL} if it was NULL.
      *
+     * <p>
+     * For a multi-table pivot, the probe builds a one-row alias per pivot
+     * table: {@code (SELECT lit AS c0, lit AS c1) AS t1, (SELECT lit AS c0) AS t2},
+     * so table-qualified column references in {@code pred} resolve against
+     * the matching literal-typed subquery.
+     *
      * @param pred
      *            the random predicate to rectify
      * @return an expression that evaluates to TRUE on the pivot row
@@ -173,16 +221,25 @@ public class ClickHousePivotedQuerySynthesisOracle extends
     private ClickHouseExpression rectifyAgainstPivot(ClickHouseExpression pred) throws SQLException {
         String predSql = ClickHouseVisitor.asString(pred);
 
-        StringBuilder probe = new StringBuilder("SELECT (").append(predSql).append(") FROM (SELECT ");
-        boolean first = true;
-        for (Map.Entry<ClickHouseColumn, ClickHouseConstant> e : pivotValues.entrySet()) {
-            if (!first) {
+        StringBuilder probe = new StringBuilder("SELECT (").append(predSql).append(") FROM ");
+        boolean firstTable = true;
+        for (Map.Entry<ClickHouseTable, LinkedHashMap<ClickHouseColumn, ClickHouseConstant>> e : pivotByTable
+                .entrySet()) {
+            if (!firstTable) {
                 probe.append(", ");
             }
-            first = false;
-            probe.append(e.getValue().toString()).append(" AS ").append(quote(e.getKey().getName()));
+            firstTable = false;
+            probe.append("(SELECT ");
+            boolean firstCol = true;
+            for (Map.Entry<ClickHouseColumn, ClickHouseConstant> v : e.getValue().entrySet()) {
+                if (!firstCol) {
+                    probe.append(", ");
+                }
+                firstCol = false;
+                probe.append(v.getValue().toString()).append(" AS ").append(quote(v.getKey().getName()));
+            }
+            probe.append(") AS ").append(quote(e.getKey().getName()));
         }
-        probe.append(") AS ").append(quote(pivotTable.getName()));
 
         try (Statement s = globalState.getConnection().createStatement();
                 ResultSet rs = s.executeQuery(probe.toString())) {
