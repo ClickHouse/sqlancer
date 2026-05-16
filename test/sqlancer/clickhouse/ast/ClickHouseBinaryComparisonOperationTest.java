@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
-import com.clickhouse.client.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseDataType;
 import sqlancer.clickhouse.ast.constant.ClickHouseCreateConstant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
