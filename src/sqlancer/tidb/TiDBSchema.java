@@ -170,6 +170,7 @@ public class TiDBSchema extends AbstractSchema<TiDBGlobalState, TiDBTable> {
             this.hasDefault = hasDefault;
         }
 
+        @Override
         public boolean isPrimaryKey() {
             return isPrimaryKey;
         }
@@ -297,10 +298,6 @@ public class TiDBSchema extends AbstractSchema<TiDBGlobalState, TiDBTable> {
             super(tableName, columns, indexes, isView);
         }
 
-        public boolean hasPrimaryKey() {
-            return getColumns().stream().anyMatch(c -> c.isPrimaryKey());
-        }
-
     }
 
     public static TiDBSchema fromConnection(SQLConnection con, String databaseName) throws SQLException {
@@ -313,7 +310,7 @@ public class TiDBSchema extends AbstractSchema<TiDBGlobalState, TiDBTable> {
                 continue;
             }
             List<TableIndex> indexes = getIndexes(con, tableName);
-            boolean isView = tableName.startsWith("v");
+            boolean isView = matchesViewName(tableName);
             TiDBTable t = new TiDBTable(tableName, databaseColumns, indexes, isView);
             for (TiDBColumn c : databaseColumns) {
                 c.setTable(t);
