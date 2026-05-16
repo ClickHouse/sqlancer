@@ -110,7 +110,7 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.13.0</version>
         <configuration>
-          <release>26</release>
+          <release>25</release>
           <showWarnings>true</showWarnings>
         </configuration>
       </plugin>
@@ -473,7 +473,7 @@
             <artifactId>maven-javadoc-plugin</artifactId>
             <version>3.11.2</version>
             <configuration>
-              <source>26</source>
+              <source>25</source>
             </configuration>
             <executions>
               <execution>
