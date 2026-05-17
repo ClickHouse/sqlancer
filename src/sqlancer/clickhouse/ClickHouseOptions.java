@@ -23,6 +23,12 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = { "--analyzer" }, description = "Enable analyzer in ClickHouse", arity = 1)
     public boolean enableAnalyzer = true;
 
+    @Parameter(names = "--test-nullable-types", description = "Wrap a small fraction of generated column types in Nullable", arity = 1)
+    public boolean enableNullable = true;
+
+    @Parameter(names = "--test-lowcardinality-types", description = "Wrap a small fraction of generated column types in LowCardinality", arity = 1)
+    public boolean enableLowCardinality = true;
+
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;

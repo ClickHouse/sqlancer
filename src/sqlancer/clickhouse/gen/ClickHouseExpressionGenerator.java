@@ -7,12 +7,19 @@ import java.util.stream.IntStream;
 
 import com.clickhouse.data.ClickHouseDataType;
 
+import sqlancer.IgnoreMeException;
 import sqlancer.Randomly;
 import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
 import sqlancer.clickhouse.ClickHouseSchema;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseColumn;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseLancerDataType;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
+import sqlancer.clickhouse.ClickHouseType;
+import sqlancer.clickhouse.ClickHouseType.Kind;
+import sqlancer.clickhouse.ClickHouseType.LowCardinality;
+import sqlancer.clickhouse.ClickHouseType.Nullable;
+import sqlancer.clickhouse.ClickHouseType.Primitive;
+import sqlancer.clickhouse.ClickHouseType.Unknown;
 import sqlancer.clickhouse.ast.ClickHouseAggregate;
 import sqlancer.clickhouse.ast.ClickHouseAggregate.ClickHouseAggregateFunction;
 import sqlancer.clickhouse.ast.ClickHouseAliasOperation;
@@ -247,6 +254,9 @@ public class ClickHouseExpressionGenerator
 
     @Override
     protected ClickHouseExpression generateColumn(ClickHouseLancerDataType type) {
+        if (type.getTypeTerm() instanceof Unknown) {
+            throw new IgnoreMeException();
+        }
         if (columnRefs.isEmpty()) {
             return generateConstant(type);
         }
@@ -307,25 +317,65 @@ public class ClickHouseExpressionGenerator
 
     @Override
     public ClickHouseExpression generateConstant(ClickHouseLancerDataType genType) {
-        ClickHouseLancerDataType type = (genType == null) ? ClickHouseLancerDataType.getRandom() : genType;
-        switch (type.getType()) {
+        ClickHouseLancerDataType type = (genType == null) ? ClickHouseLancerDataType.getRandom(globalState) : genType;
+        return generateConstantFromTerm(type.getTypeTerm());
+    }
+
+    // Dispatch constant emission on the ADT term: Nullable emits a small-probability NULL else
+    // recurses; LowCardinality is transparent at the literal level; Unknown abandons the statement
+    // via IgnoreMeException -- the established escape hatch for unsupported types.
+    private ClickHouseExpression generateConstantFromTerm(ClickHouseType term) {
+        if (term instanceof Unknown) {
+            throw new IgnoreMeException();
+        }
+        if (term instanceof Nullable n) {
+            if (Randomly.getBooleanWithSmallProbability()) {
+                return ClickHouseCreateConstant.createNullConstant();
+            }
+            return generateConstantFromTerm(n.inner());
+        }
+        if (term instanceof LowCardinality lc) {
+            return generateConstantFromTerm(lc.inner());
+        }
+        if (term instanceof Primitive p) {
+            return generatePrimitiveConstant(p.kind());
+        }
+        throw new IgnoreMeException();
+    }
+
+    private ClickHouseExpression generatePrimitiveConstant(Kind kind) {
+        switch (kind) {
         case Int8:
-        case UInt8:
         case Int16:
-        case UInt16:
         case Int32:
-        case UInt32:
         case Int64:
+        case Int128:
+        case Int256:
+        case UInt8:
+        case UInt16:
+        case UInt32:
         case UInt64:
-            return ClickHouseCreateConstant.createIntConstant(type.getType(), globalState.getRandomly().getInteger());
+        case UInt128:
+        case UInt256:
+            return ClickHouseCreateConstant.createIntConstant(kind.toClickHouseDataType(),
+                    globalState.getRandomly().getInteger());
         case Float32:
             return ClickHouseCreateConstant.createFloat32Constant((float) globalState.getRandomly().getDouble());
         case Float64:
             return ClickHouseCreateConstant.createFloat64Constant(globalState.getRandomly().getDouble());
         case String:
             return ClickHouseCreateConstant.createStringConstant(globalState.getRandomly().getString());
+        case Bool:
+            return ClickHouseCreateConstant.createBoolean(Randomly.getBoolean());
+        case UUID:
+        case Date:
+        case Date32:
+        case IPv4:
+        case IPv6:
         default:
-            throw new AssertionError();
+            // v1 generator doesn't pick these kinds; if encountered (e.g. via schema reflection of a
+            // pre-existing table), skip the attempt rather than fabricating a literal here.
+            throw new IgnoreMeException();
         }
     }
 

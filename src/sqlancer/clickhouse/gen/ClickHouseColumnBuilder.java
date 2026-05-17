@@ -28,7 +28,8 @@ public class ClickHouseColumnBuilder {
         sb.append(columnName);
         sb.append(" ");
         List<Constraints> constraints = new ArrayList<>();
-        ClickHouseSchema.ClickHouseLancerDataType dataType = ClickHouseSchema.ClickHouseLancerDataType.getRandom();
+        ClickHouseSchema.ClickHouseLancerDataType dataType = ClickHouseSchema.ClickHouseLancerDataType
+                .getRandom(globalState);
         if (Randomly.getBooleanWithSmallProbability()) {
             constraints = Randomly.subset(Constraints.values());
             if (!allowAlias || columns.isEmpty() || columns.size() == 1) {

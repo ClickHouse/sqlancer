@@ -7,13 +7,20 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import com.clickhouse.data.ClickHouseDataType;
 
+import sqlancer.IgnoreMeException;
 import sqlancer.Randomly;
 import sqlancer.SQLConnection;
 import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
+import sqlancer.clickhouse.ClickHouseType.Kind;
+import sqlancer.clickhouse.ClickHouseType.LowCardinality;
+import sqlancer.clickhouse.ClickHouseType.Nullable;
+import sqlancer.clickhouse.ClickHouseType.Primitive;
+import sqlancer.clickhouse.ClickHouseType.Unknown;
 import sqlancer.clickhouse.ast.ClickHouseColumnReference;
 import sqlancer.clickhouse.ast.ClickHouseConstant;
 import sqlancer.clickhouse.ast.constant.ClickHouseCreateConstant;
@@ -28,22 +35,65 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
 
     public static class ClickHouseLancerDataType {
 
+        private final ClickHouseType typeTerm;
         private final ClickHouseDataType clickHouseType;
         private final String textRepr;
 
         public ClickHouseLancerDataType(ClickHouseDataType type) {
+            Optional<Kind> kindOpt = Kind.fromClickHouseDataType(type);
+            this.typeTerm = kindOpt.isPresent() ? new Primitive(kindOpt.get()) : new Unknown(type.name());
             this.clickHouseType = type;
-            this.textRepr = type.toString();
+            this.textRepr = typeTerm.toString();
         }
 
         public ClickHouseLancerDataType(String textRepr) {
-            this.clickHouseType = ClickHouseDataType.of(textRepr);
             this.textRepr = textRepr;
+            this.typeTerm = ClickHouseTypeParser.parse(textRepr);
+            this.clickHouseType = rootClickHouseDataType(this.typeTerm);
+        }
+
+        public ClickHouseLancerDataType(ClickHouseType typeTerm) {
+            this.typeTerm = typeTerm;
+            this.textRepr = typeTerm.toString();
+            this.clickHouseType = rootClickHouseDataType(typeTerm);
+        }
+
+        // Root ClickHouseDataType of the term. Nullable and LowCardinality are transparent; Unknown
+        // maps to Nothing as a lossy compatibility shim for legacy callers that expect the flat enum
+        // (documented in the v1 type-system foundation plan, Unit 5).
+        private static ClickHouseDataType rootClickHouseDataType(ClickHouseType t) {
+            ClickHouseType inner = t.unwrap();
+            if (inner instanceof Primitive p) {
+                return p.kind().toClickHouseDataType();
+            }
+            return ClickHouseDataType.Nothing;
         }
 
         public static ClickHouseLancerDataType getRandom() {
-            return new ClickHouseLancerDataType(
-                    Randomly.fromOptions(ClickHouseDataType.Int32, ClickHouseDataType.String));
+            return getRandom(null);
+        }
+
+        // Pick a random v1 type, optionally wrapping with Nullable / LowCardinality when the
+        // feature flags on `state` permit. With both flags off the result is always a Primitive.
+        // `state` may be null -- in that case both wrappers are disabled (used by legacy fixtures
+        // and dummy-column factories).
+        public static ClickHouseLancerDataType getRandom(ClickHouseGlobalState state) {
+            ClickHouseOptions opts = state == null ? null : state.getDbmsSpecificOptions();
+            boolean enableNullable = opts != null && opts.enableNullable;
+            boolean enableLowCardinality = opts != null && opts.enableLowCardinality;
+            Kind kind = Randomly.fromOptions(Kind.Int32, Kind.String);
+            ClickHouseType picked = new Primitive(kind);
+            if (enableNullable && Randomly.getBooleanWithSmallProbability() && Nullable.canWrap(picked)) {
+                picked = new Nullable(picked);
+            }
+            if (enableLowCardinality && Randomly.getBooleanWithSmallProbability() && LowCardinality.canWrap(picked)) {
+                picked = new LowCardinality(picked);
+            }
+            return new ClickHouseLancerDataType(picked);
+        }
+
+        public ClickHouseType getTypeTerm() {
+            return typeTerm;
         }
 
         public ClickHouseDataType getType() {
@@ -70,7 +120,15 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
         }
 
         public static ClickHouseSchema.ClickHouseColumn createDummy(String name, ClickHouseTable table) {
-            return new ClickHouseSchema.ClickHouseColumn(name, ClickHouseLancerDataType.getRandom(), false, false,
+            return createDummy(name, table, null);
+        }
+
+        // Build a dummy column for schema generation. When state is non-null and the Nullable /
+        // LowCardinality feature flags are enabled, the picked type may be wrapped accordingly;
+        // callers that don't have a state (test fixtures, AST scaffolding) pass null.
+        public static ClickHouseSchema.ClickHouseColumn createDummy(String name, ClickHouseTable table,
+                ClickHouseGlobalState state) {
+            return new ClickHouseSchema.ClickHouseColumn(name, ClickHouseLancerDataType.getRandom(state), false, false,
                     table);
         }
 
@@ -89,86 +147,43 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
     }
 
     public static ClickHouseConstant getConstant(ResultSet randomRowValues, int columnIndex,
-            ClickHouseDataType valueType) throws SQLException, AssertionError {
-        Object value;
-        ClickHouseConstant constant;
+            ClickHouseDataType valueType) throws SQLException {
         if (randomRowValues.getString(columnIndex) == null) {
-            constant = ClickHouseCreateConstant.createNullConstant();
-        } else {
-            switch (valueType) {
-            case Int32:
-                value = randomRowValues.getLong(columnIndex);
-                constant = ClickHouseCreateConstant.createInt32Constant((long) value);
-                break;
-            case Float64:
-                value = randomRowValues.getDouble(columnIndex);
-                constant = ClickHouseCreateConstant.createFloat64Constant((double) value);
-                break;
-            case String:
-                value = randomRowValues.getString(columnIndex);
-                constant = ClickHouseCreateConstant.createStringConstant((String) value);
-                break;
-            case AggregateFunction:
-            case Array:
-                // case Bool:
-            case Date:
-                // case Date32:
-            case DateTime:
-            case DateTime32:
-            case DateTime64:
-            case Decimal:
-            case Decimal128:
-            case Decimal256:
-            case Decimal32:
-            case Decimal64:
-                // case Enum:
-            case Enum16:
-            case Enum8:
-            case FixedString:
-            case Float32:
-            case IPv4:
-            case IPv6:
-            case Int128:
-            case Int16:
-            case Int256:
-            case Int64:
-            case Int8:
-            case IntervalDay:
-            case IntervalHour:
-                // case IntervalMicrosecond:
-                // case IntervalMillisecond:
-            case IntervalMinute:
-            case IntervalMonth:
-                // case IntervalNanosecond:
-            case IntervalQuarter:
-            case IntervalSecond:
-            case IntervalWeek:
-            case IntervalYear:
-                // case JSON:
-                // case LowCardinality:
-            case Map:
-                // case MultiPolygon:
-            case Nested:
-            case Nothing:
-                // case Nullable:
-                // case Object:
-                // case Point:
-                // case Polygon:
-                // case Ring:
-                // case SimpleAggregateFunction:
-            case Tuple:
-            case UInt128:
-            case UInt16:
-            case UInt256:
-            case UInt32:
-            case UInt64:
-            case UInt8:
-            case UUID:
-            default:
-                throw new AssertionError(valueType);
-            }
+            return ClickHouseCreateConstant.createNullConstant();
         }
-        return constant;
+        switch (valueType) {
+        case Int8:
+            return ClickHouseCreateConstant.createInt8Constant(randomRowValues.getLong(columnIndex));
+        case Int16:
+            return ClickHouseCreateConstant.createInt16Constant(randomRowValues.getLong(columnIndex));
+        case Int32:
+            return ClickHouseCreateConstant.createInt32Constant(randomRowValues.getLong(columnIndex));
+        case Int64:
+            return ClickHouseCreateConstant
+                    .createInt64Constant(java.math.BigInteger.valueOf(randomRowValues.getLong(columnIndex)));
+        case UInt8:
+            return ClickHouseCreateConstant.createUInt8Constant(randomRowValues.getLong(columnIndex));
+        case UInt16:
+            return ClickHouseCreateConstant.createUInt16Constant(randomRowValues.getLong(columnIndex));
+        case UInt32:
+            return ClickHouseCreateConstant.createUInt32Constant(randomRowValues.getLong(columnIndex));
+        case UInt64:
+            return ClickHouseCreateConstant
+                    .createUInt64Constant(java.math.BigInteger.valueOf(randomRowValues.getLong(columnIndex)));
+        case Float32:
+            return ClickHouseCreateConstant.createFloat32Constant(randomRowValues.getFloat(columnIndex));
+        case Float64:
+            return ClickHouseCreateConstant.createFloat64Constant(randomRowValues.getDouble(columnIndex));
+        case Bool:
+            return ClickHouseCreateConstant.createBoolean(randomRowValues.getBoolean(columnIndex));
+        case String:
+            return ClickHouseCreateConstant.createStringConstant(randomRowValues.getString(columnIndex));
+        default:
+            // Types beyond the v1 set (Decimal, Date*, IPv*, UUID, Enum*, composites, etc.) are not
+            // round-trippable through ClickHouseConstant yet -- callers (PQS) skip the row via
+            // IgnoreMeException rather than fabricating a constant.
+            throw new IgnoreMeException();
+        }
     }
 
     public static class ClickHouseRowValue

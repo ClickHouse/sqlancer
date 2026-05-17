@@ -10,14 +10,18 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.clickhouse.data.ClickHouseDataType;
-
 import sqlancer.IgnoreMeException;
 import sqlancer.Randomly;
 import sqlancer.clickhouse.ClickHouseErrors;
 import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseColumn;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
+import sqlancer.clickhouse.ClickHouseType;
+import sqlancer.clickhouse.ClickHouseType.Kind;
+import sqlancer.clickhouse.ClickHouseType.LowCardinality;
+import sqlancer.clickhouse.ClickHouseType.Nullable;
+import sqlancer.clickhouse.ClickHouseType.Primitive;
+import sqlancer.clickhouse.ClickHouseType.Unknown;
 import sqlancer.clickhouse.ClickHouseVisitor;
 import sqlancer.clickhouse.ast.ClickHouseBinaryLogicalOperation;
 import sqlancer.clickhouse.ast.ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator;
@@ -32,55 +36,52 @@ import sqlancer.common.oracle.CERTOracleBase;
 import sqlancer.common.oracle.TestOracle;
 
 /**
- * Cardinality Estimation Restriction Testing for ClickHouse, following Ba and Rigger, ICSE 2024
- * (CERT: Finding Performance Issues in Database Systems Through the Lens of Cardinality Estimation,
+ * Cardinality Estimation Restriction Testing for ClickHouse, following Ba and Rigger, ICSE 2024 (CERT: Finding
+ * Performance Issues in Database Systems Through the Lens of Cardinality Estimation,
  * <a href="https://doi.org/10.1145/3597503.3639076">DOI 10.1145/3597503.3639076</a>).
  *
  * <p>
- * Generates a random query Q, derives a strictly more restrictive query Q' from it through one or
- * more one-directional mutations (add or AND-tighten a WHERE predicate, drop an OR operand from an
- * existing disjunction, promote a non-DISTINCT SELECT to DISTINCT, or AND-tighten the HAVING when
- * the query has a GROUP BY), then asserts the <em>cardinality restriction monotonicity</em>
- * property:
+ * Generates a random query Q, derives a strictly more restrictive query Q' from it through one or more one-directional
+ * mutations (add or AND-tighten a WHERE predicate, drop an OR operand from an existing disjunction, promote a
+ * non-DISTINCT SELECT to DISTINCT, or AND-tighten the HAVING when the query has a GROUP BY), then asserts the
+ * <em>cardinality restriction monotonicity</em> property:
  * </p>
  *
- * <pre>EstCard(Q', D) &le; EstCard(Q, D)</pre>
+ * <pre>
+ * EstCard(Q', D) &le; EstCard(Q, D)
+ * </pre>
  *
  * <p>
- * The estimate is read from {@code EXPLAIN ESTIMATE}, which in ClickHouse returns one row per table
- * read with {@code parts}, {@code rows}, and {@code marks} columns -- the sum of {@code rows}
- * across those tuples is the estimator's projection of how many rows the query has to read. In
- * keeping with the paper, the queries themselves are <strong>never executed</strong>; this oracle
- * tests the estimator, not the runtime.
+ * The estimate is read from {@code EXPLAIN ESTIMATE}, which in ClickHouse returns one row per table read with
+ * {@code parts}, {@code rows}, and {@code marks} columns -- the sum of {@code rows} across those tuples is the
+ * estimator's projection of how many rows the query has to read. In keeping with the paper, the queries themselves are
+ * <strong>never executed</strong>; this oracle tests the estimator, not the runtime.
  * </p>
  *
  * <p>
  * Effective coverage on ClickHouse depends on three things, all addressed below:
  * </p>
  * <ul>
- * <li><strong>Table size vs. granule boundary.</strong> {@code EXPLAIN ESTIMATE} reflects MergeTree
- * primary-key granule pruning; with default {@code index_granularity=8192} and the small inserts
- * the schema generator emits, every table fits in one granule and the estimate cannot move. The
- * oracle bulk-loads up to {@link #TARGET_ROWS} rows from {@code numbers()} so multiple granules
- * exist.</li>
- * <li><strong>Predicates touching the PK.</strong> A WHERE filter on a non-indexed column does not
- * change the estimate. Primary-key columns are looked up at the start of every check and
- * duplicated in the predicate generator's column list so a generated predicate is much more likely
- * to reference one of them.</li>
- * <li><strong>HAVING pushdown.</strong> A HAVING predicate on a PK column is pushed down through
- * the optimizer to the scan, where it can prune granules; this is the only paper rule beyond
- * WHERE/OR that meaningfully changes the ClickHouse estimate. The oracle sometimes builds Q with a
- * {@code GROUP BY <pk_col>} so the HAVING mutator can fire.</li>
+ * <li><strong>Table size vs. granule boundary.</strong> {@code EXPLAIN ESTIMATE} reflects MergeTree primary-key granule
+ * pruning; with default {@code index_granularity=8192} and the small inserts the schema generator emits, every table
+ * fits in one granule and the estimate cannot move. The oracle bulk-loads up to {@link #TARGET_ROWS} rows from
+ * {@code numbers()} so multiple granules exist.</li>
+ * <li><strong>Predicates touching the PK.</strong> A WHERE filter on a non-indexed column does not change the estimate.
+ * Primary-key columns are looked up at the start of every check and duplicated in the predicate generator's column list
+ * so a generated predicate is much more likely to reference one of them.</li>
+ * <li><strong>HAVING pushdown.</strong> A HAVING predicate on a PK column is pushed down through the optimizer to the
+ * scan, where it can prune granules; this is the only paper rule beyond WHERE/OR that meaningfully changes the
+ * ClickHouse estimate. The oracle sometimes builds Q with a {@code GROUP BY <pk_col>} so the HAVING mutator can
+ * fire.</li>
  * </ul>
  *
  * <p>
- * {@code EXPLAIN ESTIMATE} only meaningfully responds to filters that reference an indexed column.
- * For tables stored with engines {@code Log}, {@code Memory}, {@code TinyLog}, or
- * {@code StripeLog}, or for MergeTree tables ordered by {@code tuple()}, the statement returns an
- * empty result; the oracle skips such attempts via {@link IgnoreMeException}. Likewise, queries
- * whose plans become structurally dissimilar after the mutation are skipped, because in that regime
- * the two estimates are no longer comparable along a single axis -- this is the
- * structural-similarity gate from the paper (Section 4.3).
+ * {@code EXPLAIN ESTIMATE} only meaningfully responds to filters that reference an indexed column. For tables stored
+ * with engines {@code Log}, {@code Memory}, {@code TinyLog}, or {@code StripeLog}, or for MergeTree tables ordered by
+ * {@code tuple()}, the statement returns an empty result; the oracle skips such attempts via {@link IgnoreMeException}.
+ * Likewise, queries whose plans become structurally dissimilar after the mutation are skipped, because in that regime
+ * the two estimates are no longer comparable along a single axis -- this is the structural-similarity gate from the
+ * paper (Section 4.3).
  * </p>
  */
 public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
@@ -194,9 +195,8 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
     }
 
     /**
-     * Restrictive OR mutation per the paper: if the existing WHERE has a top-level OR, drop one
-     * of its operands. If there is no OR to drop, fall back to AND with a fresh predicate, which
-     * is also restrictive.
+     * Restrictive OR mutation per the paper: if the existing WHERE has a top-level OR, drop one of its operands. If
+     * there is no OR to drop, fall back to AND with a fresh predicate, which is also restrictive.
      *
      * @return always {@code false} -- restrictive direction, estimate must not grow.
      */
@@ -224,11 +224,10 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
     }
 
     /**
-     * AND-tighten the HAVING clause with a fresh predicate biased toward PK columns. Requires a
-     * GROUP BY to be present; otherwise fall back to AND-tightening the WHERE so the call is never
-     * a no-op. The HAVING predicate on a PK column is pushed down through the optimizer to the
-     * scan in ClickHouse, where it can prune granules -- this is the only paper rule beyond
-     * WHERE/OR that meaningfully moves the estimate.
+     * AND-tighten the HAVING clause with a fresh predicate biased toward PK columns. Requires a GROUP BY to be present;
+     * otherwise fall back to AND-tightening the WHERE so the call is never a no-op. The HAVING predicate on a PK column
+     * is pushed down through the optimizer to the scan in ClickHouse, where it can prune granules -- this is the only
+     * paper rule beyond WHERE/OR that meaningfully moves the estimate.
      *
      * @return always {@code false} -- restrictive direction, estimate must not grow.
      */
@@ -243,19 +242,16 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
         if (h == null) {
             select.setHavingClause(extra);
         } else {
-            select.setHavingClause(
-                    new ClickHouseBinaryLogicalOperation(h, extra, ClickHouseBinaryLogicalOperator.AND));
+            select.setHavingClause(new ClickHouseBinaryLogicalOperation(h, extra, ClickHouseBinaryLogicalOperator.AND));
         }
         return false;
     }
 
-    /**
-     * Ensure the table has enough rows to span multiple MergeTree granules. With the default
-     * {@code index_granularity=8192} that the schema generator uses, a table with only ~10-30 rows
-     * never triggers granule pruning regardless of WHERE predicate, so {@code EXPLAIN ESTIMATE}
-     * always returns the full row count. Bulk-loading up to {@link #TARGET_ROWS} rows from
-     * {@code numbers()} fixes this. Idempotent: tables already above the threshold are left alone.
-     */
+    // Ensure the table has enough rows to span multiple MergeTree granules. With the default
+    // index_granularity=8192 that the schema generator uses, a table with only ~10-30 rows never
+    // triggers granule pruning regardless of WHERE predicate, so EXPLAIN ESTIMATE always returns
+    // the full row count. Bulk-loading up to TARGET_ROWS rows from numbers() fixes this.
+    // Idempotent: tables already above the threshold are left alone.
     private void ensureLargeEnough(ClickHouseTable table) {
         long rows = countRows(table);
         if (rows < 0 || rows >= TARGET_ROWS) {
@@ -273,7 +269,7 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
                 sb.append(", ");
             }
             first = false;
-            sb.append(generatorExprFor(c.getType().getType())).append(" AS ").append(quote(c.getName()));
+            sb.append(generatorExprFor(c.getType().getTypeTerm())).append(" AS ").append(quote(c.getName()));
         }
         sb.append(" FROM numbers(").append(toInsert).append(")");
         try (Statement s = state.getConnection().createStatement()) {
@@ -285,14 +281,59 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
         }
     }
 
-    private static String generatorExprFor(ClickHouseDataType type) {
-        switch (type) {
+    // Build a numbers()-driven SQL expression that supplies values for the term's Java-side type.
+    // Wrappers are handled compositionally: Nullable wraps the inner generator with a
+    // small-probability NULL via if(rand() % 10 = 0, ...), while LowCardinality is transparent at
+    // INSERT time -- ClickHouse coerces the inner generator's result into the dictionary encoding
+    // automatically.
+    static String generatorExprFor(ClickHouseType term) {
+        if (term instanceof Unknown) {
+            throw new IgnoreMeException();
+        }
+        if (term instanceof Nullable n) {
+            String inner = generatorExprFor(n.inner());
+            return "if(rand() % 10 = 0, NULL, " + inner + ")";
+        }
+        if (term instanceof LowCardinality lc) {
+            return generatorExprFor(lc.inner());
+        }
+        if (term instanceof Primitive p) {
+            return generatorExprForPrimitive(p.kind());
+        }
+        throw new IgnoreMeException();
+    }
+
+    private static String generatorExprForPrimitive(Kind kind) {
+        switch (kind) {
         case String:
             return "toString(number)";
         case Float32:
         case Float64:
             return "toFloat64(number)";
+        case Bool:
+            return "toBool(number % 2)";
+        case Int8:
+        case Int16:
+        case Int32:
+        case Int64:
+        case Int128:
+        case Int256:
+        case UInt8:
+        case UInt16:
+        case UInt32:
+        case UInt64:
+        case UInt128:
+        case UInt256:
+            return "toInt32(number - 25000)";
+        case Date:
+        case Date32:
+        case UUID:
+        case IPv4:
+        case IPv6:
         default:
+            // v1 generator doesn't pick these kinds, but if a reused-table column has one, fall
+            // back to a benign Int32 generator -- ClickHouse will fail the INSERT and the iteration
+            // proceeds via the expected-errors filter rather than a hard AssertionError.
             return "toInt32(number - 25000)";
         }
     }
@@ -306,14 +347,11 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
         }
     }
 
-    /**
-     * Look up the table's primary-key columns via {@code system.columns.is_in_primary_key} and
-     * return the matching {@link ClickHouseColumnReference}s. Empty list means the table has no PK
-     * (e.g. {@code ORDER BY tuple()} or a non-MergeTree engine), in which case the caller falls
-     * back to unbiased column selection.
-     */
-    private List<ClickHouseColumnReference> fetchPkColumns(ClickHouseTable table,
-            List<ClickHouseColumnReference> all) {
+    // Look up the table's primary-key columns via system.columns.is_in_primary_key and return the
+    // matching ClickHouseColumnReferences. Empty list means the table has no PK (e.g. ORDER BY
+    // tuple() or a non-MergeTree engine), in which case the caller falls back to unbiased column
+    // selection.
+    private List<ClickHouseColumnReference> fetchPkColumns(ClickHouseTable table, List<ClickHouseColumnReference> all) {
         Set<String> pkNames = new LinkedHashSet<>();
         String sql = String.format(
                 "SELECT name FROM system.columns WHERE database = '%s' AND table = '%s' AND is_in_primary_key = 1",
@@ -331,11 +369,9 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
         return all.stream().filter(c -> pkNames.contains(c.getColumn().getName())).collect(Collectors.toList());
     }
 
-    /**
-     * Build the column list passed to the expression generator. PK columns are duplicated so a
-     * randomly-chosen leaf is far more likely to be a PK column. With {@link #PK_WEIGHT} = 4 and
-     * say 1 PK column out of 3, the PK is picked 4/(4 + 2) = 67% of the time vs 33% unweighted.
-     */
+    // Build the column list passed to the expression generator. PK columns are duplicated so a
+    // randomly-chosen leaf is far more likely to be a PK column. With PK_WEIGHT = 4 and say 1 PK
+    // column out of 3, the PK is picked 4/(4 + 2) = 67% of the time vs 33% unweighted.
     private static List<ClickHouseColumnReference> buildWeightedColumns(List<ClickHouseColumnReference> all,
             List<ClickHouseColumnReference> pk) {
         if (pk.isEmpty()) {

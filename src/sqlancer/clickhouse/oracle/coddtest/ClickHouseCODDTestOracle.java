@@ -22,6 +22,9 @@ import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseColumn;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
 import sqlancer.clickhouse.ClickHouseToStringVisitor;
+import sqlancer.clickhouse.ClickHouseType;
+import sqlancer.clickhouse.ClickHouseType.Primitive;
+import sqlancer.clickhouse.ClickHouseTypeParser;
 import sqlancer.clickhouse.ast.ClickHouseColumnReference;
 import sqlancer.clickhouse.ast.ClickHouseExpression;
 import sqlancer.clickhouse.ast.constant.ClickHouseCreateConstant;
@@ -30,20 +33,19 @@ import sqlancer.common.oracle.CODDTestBase;
 import sqlancer.common.oracle.TestOracle;
 
 /**
- * Constant Optimization Driven Database System Testing for ClickHouse, following Zhang and Rigger,
- * SIGMOD 2025 (CODDTest: <a href="https://doi.org/10.1145/3709674">DOI 10.1145/3709674</a>).
+ * Constant Optimization Driven Database System Testing for ClickHouse, following Zhang and Rigger, SIGMOD 2025
+ * (CODDTest: <a href="https://doi.org/10.1145/3709674">DOI 10.1145/3709674</a>).
  *
  * <p>
- * For a query Q with a sub-expression &phi;, the oracle builds an auxiliary query A that evaluates
- * &phi; in isolation, derives a constant (or per-row mapping) R<sub>&phi;</sub> from A's result,
- * then builds a folded query F by substituting R<sub>&phi;</sub> for &phi; in Q. Since constant
- * folding and propagation are semantics-preserving rewrites, Q and F must return identical result
- * sets; any discrepancy is a logic bug in the DBMS.
+ * For a query Q with a sub-expression &phi;, the oracle builds an auxiliary query A that evaluates &phi; in isolation,
+ * derives a constant (or per-row mapping) R<sub>&phi;</sub> from A's result, then builds a folded query F by
+ * substituting R<sub>&phi;</sub> for &phi; in Q. Since constant folding and propagation are semantics-preserving
+ * rewrites, Q and F must return identical result sets; any discrepancy is a logic bug in the DBMS.
  * </p>
  *
  * <p>
- * The paper distinguishes three flavors of &phi; depending on the set of referenced outer-context
- * columns; this oracle implements all three, selecting uniformly per check:
+ * The paper distinguishes three flavors of &phi; depending on the set of referenced outer-context columns; this oracle
+ * implements all three, selecting uniformly per check:
  * </p>
  * <ul>
  * <li><strong>Constant expression</strong> (paper Section 3.1, no column references):
@@ -76,16 +78,16 @@ import sqlancer.common.oracle.TestOracle;
  * </ul>
  *
  * <p>
- * The outer query is a single-table {@code SELECT * FROM t WHERE pred}. The predicate template is
- * one of: a single comparison {@code <col> <op> <phi>}, or that comparison combined via AND/OR with
- * a freely-generated boolean expression -- the latter exercises constant folding through compound
- * predicates, which is where the paper's bug pattern often lives.
+ * The outer query is a single-table {@code SELECT * FROM t WHERE pred}. The predicate template is one of: a single
+ * comparison {@code <col> <op> <phi>}, or that comparison combined via AND/OR with a freely-generated boolean
+ * expression -- the latter exercises constant folding through compound predicates, which is where the paper's bug
+ * pattern often lives.
  * </p>
  *
  * <p>
  * Folding is limited to columns and result types the schema generator currently produces ({@code
- * Int32} and {@code String}); other types raise {@link IgnoreMeException}. NULL auxiliary results
- * are likewise skipped because NULL-propagation would change the predicate's three-valued result.
+ * Int32} and {@code String}); other types raise {@link IgnoreMeException}. NULL auxiliary results are likewise skipped
+ * because NULL-propagation would change the predicate's three-valued result.
  * </p>
  */
 public class ClickHouseCODDTestOracle extends CODDTestBase<ClickHouseGlobalState>
@@ -172,8 +174,7 @@ public class ClickHouseCODDTestOracle extends CODDTestBase<ClickHouseGlobalState
     // aggregate subquery yields exactly one scalar, which we read and embed as a literal.
     private Phi buildScalarSubqueryPhi(ClickHouseTable table, List<ClickHouseColumn> columns) throws SQLException {
         ClickHouseColumn aggCol = Randomly.fromList(columns);
-        ClickHouseDataType aggType = aggCol.getType().getType();
-        if (aggType != ClickHouseDataType.Int32 && aggType != ClickHouseDataType.String) {
+        if (!isFoldableColumnTerm(aggCol.getType().getTypeTerm())) {
             return null;
         }
         String aggFn = Randomly.fromOptions("min", "max");
@@ -205,17 +206,17 @@ public class ClickHouseCODDTestOracle extends CODDTestBase<ClickHouseGlobalState
     // during parsing, which can shift the result of compound predicates.
     private Phi buildDependentPhi(ClickHouseTable table, List<ClickHouseColumn> columns) throws SQLException {
         ClickHouseColumn keyCol = Randomly.fromList(columns);
-        ClickHouseDataType keyType = keyCol.getType().getType();
-        if (keyType != ClickHouseDataType.Int32 && keyType != ClickHouseDataType.String) {
+        ClickHouseType keyTerm = keyCol.getType().getTypeTerm();
+        if (!isFoldableColumnTerm(keyTerm)) {
             return null;
         }
+        ClickHouseDataType keyType = keyCol.getType().getType();
 
         // Generate a random expression whose only outer-context dependency is the key column.
         ClickHouseColumnReference keyRef = keyCol.asColumnReference(table.getName());
         ClickHouseExpressionGenerator gen = new ClickHouseExpressionGenerator(state);
         gen.addColumns(Collections.singletonList(keyRef));
-        ClickHouseExpression phi = gen.generateExpressionWithColumns(Collections.singletonList(keyRef),
-                MAX_EXPR_DEPTH);
+        ClickHouseExpression phi = gen.generateExpressionWithColumns(Collections.singletonList(keyRef), MAX_EXPR_DEPTH);
         String phiSql = "(" + ClickHouseToStringVisitor.asString(phi) + ")";
 
         String tableQ = quote(table.getName());
@@ -312,7 +313,8 @@ public class ClickHouseCODDTestOracle extends CODDTestBase<ClickHouseGlobalState
     // with the original expression and the folded expression respectively and compare result sets.
     private void runComparison(ClickHouseTable table, List<ClickHouseColumn> columns, Phi phi) throws SQLException {
         String tableQ = quote(table.getName());
-        String fetchCols = columns.stream().map(c -> tableQ + "." + quote(c.getName())).collect(Collectors.joining(", "));
+        String fetchCols = columns.stream().map(c -> tableQ + "." + quote(c.getName()))
+                .collect(Collectors.joining(", "));
 
         // Pick a filter column compatible with phi's expected result type. Falling back to any
         // column lets the test attempt proceed; ClickHouse's coercion logic will be exercised when
@@ -425,71 +427,93 @@ public class ClickHouseCODDTestOracle extends CODDTestBase<ClickHouseGlobalState
 
     // Render a value retrieved as text from JDBC back into a SQL literal suitable for direct
     // embedding. Returning null signals that the type isn't safely foldable in the current
-    // implementation -- the caller should skip the test attempt.
+    // implementation -- the caller should skip the test attempt. Floats are excluded because the
+    // paper flags float folding as a source of false alarms (Section 4.1).
     private static String renderLiteral(String value, String typeName) {
         if (value == null) {
             return "NULL";
         }
-        String base = baseTypeName(typeName);
-        if (base.startsWith("Int") || base.startsWith("UInt")) {
-            // JDBC's getString already produces a decimal text in canonical form. Trust it.
-            return value;
+        ClickHouseType inner = ClickHouseTypeParser.parse(typeName).unwrap();
+        if (!(inner instanceof Primitive p)) {
+            return null;
         }
-        if ("Bool".equals(base)) {
-            // Bool: ClickHouse renders as "true"/"false" or "1"/"0" depending on driver/version.
+        switch (p.kind()) {
+        case Int8:
+        case Int16:
+        case Int32:
+        case Int64:
+        case Int128:
+        case Int256:
+        case UInt8:
+        case UInt16:
+        case UInt32:
+        case UInt64:
+        case UInt128:
+        case UInt256:
+            // JDBC's getString produces canonical decimal text. Trust it.
+            return value;
+        case Bool:
+            // ClickHouse renders Bool as "true"/"false" or "1"/"0" depending on driver/version.
             // Normalize to numeric so the literal parses uniformly.
             return ("true".equalsIgnoreCase(value) || "1".equals(value)) ? "1" : "0";
-        }
-        if ("String".equals(base) || base.startsWith("FixedString")) {
+        case String:
             return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'";
-        }
-        // Floats are excluded for now: the paper itself flags floating-point folding as a source of
-        // spurious mismatches (Section 4.1, "False alarms"), and the existing ClickHouseSchema does
-        // not generate Float columns, so the constraint is not very restrictive here.
-        return null;
-    }
-
-    // Strip Nullable(...) and LowCardinality(...) wrappers around a type so that renderLiteral can
-    // dispatch on the inner type. ClickHouse's toTypeName returns the full wrapped form, e.g.
-    // "Nullable(Int32)".
-    private static String baseTypeName(String typeName) {
-        if (typeName == null) {
-            return "";
-        }
-        String s = typeName;
-        while (true) {
-            if (s.startsWith("Nullable(") && s.endsWith(")")) {
-                s = s.substring("Nullable(".length(), s.length() - 1);
-            } else if (s.startsWith("LowCardinality(") && s.endsWith(")")) {
-                s = s.substring("LowCardinality(".length(), s.length() - 1);
-            } else {
-                break;
-            }
-        }
-        return s;
-    }
-
-    private static ClickHouseDataType parseType(String typeName) {
-        String base = baseTypeName(typeName);
-        try {
-            return ClickHouseDataType.of(base);
-        } catch (Exception ignored) {
+        default:
             return null;
         }
     }
 
-    /** Convert the schema's {@link ClickHouseDataType} back to the textual form {@code toTypeName} uses. */
+    // A column term is foldable under the v1 CODDTest filter if its values can be round-tripped
+    // through renderLiteral -- integer/Bool/String primitives, optionally wrapped in Nullable or
+    // LowCardinality.
+    static boolean isFoldableColumnTerm(ClickHouseType term) {
+        if (!term.supportsLiteralEmission()) {
+            return false;
+        }
+        ClickHouseType inner = term.unwrap();
+        if (!(inner instanceof Primitive p)) {
+            return false;
+        }
+        switch (p.kind()) {
+        case Int8:
+        case Int16:
+        case Int32:
+        case Int64:
+        case Int128:
+        case Int256:
+        case UInt8:
+        case UInt16:
+        case UInt32:
+        case UInt64:
+        case UInt128:
+        case UInt256:
+        case Bool:
+        case String:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    // Parse the ClickHouse `toTypeName` text into the v1 ADT and return its root flat enum.
+    private static ClickHouseDataType parseType(String typeName) {
+        ClickHouseType inner = ClickHouseTypeParser.parse(typeName).unwrap();
+        if (inner instanceof Primitive p) {
+            return p.kind().toClickHouseDataType();
+        }
+        return null;
+    }
+
+    // Convert the schema's ClickHouseDataType back to the textual form `toTypeName` uses.
     private static String clickHouseTypeName(ClickHouseDataType type) {
         return type.name();
     }
 
     // ----- Row collection -----
 
-    /**
-     * Execute a query and return its rows as a sorted list of pipe-delimited strings. Sorting on the
-     * Java side avoids needing an SQL {@code ORDER BY} (which would itself be subject to constant
-     * folding inside the planner) and keeps the comparison deterministic.
-     */
+    // Execute a query and return its rows as a sorted list of pipe-delimited strings. Sorting on
+    // the Java side avoids needing an SQL ORDER BY (which would itself be subject to constant
+    // folding inside the planner) and keeps the comparison deterministic.
     private List<String> collectRows(String query) throws SQLException {
         List<String> rows = new ArrayList<>();
         try (Statement s = state.getConnection().createStatement(); ResultSet rs = s.executeQuery(query)) {
@@ -524,11 +548,9 @@ public class ClickHouseCODDTestOracle extends CODDTestBase<ClickHouseGlobalState
         return ex;
     }
 
-    /**
-     * Filter the table's columns down to those safe to read in our outer query. ALIAS/MATERIALIZED
-     * columns are kept (they're readable), but they can throw at evaluation time -- the expected
-     * errors filter catches those.
-     */
+    // Filter the table's columns down to those safe to read in our outer query. ALIAS/MATERIALIZED
+    // columns are kept (they're readable), but they can throw at evaluation time -- the expected
+    // errors filter catches those.
     private static List<ClickHouseColumn> readableColumns(ClickHouseTable table) {
         return new ArrayList<>(table.getColumns());
     }
@@ -537,7 +559,7 @@ public class ClickHouseCODDTestOracle extends CODDTestBase<ClickHouseGlobalState
         return "`" + identifier.replace("`", "``") + "`";
     }
 
-    /** Single-quote a string literal for embedding in SQL, with backslash and quote escaping. */
+    // Single-quote a string literal for embedding in SQL, with backslash and quote escaping.
     private static String sqlQuote(String s) {
         return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'";
     }

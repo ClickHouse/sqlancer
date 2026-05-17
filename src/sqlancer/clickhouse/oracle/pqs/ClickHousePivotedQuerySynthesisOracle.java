@@ -36,29 +36,23 @@ import sqlancer.common.query.SQLQueryAdapter;
 /**
  * Pivoted Query Synthesis (PQS) for ClickHouse, following Rigger &amp; Su, OSDI 2020.
  *
- * The classical SQLancer PQS implementation (e.g. SQLite3) requires every AST
- * node to expose a Java-side {@code getExpectedValue()} that mirrors the DBMS'
- * evaluation semantics. ClickHouse's fork does not provide that for most
- * generated expressions, and reproducing all of ClickHouse's coercion / NULL /
- * arithmetic rules in Java would be an open-ended effort.
+ * The classical SQLancer PQS implementation (e.g. SQLite3) requires every AST node to expose a Java-side
+ * {@code getExpectedValue()} that mirrors the DBMS' evaluation semantics. ClickHouse's fork does not provide that for
+ * most generated expressions, and reproducing all of ClickHouse's coercion / NULL / arithmetic rules in Java would be
+ * an open-ended effort.
  *
- * Instead we delegate rectification to the server: for each randomly generated
- * predicate we ask ClickHouse what the predicate evaluates to on the pivot row
- * by embedding the pivot row's values as literals in a one-row subquery and
- * running the predicate against it. Based on the TRUE / FALSE / NULL answer we
- * either keep the predicate, negate it, or wrap it in {@code IS NULL} so that
- * the conjunction is guaranteed to hold for the pivot row.
+ * Instead we delegate rectification to the server: for each randomly generated predicate we ask ClickHouse what the
+ * predicate evaluates to on the pivot row by embedding the pivot row's values as literals in a one-row subquery and
+ * running the predicate against it. Based on the TRUE / FALSE / NULL answer we either keep the predicate, negate it, or
+ * wrap it in {@code IS NULL} so that the conjunction is guaranteed to hold for the pivot row.
  *
- * The pivot row may span 1-3 tables (paper Figure 1 / Section 3.1): each pivot
- * "row" is the cross-product of one randomly-selected row from each chosen
- * table, and predicates reference table-qualified columns from any of them.
- * The optional query elaborations from Section 3.2 (DISTINCT, GROUP BY all
- * pivot columns, ORDER BY) are attached probabilistically; each preserves
- * containment by construction.
+ * The pivot row may span 1-3 tables (paper Figure 1 / Section 3.1): each pivot "row" is the cross-product of one
+ * randomly-selected row from each chosen table, and predicates reference table-qualified columns from any of them. The
+ * optional query elaborations from Section 3.2 (DISTINCT, GROUP BY all pivot columns, ORDER BY) are attached
+ * probabilistically; each preserves containment by construction.
  *
- * Containment is checked with {@code INTERSECT}, which treats NULLs as equal
- * in ClickHouse and so handles nullable columns without explicit
- * {@code IS NOT DISTINCT FROM} comparisons.
+ * Containment is checked with {@code INTERSECT}, which treats NULLs as equal in ClickHouse and so handles nullable
+ * columns without explicit {@code IS NOT DISTINCT FROM} comparisons.
  */
 public class ClickHousePivotedQuerySynthesisOracle extends
         PivotedQuerySynthesisBase<ClickHouseGlobalState, ClickHouseRowValue, ClickHouseExpression, SQLConnection> {
@@ -188,33 +182,30 @@ public class ClickHousePivotedQuerySynthesisOracle extends
             }
             for (int i = 0; i < columns.size(); i++) {
                 ClickHouseColumn c = columns.get(i);
-                try {
-                    values.put(c, ClickHouseSchema.getConstant(rs, i + 1, c.getType().getType()));
-                } catch (AssertionError unsupportedType) {
-                    // ClickHouseSchema.getConstant() only knows Int32 / Float64 / String;
-                    // for other types skip this pivot attempt rather than fail the run.
-                    throw new IgnoreMeException();
-                }
+                // ClickHouseSchema.getConstant covers the v1 primitives and throws IgnoreMeException
+                // for anything else, so the pivot attempt is abandoned quietly when a column type
+                // is outside the v1 round-trip set.
+                values.put(c, ClickHouseSchema.getConstant(rs, i + 1, c.getType().getType()));
             }
         }
         return values;
     }
 
     /**
-     * Asks ClickHouse what the predicate evaluates to on the pivot row, and
-     * returns an equivalent expression that is guaranteed to be TRUE on that
-     * row: {@code pred} itself if it was TRUE, {@code NOT pred} if it was
-     * FALSE, or {@code pred IS NULL} if it was NULL.
+     * Asks ClickHouse what the predicate evaluates to on the pivot row, and returns an equivalent expression that is
+     * guaranteed to be TRUE on that row: {@code pred} itself if it was TRUE, {@code NOT pred} if it was FALSE, or
+     * {@code pred IS NULL} if it was NULL.
      *
      * <p>
-     * For a multi-table pivot, the probe builds a one-row alias per pivot
-     * table: {@code (SELECT lit AS c0, lit AS c1) AS t1, (SELECT lit AS c0) AS t2},
-     * so table-qualified column references in {@code pred} resolve against
-     * the matching literal-typed subquery.
+     * For a multi-table pivot, the probe builds a one-row alias per pivot table:
+     * {@code (SELECT lit AS c0, lit AS c1) AS t1, (SELECT lit AS c0) AS t2}, so table-qualified column references in
+     * {@code pred} resolve against the matching literal-typed subquery.
      *
      * @param pred
      *            the random predicate to rectify
+     *
      * @return an expression that evaluates to TRUE on the pivot row
+     *
      * @throws SQLException
      *             if the probe query fails with an unexpected error
      */

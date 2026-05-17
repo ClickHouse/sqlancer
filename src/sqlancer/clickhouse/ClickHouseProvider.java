@@ -142,9 +142,13 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
             e.printStackTrace();
         }
         con.close();
+        // Enable LowCardinality wrappers around numeric/Date inner types; ClickHouse rejects these
+        // by default as SUSPICIOUS_TYPE_FOR_LOW_CARDINALITY. The v1 type-system foundation
+        // deliberately exercises this combination.
+        String lcExtra = clickHouseOptions.enableLowCardinality ? "&allow_suspicious_low_cardinality_types=1" : "";
         con = DriverManager.getConnection(
-                String.format("jdbc:clickhouse://%s:%d/%s?socket_timeout=300000%s", host, port, databaseName,
-                        clickHouseOptions.enableAnalyzer ? "&allow_experimental_analyzer=1" : ""),
+                String.format("jdbc:clickhouse://%s:%d/%s?socket_timeout=300000%s%s", host, port, databaseName,
+                        clickHouseOptions.enableAnalyzer ? "&allow_experimental_analyzer=1" : "", lcExtra),
                 globalState.getOptions().getUserName(), globalState.getOptions().getPassword());
         return new SQLConnection(con);
     }
