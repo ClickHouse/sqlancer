@@ -29,6 +29,12 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--test-lowcardinality-types", description = "Wrap a small fraction of generated column types in LowCardinality", arity = 1)
     public boolean enableLowCardinality = true;
 
+    @Parameter(names = "--random-session-settings", description = "Apply a random subset of curated ClickHouse settings via SET on the per-database connection", arity = 1)
+    public boolean randomSessionSettings = false;
+
+    @Parameter(names = "--random-session-settings-budget", description = "Cap on the number of randomized session settings per database (0 = unbounded)")
+    public int randomSessionSettingsBudget = 5;
+
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;

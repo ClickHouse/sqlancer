@@ -1,6 +1,7 @@
 package sqlancer.dbms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import org.junit.jupiter.api.Test;
@@ -133,6 +134,36 @@ public class TestClickHouse {
                 Main.executeMain("--log-each-select", "true", "--print-failed", "false", "--timeout-seconds", "60",
                         "--num-queries", TestConfig.NUM_QUERIES, "--num-threads", "1", "--username", "default",
                         "--password", "", "--database-prefix", "T14_", "clickhouse", "--oracle", "NoREC"));
+    }
+
+    @Test
+    public void testClickHouseSEMR() {
+        assumeTrue(TestConfig.isEnvironmentTrue(TestConfig.CLICKHOUSE_ENV));
+        assertEquals(0,
+                Main.executeMain("--log-each-select", "true", "--print-failed", "false", "--timeout-seconds", "60",
+                        "--num-queries", TestConfig.NUM_QUERIES, "--num-threads", "1", "--username", "default",
+                        "--password", "", "--database-prefix", "T15_", "clickhouse", "--oracle", "SEMR"));
+    }
+
+    @Test
+    public void testClickHouseTLPDistinctWithRandomSessionSettings() {
+        assumeTrue(TestConfig.isEnvironmentTrue(TestConfig.CLICKHOUSE_ENV));
+        assertEquals(0,
+                Main.executeMain("--log-each-select", "true", "--print-failed", "false", "--timeout-seconds", "60",
+                        "--num-queries", TestConfig.NUM_QUERIES, "--num-threads", "5", "--username", "default",
+                        "--password", "", "--database-prefix", "T16_", "clickhouse", "--oracle", "TLPDistinct",
+                        "--random-session-settings", "true", "--random-session-settings-budget", "3"));
+    }
+
+    @Test
+    public void testClickHouseMutuallyExclusive() {
+        assumeTrue(TestConfig.isEnvironmentTrue(TestConfig.CLICKHOUSE_ENV));
+        // Inversion: this test asserts the run rejects the incompatible flag combination before
+        // any thread spawns. A return of 0 would mean the mutual-exclusion pre-flight gate is gone.
+        assertNotEquals(0,
+                Main.executeMain("--timeout-seconds", "60", "--num-queries", TestConfig.NUM_QUERIES, "--num-threads",
+                        "1", "--username", "default", "--password", "", "--database-prefix", "T17_", "clickhouse",
+                        "--oracle", "SEMR", "--random-session-settings", "true"));
     }
 
 }

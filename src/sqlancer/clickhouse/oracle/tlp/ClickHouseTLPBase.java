@@ -30,7 +30,7 @@ public class ClickHouseTLPBase extends TernaryLogicPartitioningOracleBase<ClickH
     ClickHouseSchema schema;
     List<ClickHouseColumnReference> columns;
     ClickHouseExpressionGenerator gen;
-    ClickHouseSelect select;
+    protected ClickHouseSelect select;
 
     public ClickHouseTLPBase(ClickHouseGlobalState state) {
         super(state);

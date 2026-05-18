@@ -79,8 +79,7 @@ public final class ClickHouseErrors {
                 // Fired when an ORDER BY / PARTITION BY / SAMPLE BY expression references a Nullable
                 // column without `allow_nullable_key=1`. ClickHouseTableGenerator now sets this in
                 // the MergeTree SETTINGS clause, but the catalog entry stays as a defense net.
-                "Partition key contains nullable columns",
-                "Sorting key contains nullable columns",
+                "Partition key contains nullable columns", "Sorting key contains nullable columns",
                 "allow_nullable_key",
                 // INSERTs into a column with a MATERIALIZED clause whose dependency column wasn't
                 // provided -- ClickHouse plugs NULL and the cast to a non-Nullable target fails.
@@ -91,6 +90,23 @@ public final class ClickHouseErrors {
 
     public static void addExpectedExpressionErrors(ExpectedErrors errors) {
         errors.addAll(getExpectedExpressionErrors());
+    }
+
+    // Substring patterns for setting-validation errors raised either by SEMR's per-query
+    // SETTINGS suffix or by random-session-settings SET-on-connect. The patterns are deliberately
+    // multi-word to avoid masking unrelated bugs: a bare "Setting" token would match many
+    // unrelated ClickHouse messages (read-only-setting rejections, suggestion lines, echoed
+    // SETTINGS clauses in error context) and would silently absorb real findings.
+    public static List<String> getSessionSettingsErrors() {
+        return List.of("Unknown setting", // catalog drift: name not present in this version
+                "is neither a builtin setting nor a custom setting", // same, alt message
+                "Cannot parse setting value", // candidate value rejected as malformed
+                "Setting value out of range", // multi-word form; not the bare "out of range"
+                "UNKNOWN_SETTING"); // ClickHouse error code label
+    }
+
+    public static void addSessionSettingsErrors(ExpectedErrors errors) {
+        errors.addAll(getSessionSettingsErrors());
     }
 
 }

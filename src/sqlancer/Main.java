@@ -25,6 +25,8 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.JCommander.Builder;
 
 import sqlancer.citus.CitusProvider;
+import sqlancer.clickhouse.ClickHouseOptions;
+import sqlancer.clickhouse.ClickHouseOracleFactory;
 import sqlancer.clickhouse.ClickHouseProvider;
 import sqlancer.cockroachdb.CockroachDBProvider;
 import sqlancer.common.log.Loggable;
@@ -593,6 +595,20 @@ public final class Main {
 
         if (jc.getParsedCommand() == null || options.isHelp()) {
             jc.usage();
+            return options.getErrorExitCode();
+        }
+
+        // ClickHouse pre-flight: --random-session-settings and --oracle SEMR are mutually exclusive
+        // in a single run. SEMR varies one setting per check() via a per-query SETTINGS suffix; the
+        // randomization layer applies a chosen profile once at connect time and inherits across all
+        // oracles. Mixing them in one run would silently mask SEMR's failure attribution. Catch the
+        // combination once here, before the thread pool spawns, so the operator sees one clear
+        // message instead of N per-thread stack traces and N reproducer artifacts under logs/.
+        Object parsedCommand = nameToProvider.get(jc.getParsedCommand()).getCommand();
+        if (parsedCommand instanceof ClickHouseOptions chOptions && chOptions.randomSessionSettings
+                && chOptions.oracle.contains(ClickHouseOracleFactory.SEMR)) {
+            System.err.println("--random-session-settings true is incompatible with --oracle SEMR. "
+                    + "Drop --random-session-settings true for SEMR runs, or remove --oracle SEMR.");
             return options.getErrorExitCode();
         }
 

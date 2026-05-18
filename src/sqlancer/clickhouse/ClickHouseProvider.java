@@ -4,6 +4,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.google.auto.service.AutoService;
@@ -150,7 +152,46 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
                 String.format("jdbc:clickhouse://%s:%d/%s?socket_timeout=300000%s%s", host, port, databaseName,
                         clickHouseOptions.enableAnalyzer ? "&allow_experimental_analyzer=1" : "", lcExtra),
                 globalState.getOptions().getUserName(), globalState.getOptions().getPassword());
+        if (clickHouseOptions.randomSessionSettings) {
+            applyRandomSessionSettings(globalState, clickHouseOptions, con);
+        }
         return new SQLConnection(con);
+    }
+
+    private static void applyRandomSessionSettings(ClickHouseGlobalState globalState,
+            ClickHouseOptions clickHouseOptions, Connection con) throws SQLException {
+        LinkedHashMap<String, String> profile = ClickHouseSessionSettings.pickRandomProfile(globalState.getRandomly(),
+                clickHouseOptions.randomSessionSettingsBudget);
+        int attempted = 0;
+        int accepted = 0;
+        for (Map.Entry<String, String> entry : profile.entrySet()) {
+            String stmt = "SET " + entry.getKey() + " = " + entry.getValue();
+            globalState.getState().logStatement(stmt);
+            attempted++;
+            try (Statement s = con.createStatement()) {
+                s.execute(stmt);
+                accepted++;
+            } catch (SQLException e) {
+                // Absorb catalog-drift errors -- unknown setting / bad value -- so a stale catalog
+                // surfaces in the M/N summary rather than as an oracle failure. Genuine connection
+                // problems propagate.
+                String msg = e.getMessage();
+                if (msg == null || !isExpectedSessionSettingError(msg)) {
+                    throw e;
+                }
+            }
+        }
+        globalState.getState()
+                .logStatement(String.format("-- session-settings applied: %d of %d", accepted, attempted));
+    }
+
+    private static boolean isExpectedSessionSettingError(String msg) {
+        for (String pattern : ClickHouseErrors.getSessionSettingsErrors()) {
+            if (msg.contains(pattern)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
