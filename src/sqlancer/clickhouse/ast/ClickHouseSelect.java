@@ -13,6 +13,14 @@ public class ClickHouseSelect extends ClickHouseExpression implements
 
     private ClickHouseSelect.SelectType fromOptions = ClickHouseSelect.SelectType.ALL;
     private List<ClickHouseExpression> fromClauses;
+    /**
+     * Optional {@code PREWHERE} clause -- ClickHouse-specific, emitted before {@code WHERE} and binding only to columns
+     * physically read from the base table. The split between {@code PREWHERE} and {@code WHERE} is not redundant: the
+     * regression family around the query-condition cache (ClickHouse#104781) is sensitive to where each predicate
+     * lives, so the generator emits this independently of {@code WHERE} rather than relying on the server's
+     * {@code optimize_move_to_prewhere} rewrite.
+     */
+    private ClickHouseExpression prewhereClause;
     private ClickHouseExpression whereClause;
     private List<ClickHouseExpression> groupByClause = Collections.emptyList();
     private ClickHouseExpression limitClause;
@@ -29,6 +37,13 @@ public class ClickHouseSelect extends ClickHouseExpression implements
      */
     private List<ClickHouseExpression> arrayJoinExprs = Collections.emptyList();
     private boolean arrayJoinLeft;
+    /**
+     * If true, the rendered SELECT applies the {@code FINAL} modifier to the FROM table. Only valid for MergeTree-family
+     * engines; the table generator only emits MergeTree-family tables so this is unconditionally safe in the current
+     * generator. FINAL forces merge-on-read deduplication, which exercises a separate code path through
+     * skip-indexes, PREWHERE, row-policy, and lazy-materialization (see #97076, #98097, #91847).
+     */
+    private boolean isFinal;
 
     public enum SelectType {
         DISTINCT, ALL;
@@ -63,6 +78,14 @@ public class ClickHouseSelect extends ClickHouseExpression implements
     @Override
     public void setWhereClause(ClickHouseExpression whereClause) {
         this.whereClause = whereClause;
+    }
+
+    public ClickHouseExpression getPrewhereClause() {
+        return prewhereClause;
+    }
+
+    public void setPrewhereClause(ClickHouseExpression prewhereClause) {
+        this.prewhereClause = prewhereClause;
     }
 
     @Override
@@ -160,5 +183,13 @@ public class ClickHouseSelect extends ClickHouseExpression implements
 
     public void setArrayJoinLeft(boolean arrayJoinLeft) {
         this.arrayJoinLeft = arrayJoinLeft;
+    }
+
+    public boolean isFinal() {
+        return isFinal;
+    }
+
+    public void setFinal(boolean isFinal) {
+        this.isFinal = isFinal;
     }
 }

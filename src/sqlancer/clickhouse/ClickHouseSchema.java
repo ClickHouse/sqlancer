@@ -219,20 +219,55 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
     public static class ClickHouseTable
             extends AbstractRelationalTable<ClickHouseColumn, TableIndex, ClickHouseGlobalState> {
 
+        /**
+         * Engine name as returned by {@code system.tables.engine} (e.g. {@code MergeTree},
+         * {@code ReplacingMergeTree}, {@code View}). Used by oracles to gate engine-specific query shapes: {@code FINAL}
+         * is rejected by plain {@code MergeTree} but accepted by Replacing/Summing/Aggregating variants, so emitting
+         * FINAL blindly poisons iterations against plain MergeTree tables.
+         *
+         * <p>
+         * Empty string when the engine could not be discovered (legacy or stripped catalog response). Callers treat
+         * empty as "do not emit engine-specific shapes" to fail closed.
+         */
+        private final String engine;
+
         public ClickHouseTable(String tableName, List<ClickHouseColumn> columns, List<TableIndex> indexes,
                 boolean isView) {
+            this(tableName, columns, indexes, isView, "");
+        }
+
+        public ClickHouseTable(String tableName, List<ClickHouseColumn> columns, List<TableIndex> indexes,
+                boolean isView, String engine) {
             super(tableName, columns, indexes, isView);
+            this.engine = engine == null ? "" : engine;
+        }
+
+        public String getEngine() {
+            return engine;
+        }
+
+        /**
+         * True for engines that accept the {@code FINAL} modifier in a SELECT. Plain {@code MergeTree} does not -- it
+         * raises {@code ILLEGAL_FINAL} -- so this method returns false for it even though MergeTree is in the same
+         * engine family.
+         */
+        public boolean supportsFinal() {
+            return engine.equals("ReplacingMergeTree") || engine.equals("SummingMergeTree")
+                    || engine.equals("AggregatingMergeTree") || engine.equals("CollapsingMergeTree")
+                    || engine.equals("VersionedCollapsingMergeTree");
         }
     }
 
     public static ClickHouseSchema fromConnection(SQLConnection con, String databaseName) throws SQLException {
         List<ClickHouseTable> databaseTables = new ArrayList<>();
         List<String> tableNames = getTableNames(con);
+        java.util.Map<String, String> engineByName = getTableEngines(con, databaseName);
         for (String tableName : tableNames) {
             List<ClickHouseColumn> databaseColumns = getTableColumns(con, tableName);
             List<TableIndex> indexes = Collections.emptyList();
             boolean isView = matchesViewName(tableName);
-            ClickHouseTable t = new ClickHouseTable(tableName, databaseColumns, indexes, isView);
+            String engine = engineByName.getOrDefault(tableName, "");
+            ClickHouseTable t = new ClickHouseTable(tableName, databaseColumns, indexes, isView, engine);
             for (ClickHouseColumn c : databaseColumns) {
                 c.setTable(t);
             }
@@ -240,6 +275,24 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
 
         }
         return new ClickHouseSchema(databaseTables);
+    }
+
+    // Pulls engine names for every table in the database in one round trip. Missing entries (e.g.
+    // a table that was just dropped between SHOW TABLES and this call) map to empty string -- the
+    // table object then refuses to opt in to engine-specific shapes via supportsFinal().
+    private static java.util.Map<String, String> getTableEngines(SQLConnection con, String databaseName)
+            throws SQLException {
+        java.util.Map<String, String> engines = new java.util.HashMap<>();
+        try (Statement s = con.createStatement()) {
+            String q = "SELECT name, engine FROM system.tables WHERE database = '" + databaseName.replace("'", "''")
+                    + "'";
+            try (ResultSet rs = s.executeQuery(q)) {
+                while (rs.next()) {
+                    engines.put(rs.getString(1), rs.getString(2));
+                }
+            }
+        }
+        return engines;
     }
 
     private static List<String> getTableNames(SQLConnection con) throws SQLException {

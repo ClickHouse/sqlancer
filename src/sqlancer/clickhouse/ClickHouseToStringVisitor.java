@@ -81,6 +81,13 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
             sb.append(" FROM ");
             visit(fromList);
         }
+        // FINAL binds to the FROM table and precedes JOIN/PREWHERE/WHERE per ClickHouse grammar.
+        // The select object's FINAL flag is only set when the table is a MergeTree-family engine
+        // (the only family the table generator emits); plain MergeTree with no version column
+        // accepts FINAL as a no-op deduplication step.
+        if (select.isFinal()) {
+            sb.append(" FINAL");
+        }
         // ARRAY JOIN binds to the table before any regular JOIN per ClickHouse grammar. Default-empty;
         // the generator never populates this field until type-system v2 introduces Array columns.
         List<ClickHouseExpression> arrayJoinExprs = select.getArrayJoinExprs();
@@ -93,6 +100,14 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
             for (ClickHouseExpression.ClickHouseJoin join : joins) {
                 visit(join);
             }
+        }
+        // PREWHERE is ClickHouse-specific and is grammatically required to appear before WHERE. It
+        // is meaningfully distinct from WHERE -- see ClickHouseSelect#prewhereClause for why we
+        // generate it independently rather than relying on the server's optimize_move_to_prewhere
+        // rewrite.
+        if (select.getPrewhereClause() != null) {
+            sb.append(" PREWHERE ");
+            visit(select.getPrewhereClause());
         }
         if (select.getWhereClause() != null) {
             sb.append(" WHERE ");

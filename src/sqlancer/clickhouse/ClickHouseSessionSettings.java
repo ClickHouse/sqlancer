@@ -11,12 +11,19 @@ public final class ClickHouseSessionSettings {
     private ClickHouseSessionSettings() {
     }
 
-    // Optimizer-rewrite settings that SHOULD be result-preserving. The SEMR oracle
-    // toggles each entry between "0" and "1" and asserts multiset equality of the
-    // base SELECT. Entries hardcoded by other oracles (enable_optimize_predicate_expression
-    // and aggregate_functions_null_for_empty -- see ClickHouseTLPHavingOracle.java:42
-    // and ClickHouseTLPAggregateOracle.java:42) are intentionally excluded to keep
-    // failure attribution clean when SEMR composes with those oracles.
+    // Optimizer-rewrite and runtime-cache settings that SHOULD be result-preserving. The SEMR oracle
+    // toggles each entry between "0" and "1" and asserts multiset equality of the base SELECT.
+    // Entries hardcoded by other oracles (enable_optimize_predicate_expression and
+    // aggregate_functions_null_for_empty -- see ClickHouseTLPHavingOracle.java:42 and
+    // ClickHouseTLPAggregateOracle.java:42) are intentionally excluded to keep failure attribution
+    // clean when SEMR composes with those oracles.
+    //
+    // Runtime/cache entries (use_query_condition_cache, use_skip_indexes_on_data_read,
+    // use_index_for_in_with_subqueries, optimize_use_implicit_projections) are included because
+    // bugs in those code paths are exactly the kind of cross-query-state issue that ClickHouse
+    // issue #104781 exposed -- toggling them must not change any single-query result, and a SEMR
+    // failure here is the cheapest local signal that the cache or skip-index path is poisoning
+    // results.
     public static final List<String> SEMR_SETTINGS = List.of(
             // MergeTree-only: pushdown of WHERE into PREWHERE
             "optimize_move_to_prewhere",
@@ -27,7 +34,39 @@ public final class ClickHouseSessionSettings {
             // boolean-normalization rewrite of WHERE
             "convert_query_to_cnf",
             // query-plan-level filter pushdown
-            "query_plan_filter_push_down");
+            "query_plan_filter_push_down",
+            // query-condition cache toggle. Default on in 26.x; the regression family that issue
+            // #104781 belongs to (silent under-counts after a poisoned cache entry) is exactly
+            // this knob. SEMR catches the single-query manifestation; the QccCache oracle catches
+            // the cross-query manifestation.
+            "use_query_condition_cache",
+            // read-time skip-index analysis (#81526, default on per #93407 in 26.x). Sister knob
+            // to the query-condition cache -- co-implicated in the reporter's own bisect path.
+            "use_skip_indexes_on_data_read",
+            // build a set from an IN-with-subquery for skip-index pruning. Result must be invariant.
+            "use_index_for_in_with_subqueries",
+            // implicit projections (sum/count/min/max on PK prefix). Result must be invariant.
+            "optimize_use_implicit_projections",
+            // NULL-semantics flip in IN: documented to preserve result equivalence between
+            // `x IN (..., NULL)` and `x IN (...)`. Regression #95674 -- result-affecting NULL
+            // mishandling -- is exactly what SEMR is positioned to catch.
+            "transform_null_in",
+            // RIGHT-JOIN late column reads. Regression #94339 (wrong RIGHT JOIN result with this
+            // setting on) shows the analyzer + replication interaction is exactly setting-poisoned.
+            "lazy_columns_replication",
+            // JIT compilation of scalar expressions. The 26.4-26.5 cluster of JIT-Decimal bugs
+            // (#103809, #105054) is a hot regression area; toggling between JIT and interpreter
+            // surfaces compiled-vs-interpreted divergence as a SEMR failure rather than relying on
+            // workload-driven discovery. Note: also present in RANDOM_SESSION_SETTINGS for the
+            // execution-mode picker, but SEMR's per-query comparison is what asserts equivalence.
+            "compile_expressions",
+            "compile_aggregate_expressions",
+            // Aggregator constant-folding over GROUP BY keys. Result must be invariant; included
+            // pre-emptively for the same family of analyzer-bound rewrites as #94339.
+            "optimize_aggregators_of_group_by_keys",
+            // Trivial count(*) -> read part rows. The optimized-trivial-count code path was the
+            // home of #100794 (wrong AggregateFunction type signature with mixed integer widths).
+            "optimize_trivial_count_query");
 
     // Execution-mode settings the random-session-settings layer may apply via
     // SET k = v at connect time. Each entry has discrete candidate values picked

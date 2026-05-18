@@ -1,5 +1,6 @@
 package sqlancer.clickhouse.gen;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -558,7 +559,24 @@ public class ClickHouseExpressionGenerator
 
     @Override
     public ClickHouseExpression generatePredicate() {
-        return generateExpressionWithColumns(columnRefs, 3);
+        ClickHouseExpression base = generateExpressionWithColumns(columnRefs, 3);
+        // Occasionally fold a bare large-integer literal into the predicate as a top-level AND
+        // conjunct: e.g. `expr AND 2147483648`. ClickHouse promotes the integer to a boolean as
+        // "non-zero". Regression #101287 (`WHERE 2147483648 > b AND 2147483648` incorrectly
+        // returning 0) shows the code path that promotes non-UInt8 integer constants to filter
+        // truth values is bug-prone; emitting the shape from the generator makes TLP / SEMR
+        // exercise that path uniformly. Probability is small because every emission shrinks the
+        // covered surface of the underlying random predicate -- this is an additive surface, not
+        // a replacement one.
+        if (Randomly.getBooleanWithRatherLowProbability()) {
+            // Span the integer-width transition boundaries the bug class lives near: <= UInt8 max,
+            // <= Int32 max, > Int32 max (forces Int64 widening on the comparison path).
+            long lit = Randomly.fromOptions(256L, 65536L, 2147483648L);
+            ClickHouseExpression literal = ClickHouseCreateConstant.createInt64Constant(BigInteger.valueOf(lit));
+            return new ClickHouseBinaryLogicalOperation(base, literal,
+                    ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
+        }
+        return base;
     }
 
     @Override
