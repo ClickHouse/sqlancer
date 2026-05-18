@@ -144,27 +144,36 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
             e.printStackTrace();
         }
         con.close();
-        // Enable LowCardinality wrappers around numeric/Date inner types; ClickHouse rejects these
-        // by default as SUSPICIOUS_TYPE_FOR_LOW_CARDINALITY. The v1 type-system foundation
-        // deliberately exercises this combination.
-        String lcExtra = clickHouseOptions.enableLowCardinality ? "&allow_suspicious_low_cardinality_types=1" : "";
-        // max_execution_time=120 caps server-side query execution at 120s; without this, occasional
-        // heavyweight random queries hit the 300s socket_timeout below and produce ambiguous client-side
-        // timeout exceptions (observed in the 2026-05-18 baseline: 3 such timeouts in 15 min). The
-        // server-side cap surfaces as a clean TIMEOUT_EXCEEDED error that ClickHouseErrors absorbs.
+        // Server-level ClickHouse settings are passed via the `clickhouse_setting_<name>` prefix.
+        // (Prior to clickhouse-jdbc 0.9.8 unknown URL params were silently forwarded; 0.9.8 rejects
+        // anything that isn't either a driver config key or prefixed as a server setting.)
         //
-        // compress=false disables LZ4 response compression. clickhouse-jdbc 0.9.6 has a defect in
-        // its LZ4-over-chunked-HTTP decoder (ClickHouseLZ4InputStream + Apache HC ChunkedInputStream
-        // interaction) that surfaces as `MalformedChunkCodingException: CRLF expected at end of chunk`,
-        // wrapped at the JDBC layer as `SQLException: Failed to read value for column …`. Observed
-        // 16 times in the 2026-05-18 15-min baseline (0.33% per-query rate). With compression off
-        // the buggy code path is bypassed entirely (the response stream is the raw chunked HTTP body,
-        // no LZ4 frame parsing). Cost: responses ~3x larger on the wire, but SQLancer's queries are
-        // small and the connection is loopback, so net throughput is unaffected.
+        // - allow_suspicious_low_cardinality_types=1: enables LowCardinality wrappers around
+        //   numeric/Date inner types that ClickHouse otherwise rejects as
+        //   SUSPICIOUS_TYPE_FOR_LOW_CARDINALITY. The v1 type-system foundation deliberately
+        //   exercises this combination.
+        // - allow_experimental_analyzer=1: opt in to the new ClickHouse analyzer.
+        // - max_execution_time=120: caps server-side query execution at 120s; without this,
+        //   occasional heavyweight random queries hit the 300s socket_timeout and produce
+        //   ambiguous client-side timeout exceptions (3 observed in the 2026-05-18 baseline).
+        //   The cap surfaces as a clean TIMEOUT_EXCEEDED error that ClickHouseErrors absorbs.
+        String lcExtra = clickHouseOptions.enableLowCardinality
+                ? "&clickhouse_setting_allow_suspicious_low_cardinality_types=1" : "";
+        String analyzerExtra = clickHouseOptions.enableAnalyzer
+                ? "&clickhouse_setting_allow_experimental_analyzer=1" : "";
+        // compress=false disables LZ4 response compression. clickhouse-jdbc 0.9.6/0.9.8 share a
+        // defect in their LZ4-over-chunked-HTTP decoder (ClickHouseLZ4InputStream + Apache HC
+        // ChunkedInputStream interaction) — verified byte-identical between the two versions —
+        // surfacing as `MalformedChunkCodingException: CRLF expected at end of chunk`, wrapped
+        // at the JDBC layer as `SQLException: Failed to read value for column …`. Observed 16
+        // times in the 2026-05-18 15-min baseline (0.33% per-query rate). With compression off
+        // the buggy code path is bypassed entirely (the response stream is the raw chunked HTTP
+        // body, no LZ4 frame parsing). Cost: responses ~3x larger on the wire, but SQLancer's
+        // queries are small and the connection is loopback, so net throughput is unaffected.
         con = DriverManager.getConnection(
-                String.format("jdbc:clickhouse://%s:%d/%s?socket_timeout=300000&max_execution_time=120&compress=false%s%s",
-                        host, port, databaseName,
-                        clickHouseOptions.enableAnalyzer ? "&allow_experimental_analyzer=1" : "", lcExtra),
+                String.format("jdbc:clickhouse://%s:%d/%s?socket_timeout=300000&compress=false"
+                        + "&clickhouse_setting_max_execution_time=120%s%s",
+                        host, port, databaseName, analyzerExtra, lcExtra),
                 globalState.getOptions().getUserName(), globalState.getOptions().getPassword());
         if (clickHouseOptions.randomSessionSettings) {
             applyRandomSessionSettings(globalState, clickHouseOptions, con);
