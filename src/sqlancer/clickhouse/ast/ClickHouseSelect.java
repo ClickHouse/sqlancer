@@ -21,6 +21,14 @@ public class ClickHouseSelect extends ClickHouseExpression implements
     private List<ClickHouseExpression> fetchColumns = Collections.emptyList();
     private List<ClickHouseExpression.ClickHouseJoin> joinStatements = Collections.emptyList();
     private ClickHouseExpression havingClause;
+    /**
+     * Expressions for the optional {@code ARRAY JOIN} clause, emitted between FROM and any regular JOIN clauses per
+     * ClickHouse grammar. Default empty -- the visitor emits nothing when this list is empty. Activation is blocked on
+     * type-system v2 introducing an {@code Array(T)} constructor; the field exists now so the v2 work can flip
+     * {@code --test-array-join} on without re-touching the select AST.
+     */
+    private List<ClickHouseExpression> arrayJoinExprs = Collections.emptyList();
+    private boolean arrayJoinLeft;
 
     public enum SelectType {
         DISTINCT, ALL;
@@ -136,5 +144,21 @@ public class ClickHouseSelect extends ClickHouseExpression implements
     @Override
     public void setFromList(List<ClickHouseExpression> fromList) {
         this.fromClauses = fromList;
+    }
+
+    public List<ClickHouseExpression> getArrayJoinExprs() {
+        return arrayJoinExprs;
+    }
+
+    public void setArrayJoinExprs(List<ClickHouseExpression> arrayJoinExprs) {
+        this.arrayJoinExprs = arrayJoinExprs == null ? Collections.emptyList() : arrayJoinExprs;
+    }
+
+    public boolean isArrayJoinLeft() {
+        return arrayJoinLeft;
+    }
+
+    public void setArrayJoinLeft(boolean arrayJoinLeft) {
+        this.arrayJoinLeft = arrayJoinLeft;
     }
 }

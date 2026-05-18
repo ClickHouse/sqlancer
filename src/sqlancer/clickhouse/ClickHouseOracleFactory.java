@@ -11,9 +11,11 @@ import sqlancer.clickhouse.oracle.eet.ClickHouseEETOracle;
 import sqlancer.clickhouse.oracle.pqs.ClickHousePivotedQuerySynthesisOracle;
 import sqlancer.clickhouse.oracle.semr.ClickHouseSEMROracle;
 import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPAggregateOracle;
+import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPCombinatorOracle;
 import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPDistinctOracle;
 import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPGroupByOracle;
 import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPHavingOracle;
+import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPSetOpOracle;
 import sqlancer.common.oracle.NoRECOracle;
 import sqlancer.common.oracle.TLPWhereOracle;
 import sqlancer.common.oracle.TestOracle;
@@ -92,6 +94,18 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseEETOracle(globalState);
+        }
+    },
+    SetOpTLP {
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseTLPSetOpOracle(globalState);
+        }
+    },
+    CombinatorTLP {
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseTLPCombinatorOracle(globalState);
         }
     }
 }

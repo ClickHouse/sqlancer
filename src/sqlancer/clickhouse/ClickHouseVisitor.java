@@ -10,6 +10,7 @@ import sqlancer.clickhouse.ast.ClickHouseColumnReference;
 import sqlancer.clickhouse.ast.ClickHouseConstant;
 import sqlancer.clickhouse.ast.ClickHouseExpression;
 import sqlancer.clickhouse.ast.ClickHouseSelect;
+import sqlancer.clickhouse.ast.ClickHouseSetOperation;
 import sqlancer.clickhouse.ast.ClickHouseTableReference;
 import sqlancer.clickhouse.ast.ClickHouseUnaryPostfixOperation;
 import sqlancer.clickhouse.ast.ClickHouseUnaryPrefixOperation;
@@ -38,6 +39,10 @@ public interface ClickHouseVisitor {
     }
 
     default void visit(ClickHouseSelect s, boolean inner) {
+
+    };
+
+    default void visit(ClickHouseSetOperation s, boolean inner) {
 
     };
 
@@ -74,6 +79,8 @@ public interface ClickHouseVisitor {
             visit((ClickHouseUnaryPrefixOperation) expr);
         } else if (expr instanceof ClickHouseSelect) {
             visit((ClickHouseSelect) expr, true);
+        } else if (expr instanceof ClickHouseSetOperation) {
+            visit((ClickHouseSetOperation) expr, true);
         } else if (expr instanceof ClickHouseColumnReference) {
             visit((ClickHouseColumnReference) expr);
         } else if (expr instanceof ClickHouseTableReference) {
@@ -102,6 +109,8 @@ public interface ClickHouseVisitor {
         ClickHouseToStringVisitor visitor = new ClickHouseToStringVisitor();
         if (expr instanceof ClickHouseSelect) {
             visitor.visit((ClickHouseSelect) expr, false);
+        } else if (expr instanceof ClickHouseSetOperation) {
+            visitor.visit((ClickHouseSetOperation) expr, false);
         } else {
             visitor.visit(expr);
         }

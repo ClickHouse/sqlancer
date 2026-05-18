@@ -3,6 +3,7 @@ package sqlancer.clickhouse;
 import java.util.List;
 
 import sqlancer.clickhouse.ast.ClickHouseAggregate;
+import sqlancer.clickhouse.ast.ClickHouseAggregateCombinator;
 import sqlancer.clickhouse.ast.ClickHouseAliasOperation;
 import sqlancer.clickhouse.ast.ClickHouseBinaryFunctionOperation;
 import sqlancer.clickhouse.ast.ClickHouseBinaryLogicalOperation;
@@ -11,6 +12,7 @@ import sqlancer.clickhouse.ast.ClickHouseColumnReference;
 import sqlancer.clickhouse.ast.ClickHouseConstant;
 import sqlancer.clickhouse.ast.ClickHouseExpression;
 import sqlancer.clickhouse.ast.ClickHouseSelect;
+import sqlancer.clickhouse.ast.ClickHouseSetOperation;
 import sqlancer.clickhouse.ast.ClickHouseTableReference;
 import sqlancer.clickhouse.ast.ClickHouseUnaryPostfixOperation;
 import sqlancer.clickhouse.ast.ClickHouseUnaryPrefixOperation;
@@ -79,6 +81,13 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
             sb.append(" FROM ");
             visit(fromList);
         }
+        // ARRAY JOIN binds to the table before any regular JOIN per ClickHouse grammar. Default-empty;
+        // the generator never populates this field until type-system v2 introduces Array columns.
+        List<ClickHouseExpression> arrayJoinExprs = select.getArrayJoinExprs();
+        if (!arrayJoinExprs.isEmpty()) {
+            sb.append(select.isArrayJoinLeft() ? " LEFT ARRAY JOIN " : " ARRAY JOIN ");
+            visit(arrayJoinExprs);
+        }
         List<ClickHouseExpression.ClickHouseJoin> joins = select.getJoinClauses();
         if (!joins.isEmpty()) {
             for (ClickHouseExpression.ClickHouseJoin join : joins) {
@@ -107,6 +116,31 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
     }
 
     @Override
+    public void visit(ClickHouseSetOperation setOp, boolean inner) {
+        if (inner) {
+            sb.append("(");
+        }
+        renderSetOpChild(setOp.getLeft());
+        sb.append(" ");
+        sb.append(setOp.getOp().getKeyword());
+        sb.append(" ");
+        renderSetOpChild(setOp.getRight());
+        if (inner) {
+            sb.append(")");
+        }
+    }
+
+    private void renderSetOpChild(ClickHouseExpression child) {
+        if (child instanceof ClickHouseSelect) {
+            visit((ClickHouseSelect) child, false);
+        } else if (child instanceof ClickHouseSetOperation) {
+            visit((ClickHouseSetOperation) child, true);
+        } else {
+            visit(child);
+        }
+    }
+
+    @Override
     public void visit(ClickHouseTableReference tableReference) {
         sb.append(tableReference.getTable().getName()); // Original name, not alias.
         String alias = tableReference.getAlias();
@@ -118,9 +152,33 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
 
     @Override
     public void visit(ClickHouseAggregate aggregate) {
-        sb.append(aggregate.getFunc());
+        List<ClickHouseAggregateCombinator> chain = aggregate.getChain();
+        if (chain.isEmpty()) {
+            // Backward-compatible plain-aggregate rendering: keep the enum's upper-case toString
+            // so existing oracles that pattern-match on `SUM(...)` etc. remain unaffected.
+            sb.append(aggregate.getFunc());
+            sb.append("(");
+            visit(aggregate.getExpr());
+            sb.append(")");
+            return;
+        }
+        // Combinator-chain rendering: fold the suffixes into the function name (lower-cased base
+        // because ClickHouse's combinator-token convention is camelCase like `sumIf`), then emit
+        // the expression and each combinator's extra args in declaration order inside one paren
+        // group. ClickHouse is case-insensitive on the base function name; lower-case is the
+        // documented convention for chained forms.
+        sb.append(aggregate.getFunc().name().toLowerCase());
+        for (ClickHouseAggregateCombinator combinator : chain) {
+            sb.append(combinator.getSuffix().getTextual());
+        }
         sb.append("(");
         visit(aggregate.getExpr());
+        for (ClickHouseAggregateCombinator combinator : chain) {
+            for (ClickHouseExpression extra : combinator.getExtraArgs()) {
+                sb.append(", ");
+                visit(extra);
+            }
+        }
         sb.append(")");
     }
 

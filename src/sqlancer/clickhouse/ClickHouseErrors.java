@@ -118,4 +118,44 @@ public final class ClickHouseErrors {
         errors.addAll(getSessionSettingsErrors());
     }
 
+    // Substring patterns specific to set-operation queries (UNION ALL / UNION DISTINCT / INTERSECT / EXCEPT).
+    // Multi-word per the institutional convention: a bare "columns" or "type" would mask far too many
+    // unrelated errors. Refined empirically; the startup-probe path catches UNKNOWN_SETTING separately,
+    // which is intentionally NOT in this list so setting-name drift remains visible to future audits.
+    public static List<String> getSetOpErrors() {
+        return List.of("Number of columns doesn't match", "Cannot find common type for tuple elements",
+                "INCOMPATIBLE_COLUMNS", "Type mismatch in IN or VALUES section",
+                "Column number mismatch in subqueries of intersect/except");
+    }
+
+    public static void addSetOpErrors(ExpectedErrors errors) {
+        errors.addAll(getSetOpErrors());
+    }
+
+    // Substring patterns specific to aggregate-combinator emission. ClickHouse rejects ill-typed
+    // combinator chains with messages from this family; the empirical-discovery convention keeps
+    // entries multi-word so they don't absorb unrelated "function" or "aggregate" errors.
+    public static List<String> getCombinatorErrors() {
+        return List.of("Unknown aggregate function", "NUMBER_OF_ARGUMENTS_DOESNT_MATCH",
+                "Combinator is only applicable for aggregate function", "is only applicable for aggregate functions",
+                "Aggregate function is not implemented for", "Cannot apply combinator", "AGGREGATE_FUNCTION_THROW",
+                "Nested type for combinator", "Illegal type for argument", "Illegal types of arguments");
+    }
+
+    public static void addCombinatorErrors(ExpectedErrors errors) {
+        errors.addAll(getCombinatorErrors());
+    }
+
+    // Substring patterns for ARRAY JOIN. The structural plumbing in this PR does not yet emit
+    // ARRAY JOIN -- these substrings exist for the future activation when Array column generation
+    // lands. Kept here so the catalog grows additively rather than in a future surprise change.
+    public static List<String> getArrayJoinErrors() {
+        return List.of("Cannot ARRAY JOIN", "ARRAY JOIN requires array argument",
+                "ILLEGAL_TYPE_OF_ARGUMENT_FOR_ARRAY_JOIN");
+    }
+
+    public static void addArrayJoinErrors(ExpectedErrors errors) {
+        errors.addAll(getArrayJoinErrors());
+    }
+
 }

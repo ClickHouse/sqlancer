@@ -1,6 +1,7 @@
 package sqlancer.clickhouse.ast;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -13,6 +14,11 @@ public class ClickHouseAggregate extends ClickHouseExpression {
 
     private final ClickHouseAggregate.ClickHouseAggregateFunction func;
     private final ClickHouseExpression expr;
+    /**
+     * Combinator chain in source order; empty when the aggregate is plain (e.g., {@code SUM(x)}). Non-empty chains
+     * render as {@code <funcName><Suffix1><Suffix2>(expr, extraArgsSuffix1.., extraArgsSuffix2..)}.
+     */
+    private final List<ClickHouseAggregateCombinator> chain;
 
     public enum ClickHouseAggregateFunction {
         AVG(ClickHouseDataType.Int8, ClickHouseDataType.Int16, ClickHouseDataType.Int32, ClickHouseDataType.Int64,
@@ -66,8 +72,14 @@ public class ClickHouseAggregate extends ClickHouseExpression {
     }
 
     public ClickHouseAggregate(ClickHouseExpression expr, ClickHouseAggregateFunction func) {
+        this(expr, func, Collections.emptyList());
+    }
+
+    public ClickHouseAggregate(ClickHouseExpression expr, ClickHouseAggregateFunction func,
+            List<ClickHouseAggregateCombinator> chain) {
         this.expr = expr;
         this.func = func;
+        this.chain = chain == null ? Collections.emptyList() : List.copyOf(chain);
     }
 
     public ClickHouseAggregate.ClickHouseAggregateFunction getFunc() {
@@ -76,6 +88,10 @@ public class ClickHouseAggregate extends ClickHouseExpression {
 
     public ClickHouseExpression getExpr() {
         return expr;
+    }
+
+    public List<ClickHouseAggregateCombinator> getChain() {
+        return chain;
     }
 
 }

@@ -22,6 +22,7 @@ import sqlancer.clickhouse.ClickHouseType.Primitive;
 import sqlancer.clickhouse.ClickHouseType.Unknown;
 import sqlancer.clickhouse.ast.ClickHouseAggregate;
 import sqlancer.clickhouse.ast.ClickHouseAggregate.ClickHouseAggregateFunction;
+import sqlancer.clickhouse.ast.ClickHouseAggregateCombinator;
 import sqlancer.clickhouse.ast.ClickHouseAliasOperation;
 import sqlancer.clickhouse.ast.ClickHouseBinaryArithmeticOperation;
 import sqlancer.clickhouse.ast.ClickHouseBinaryComparisonOperation;
@@ -145,10 +146,92 @@ public class ClickHouseExpressionGenerator
             int remainingDepth) {
         List<ClickHouseColumnReference> numeric = numericColumns(columns);
         if (Randomly.getBooleanWithRatherLowProbability()) {
-            return new ClickHouseAggregate(generateNumericExpressionWithColumns(numeric, remainingDepth - 1),
-                    ClickHouseAggregate.ClickHouseAggregateFunction.getRandom());
+            ClickHouseAggregate.ClickHouseAggregateFunction func = ClickHouseAggregate.ClickHouseAggregateFunction
+                    .getRandom();
+            ClickHouseExpression argExpr = generateNumericExpressionWithColumns(numeric, remainingDepth - 1);
+            List<ClickHouseAggregateCombinator> chain = maybeGenerateCombinatorChain(columns, remainingDepth);
+            return new ClickHouseAggregate(argExpr, func, chain);
         }
         return generateNumericExpressionWithColumns(numeric, remainingDepth);
+    }
+
+    // If --test-aggregate-combinators is on, roll a low-probability decision to attach a combinator
+    // chain to the aggregate; otherwise return an empty list (plain aggregate). Chain length 1-3
+    // with descending probability. Per-suffix extra args follow ClickHouse's grammar: -If takes one
+    // boolean expression, -Resample takes three integer expressions, all other suffixes take none.
+    // Type-level validity of the suffix on the chosen aggregate is deliberately not pre-validated
+    // -- the error catalog absorbs the rejection cases.
+    private List<ClickHouseAggregateCombinator> maybeGenerateCombinatorChain(List<ClickHouseColumnReference> columns,
+            int remainingDepth) {
+        if (!globalState.getClickHouseOptions().enableCombinators) {
+            return java.util.Collections.emptyList();
+        }
+        if (!Randomly.getBooleanWithRatherLowProbability()) {
+            return java.util.Collections.emptyList();
+        }
+        int length;
+        double roll = Randomly.getNotCachedInteger(0, 1000) / 1000.0;
+        if (roll < 0.60) {
+            length = 1;
+        } else if (roll < 0.90) {
+            length = 2;
+        } else {
+            length = 3;
+        }
+        List<ClickHouseAggregateCombinator> chain = new ArrayList<>(length);
+        // Suspend aggregate-function generation while building extra args -- nested aggregates inside
+        // combinator extra args (e.g., If(sum(x) > 0)) are not what we want at this level.
+        boolean savedAllow = this.allowAggregateFunctions;
+        this.allowAggregateFunctions = false;
+        try {
+            for (int i = 0; i < length; i++) {
+                ClickHouseAggregateCombinator.Suffix suffix = pickCombinatorSuffix();
+                List<ClickHouseExpression> args = generateExtraArgsForSuffix(suffix, columns,
+                        Math.max(1, remainingDepth - 1));
+                chain.add(new ClickHouseAggregateCombinator(suffix, args));
+            }
+        } finally {
+            this.allowAggregateFunctions = savedAllow;
+        }
+        return chain;
+    }
+
+    private static ClickHouseAggregateCombinator.Suffix pickCombinatorSuffix() {
+        // Weights from plan Unit 4: IF and OR_NULL most common; STATE/MERGE/ARRAY less frequent.
+        // Tuned empirically once the error catalog stabilises.
+        int[] weights = { 30, 20, 10, 15, 5, 5, 5, 3, 3, 4 };
+        ClickHouseAggregateCombinator.Suffix[] suffixes = ClickHouseAggregateCombinator.Suffix.values();
+        int total = 0;
+        for (int w : weights) {
+            total += w;
+        }
+        int pick = (int) Randomly.getNotCachedInteger(0, total);
+        int acc = 0;
+        for (int i = 0; i < suffixes.length; i++) {
+            acc += weights[i];
+            if (pick < acc) {
+                return suffixes[i];
+            }
+        }
+        return suffixes[suffixes.length - 1];
+    }
+
+    private List<ClickHouseExpression> generateExtraArgsForSuffix(ClickHouseAggregateCombinator.Suffix suffix,
+            List<ClickHouseColumnReference> columns, int remainingDepth) {
+        switch (suffix) {
+        case IF:
+            // One boolean condition. Reuse the generic expression generator -- the planner will
+            // coerce non-boolean expressions to UInt8 where it can; otherwise the error catalog absorbs.
+            return List.of(generateExpressionWithColumns(columns, remainingDepth));
+        case RESAMPLE:
+            // Three integer positional args (key, from, to). Literal integers keep the surface
+            // syntactically well-formed; v2 may pick column references for the `key` slot.
+            return List.of(generateConstant(new ClickHouseLancerDataType(ClickHouseDataType.Int32)),
+                    generateConstant(new ClickHouseLancerDataType(ClickHouseDataType.Int32)),
+                    generateConstant(new ClickHouseLancerDataType(ClickHouseDataType.Int32)));
+        default:
+            return java.util.Collections.emptyList();
+        }
     }
 
     // Returns the subset of `cols` whose root type is numeric (Int*/UInt*/Float*). The check uses
@@ -239,8 +322,12 @@ public class ClickHouseExpressionGenerator
     protected ClickHouseExpression generateExpression(ClickHouseLancerDataType type, int depth) {
         if (allowAggregateFunctions && Randomly.getBooleanWithRatherLowProbability()) {
             ClickHouseLancerDataType aggType = ClickHouseLancerDataType.getRandom();
-            return new ClickHouseAggregate(generateExpression(aggType, depth + 1),
-                    ClickHouseAggregate.ClickHouseAggregateFunction.getRandom());
+            ClickHouseExpression aggArg = generateExpression(aggType, depth + 1);
+            ClickHouseAggregate.ClickHouseAggregateFunction func = ClickHouseAggregate.ClickHouseAggregateFunction
+                    .getRandom();
+            List<ClickHouseAggregateCombinator> chain = maybeGenerateCombinatorChain(columnRefs,
+                    Math.max(1, globalState.getOptions().getMaxExpressionDepth() - depth));
+            return new ClickHouseAggregate(aggArg, func, chain);
         }
         if (depth >= globalState.getOptions().getMaxExpressionDepth()
                 || Randomly.getBooleanWithRatherLowProbability()) {
@@ -456,8 +543,8 @@ public class ClickHouseExpressionGenerator
         this.allowAggregateFunctions = false;
         ClickHouseExpression arg = generateExpression(new ClickHouseLancerDataType(type));
         this.allowAggregateFunctions = true;
-
-        return new ClickHouseAggregate(arg, agg);
+        List<ClickHouseAggregateCombinator> chain = maybeGenerateCombinatorChain(columnRefs, 3);
+        return new ClickHouseAggregate(arg, agg, chain);
     }
 
     public ClickHouseExpressionGenerator allowAggregates(boolean value) {
