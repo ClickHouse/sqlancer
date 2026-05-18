@@ -25,11 +25,20 @@ public class ClickHouseColumnBuilder {
 
     public String createColumn(String columnName, ClickHouseProvider.ClickHouseGlobalState globalState,
             List<ClickHouseSchema.ClickHouseColumn> columns) {
+        return createColumn(columnName, ClickHouseSchema.ClickHouseLancerDataType.getRandom(globalState), globalState,
+                columns);
+    }
+
+    // Variant that accepts a pre-chosen column type. The table generator pre-builds dummy columns
+    // (so ORDER BY / PARTITION BY / engine-arg pickers can reason about types before the column
+    // list is rendered) and then asks this builder to emit the column DDL using *that same* type --
+    // otherwise the dummy and emitted columns would carry independent random types and an engine
+    // arg picked from the dummy list would reference a server-side column of a different type.
+    public String createColumn(String columnName, ClickHouseSchema.ClickHouseLancerDataType dataType,
+            ClickHouseProvider.ClickHouseGlobalState globalState, List<ClickHouseSchema.ClickHouseColumn> columns) {
         sb.append(columnName);
         sb.append(" ");
         List<Constraints> constraints = new ArrayList<>();
-        ClickHouseSchema.ClickHouseLancerDataType dataType = ClickHouseSchema.ClickHouseLancerDataType
-                .getRandom(globalState);
         if (Randomly.getBooleanWithSmallProbability()) {
             constraints = Randomly.subset(Constraints.values());
             if (!allowAlias || columns.isEmpty() || columns.size() == 1) {
@@ -73,7 +82,11 @@ public class ClickHouseColumnBuilder {
             case DEFAULT:
                 if (allowDefaultValue) {
                     sb.append(" DEFAULT ");
-                    sb.append(new ClickHouseExpressionGenerator(globalState).generateConstant(dataType));
+                    // Render through the visitor -- ClickHouseExpression instances that don't
+                    // override toString() (Cast wrappers used for v2 Date/Decimal/FixedString
+                    // emission) would otherwise stringify as Object hash codes.
+                    sb.append(ClickHouseVisitor.asString(
+                            new ClickHouseExpressionGenerator(globalState).generateConstant(dataType)));
                 }
                 break;
             case ALIAS:

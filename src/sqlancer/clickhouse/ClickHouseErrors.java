@@ -94,7 +94,23 @@ public final class ClickHouseErrors {
                 // query execution; long-running random queries (heavy JOINs, large aggregations) hit this
                 // cap and ClickHouse returns TIMEOUT_EXCEEDED. The multi-word "Timeout exceeded: elapsed"
                 // substring is specific enough to avoid masking unrelated "timeout" errors.
-                "Timeout exceeded: elapsed", "(TIMEOUT_EXCEEDED)");
+                "Timeout exceeded: elapsed", "(TIMEOUT_EXCEEDED)",
+                // Type-system v2 engine-arg picker: ReplacingMergeTree(ver) and SummingMergeTree(col)
+                // arguments must not overlap the primary key / partition key. Since ORDER BY and
+                // PARTITION BY are generated AFTER the engine args, we cannot guarantee absence of
+                // overlap at emission time; ClickHouse rejects the overlap with BAD_ARGUMENTS and
+                // the catalog absorbs it. Specific multi-word substrings, no bare "BAD_ARGUMENTS".
+                "listed both in columns to sum and in partition key",
+                "listed both in columns to sum and in sorting key", "Version column", "is in primary key",
+                // Type-system v2 DateTime/Date round-trip: random temporal strings occasionally exceed
+                // the column's valid range (Date: 1970..2149, Date32: 1900..2299) and ClickHouse
+                // rejects the cast.
+                "Cannot parse Date", "CANNOT_PARSE_DATE", "Cannot parse DateTime", "CANNOT_PARSE_DATETIME",
+                // Decimal cast / arithmetic overflow once the picker emits Decimal(P, S) columns.
+                "DECIMAL_OVERFLOW", "Cannot convert: Float64 to Decimal", "Too many digits", "ARGUMENT_OUT_OF_BOUND",
+                // FixedString CAST when the literal length doesn't match. The emitter pads / truncates
+                // to N but DEFAULT clauses generated from a longer source string can still trip this.
+                "String literal", "FIXED_STRING");
     }
 
     public static void addExpectedExpressionErrors(ExpectedErrors errors) {

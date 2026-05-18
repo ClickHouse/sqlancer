@@ -16,6 +16,10 @@ import sqlancer.Randomly;
 import sqlancer.SQLConnection;
 import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
+import sqlancer.clickhouse.ClickHouseType.Array;
+import sqlancer.clickhouse.ClickHouseType.DateTime64Type;
+import sqlancer.clickhouse.ClickHouseType.Decimal;
+import sqlancer.clickhouse.ClickHouseType.FixedString;
 import sqlancer.clickhouse.ClickHouseType.Kind;
 import sqlancer.clickhouse.ClickHouseType.LowCardinality;
 import sqlancer.clickhouse.ClickHouseType.Nullable;
@@ -58,13 +62,26 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
             this.clickHouseType = rootClickHouseDataType(typeTerm);
         }
 
-        // Root ClickHouseDataType of the term. Nullable and LowCardinality are transparent; Unknown
-        // maps to Nothing as a lossy compatibility shim for legacy callers that expect the flat enum
-        // (documented in the v1 type-system foundation plan, Unit 5).
+        // Root ClickHouseDataType of the term. Nullable and LowCardinality are transparent; parameterised
+        // primitives map onto the JDBC flat enum's representative tag (Decimal -> Decimal, FixedString
+        // -> FixedString, DateTime64Type -> DateTime64, Array -> Array). Unknown maps to Nothing as a
+        // lossy compatibility shim for legacy callers that expect the flat enum.
         private static ClickHouseDataType rootClickHouseDataType(ClickHouseType t) {
             ClickHouseType inner = t.unwrap();
             if (inner instanceof Primitive p) {
                 return p.kind().toClickHouseDataType();
+            }
+            if (inner instanceof FixedString) {
+                return ClickHouseDataType.FixedString;
+            }
+            if (inner instanceof Decimal) {
+                return ClickHouseDataType.Decimal;
+            }
+            if (inner instanceof DateTime64Type) {
+                return ClickHouseDataType.DateTime64;
+            }
+            if (inner instanceof Array) {
+                return ClickHouseDataType.Array;
             }
             return ClickHouseDataType.Nothing;
         }
@@ -73,23 +90,97 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
             return getRandom(null);
         }
 
-        // Pick a random v1 type, optionally wrapping with Nullable / LowCardinality when the
-        // feature flags on `state` permit. With both flags off the result is always a Primitive.
-        // `state` may be null -- in that case both wrappers are disabled (used by legacy fixtures
-        // and dummy-column factories).
+        // Pick a random v2 type, optionally wrapping with Nullable / LowCardinality / Array when the
+        // feature flags on `state` permit. With all flags off the result is always a scalar.
+        // `state` may be null -- in that case all wrappers are disabled (used by legacy fixtures,
+        // dummy-column factories, and binary-operator leaf-type picks in the expression generator
+        // where we don't want Array leaves to appear inside arithmetic).
         public static ClickHouseLancerDataType getRandom(ClickHouseGlobalState state) {
             ClickHouseOptions opts = state == null ? null : state.getDbmsSpecificOptions();
             boolean enableNullable = opts != null && opts.enableNullable;
             boolean enableLowCardinality = opts != null && opts.enableLowCardinality;
-            Kind kind = Randomly.fromOptions(Kind.Int32, Kind.String);
-            ClickHouseType picked = new Primitive(kind);
+            boolean enableArray = opts != null && opts.enableArrayJoin;
+            ClickHouseType picked = pickScalarType();
             if (enableNullable && Randomly.getBooleanWithSmallProbability() && Nullable.canWrap(picked)) {
                 picked = new Nullable(picked);
+            }
+            // Array wraps before LowCardinality so the canonical form is LowCardinality(Array(...))
+            // -- but ClickHouse rejects LowCardinality(Array(...)), so when Array is picked we never
+            // wrap it in LowCardinality. Array(Nullable(T)) is allowed and we keep that order.
+            if (enableArray && Randomly.getBooleanWithSmallProbability() && Array.canWrap(picked)) {
+                picked = new Array(picked);
             }
             if (enableLowCardinality && Randomly.getBooleanWithSmallProbability() && LowCardinality.canWrap(picked)) {
                 picked = new LowCardinality(picked);
             }
             return new ClickHouseLancerDataType(picked);
+        }
+
+        // Weighted scalar-type pick. Distribution biased toward bug-bait surfaces:
+        //   * Int32 / String -- v1 default, keeps generated output close to historical baselines.
+        //   * UInt32 / UInt64 -- needed for ReplacingMergeTree(ver) and Summing column args, and to
+        //     surface mixed-width JOIN-key cross-type bugs (e.g. #101652).
+        //   * Date / DateTime -- exercises Date arithmetic and time-based partition keys
+        //     (toYYYYMM(t) shape from #104781 reporter).
+        //   * Other Int*/Float* variants -- low individual weight, present for coverage.
+        //   * FixedString(N) / Decimal(p,s) / DateTime64(prec) -- parameterised, exercised at low
+        //     rate so the generator surfaces them without dominating the pool.
+        // UUID / IPv4 / IPv6 are omitted from the picker: literal emission is feasible (toUUID(...)
+        // etc.) but PQS does not have ResultSet round-trip support for them, so columns of those
+        // types poison PQS iterations with IgnoreMeException at the row-fetch step. They remain
+        // reachable via schema reflection of pre-existing tables -- the parser still recognises
+        // their type strings -- but the generator does not synthesise them.
+        private static ClickHouseType pickScalarType() {
+            int roll = (int) Randomly.getNotCachedInteger(0, 100);
+            if (roll < 22) {
+                return new Primitive(Kind.Int32);
+            }
+            if (roll < 38) {
+                return new Primitive(Kind.String);
+            }
+            if (roll < 50) {
+                return new Primitive(Kind.UInt32);
+            }
+            if (roll < 60) {
+                return new Primitive(Kind.UInt64);
+            }
+            if (roll < 67) {
+                return new Primitive(Kind.Date);
+            }
+            if (roll < 74) {
+                return new Primitive(Kind.DateTime);
+            }
+            if (roll < 78) {
+                return new Primitive(Kind.Int64);
+            }
+            if (roll < 82) {
+                return new Primitive(Kind.Int8);
+            }
+            if (roll < 86) {
+                return new Primitive(Kind.UInt8);
+            }
+            if (roll < 89) {
+                return new Primitive(Kind.Float32);
+            }
+            if (roll < 92) {
+                return new Primitive(Kind.Float64);
+            }
+            if (roll < 94) {
+                return new Primitive(Kind.Bool);
+            }
+            if (roll < 96) {
+                return new FixedString(1 + (int) Randomly.getNotCachedInteger(0, 16));
+            }
+            if (roll < 98) {
+                // Precision in [1,38], scale in [0,P]. Pin to Decimal64 territory most of the time
+                // (P<=18) so plain numeric arithmetic stays representable in a Java long-ish range,
+                // and only occasionally exceed it.
+                int p = 1 + (int) Randomly.getNotCachedInteger(0, Randomly.getBoolean() ? 18 : 38);
+                int s = (int) Randomly.getNotCachedInteger(0, p + 1);
+                return new Decimal(p, s);
+            }
+            // Remaining 2% -- DateTime64 with random precision 0..6.
+            return new DateTime64Type((int) Randomly.getNotCachedInteger(0, 7));
         }
 
         public ClickHouseType getTypeTerm() {
@@ -177,9 +268,22 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
         case Bool:
             return ClickHouseCreateConstant.createBoolean(randomRowValues.getBoolean(columnIndex));
         case String:
+        case FixedString:
+            // FixedString round-trips as a String literal (single-quoted with embedded NULs escaped
+            // by the JDBC driver). PQS compares as text since the value domain is bytes.
+            return ClickHouseCreateConstant.createStringConstant(randomRowValues.getString(columnIndex));
+        case Date:
+        case Date32:
+        case DateTime:
+        case DateTime32:
+        case DateTime64:
+            // Render the temporal value as a quoted string. ClickHouse coerces a string literal in a
+            // comparison against a Date/DateTime column via the usual parseDateTimeBestEffort path,
+            // so the predicate stays well-typed. getString() on a Date column returns YYYY-MM-DD;
+            // on DateTime it returns YYYY-MM-DD HH:MM:SS[.fraction]. Null was already handled above.
             return ClickHouseCreateConstant.createStringConstant(randomRowValues.getString(columnIndex));
         default:
-            // Types beyond the v1 set (Decimal, Date*, IPv*, UUID, Enum*, composites, etc.) are not
+            // Types beyond the v2 emit surface (Decimal, IPv*, UUID, Enum*, composites, etc.) are not
             // round-trippable through ClickHouseConstant yet -- callers (PQS) skip the row via
             // IgnoreMeException rather than fabricating a constant.
             throw new IgnoreMeException();

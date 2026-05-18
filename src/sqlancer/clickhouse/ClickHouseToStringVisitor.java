@@ -199,10 +199,14 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
 
     @Override
     public void visit(ClickHouseCastOperation cast) {
+        // Render the full compound type (e.g. `FixedString(5)`, `Decimal(9, 3)`, `Nullable(Int32)`)
+        // not just the root ClickHouseDataType enum -- the JDBC enum loses the parameter slots so
+        // `FixedString` alone would be rejected with "FixedString data type family must have
+        // exactly one argument".
         sb.append("CAST(");
         visit(cast.getExpression());
         sb.append(" AS ");
-        sb.append(cast.getType().toString());
+        sb.append(cast.getCompoundType().toString());
         sb.append(")");
     }
 

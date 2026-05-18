@@ -15,7 +15,12 @@ import sqlancer.clickhouse.ClickHouseSchema;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseColumn;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseLancerDataType;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
+import sqlancer.clickhouse.ClickHouseToStringVisitor;
 import sqlancer.clickhouse.ClickHouseType;
+import sqlancer.clickhouse.ClickHouseType.Array;
+import sqlancer.clickhouse.ClickHouseType.DateTime64Type;
+import sqlancer.clickhouse.ClickHouseType.Decimal;
+import sqlancer.clickhouse.ClickHouseType.FixedString;
 import sqlancer.clickhouse.ClickHouseType.Kind;
 import sqlancer.clickhouse.ClickHouseType.LowCardinality;
 import sqlancer.clickhouse.ClickHouseType.Nullable;
@@ -26,6 +31,7 @@ import sqlancer.clickhouse.ast.ClickHouseAggregate.ClickHouseAggregateFunction;
 import sqlancer.clickhouse.ast.ClickHouseAggregateCombinator;
 import sqlancer.clickhouse.ast.ClickHouseAliasOperation;
 import sqlancer.clickhouse.ast.ClickHouseBinaryArithmeticOperation;
+import sqlancer.clickhouse.ast.ClickHouseCastOperation;
 import sqlancer.clickhouse.ast.ClickHouseBinaryComparisonOperation;
 import sqlancer.clickhouse.ast.ClickHouseBinaryFunctionOperation;
 import sqlancer.clickhouse.ast.ClickHouseBinaryLogicalOperation;
@@ -478,7 +484,10 @@ public class ClickHouseExpressionGenerator
 
     // Dispatch constant emission on the ADT term: Nullable emits a small-probability NULL else
     // recurses; LowCardinality is transparent at the literal level; Unknown abandons the statement
-    // via IgnoreMeException -- the established escape hatch for unsupported types.
+    // via IgnoreMeException -- the established escape hatch for unsupported types. Parameterised
+    // primitives (FixedString / Decimal / DateTime64) and Array(T) are emitted as a string literal
+    // wrapped in CAST(... AS T) so the value is well-typed without needing a per-type Constant
+    // subclass.
     private ClickHouseExpression generateConstantFromTerm(ClickHouseType term) {
         if (term instanceof Unknown) {
             throw new IgnoreMeException();
@@ -491,6 +500,57 @@ public class ClickHouseExpressionGenerator
         }
         if (term instanceof LowCardinality lc) {
             return generateConstantFromTerm(lc.inner());
+        }
+        if (term instanceof FixedString fs) {
+            // Emit `CAST('...' AS FixedString(N))`. Right-pad/truncate to N so the value is exactly
+            // the column width; ClickHouse pads with NUL on insert but the generator avoids relying
+            // on that and produces the canonical form.
+            String s = globalState.getRandomly().getString();
+            if (s.length() > fs.length()) {
+                s = s.substring(0, fs.length());
+            } else if (s.length() < fs.length()) {
+                StringBuilder pad = new StringBuilder(s);
+                while (pad.length() < fs.length()) {
+                    pad.append(' ');
+                }
+                s = pad.toString();
+            }
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(s),
+                    new ClickHouseLancerDataType(term));
+        }
+        if (term instanceof Decimal d) {
+            // Clamp the value so the textual integer fits within the Decimal's (P - S) integer
+            // digits. ClickHouse rejects over-magnitude values with ARGUMENT_OUT_OF_BOUND ("Too
+            // many digits") before applying the scale, so a bare random long routinely overflows
+            // small Decimal(4, 1) columns. Compute the max integer-part magnitude as 10^(P-S) - 1.
+            int integerDigits = Math.max(1, d.precision() - d.scale());
+            long bound = 1;
+            for (int i = 0; i < integerDigits && bound < Long.MAX_VALUE / 10; i++) {
+                bound *= 10;
+            }
+            long raw = globalState.getRandomly().getInteger();
+            long v = raw % bound;
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(Long.toString(v)),
+                    new ClickHouseLancerDataType(term));
+        }
+        if (term instanceof DateTime64Type) {
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(randomDateTimeLiteral()),
+                    new ClickHouseLancerDataType(term));
+        }
+        if (term instanceof Array a) {
+            // Emit a small literal array of inner-typed values via the bracket syntax. The inner
+            // constants are themselves rendered through this method so wrappers nest correctly.
+            int n = (int) Randomly.getNotCachedInteger(0, 4);
+            StringBuilder sb = new StringBuilder("[");
+            for (int i = 0; i < n; i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                sb.append(ClickHouseToStringVisitor.asString(generateConstantFromTerm(a.inner())));
+            }
+            sb.append("]");
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(sb.toString()),
+                    new ClickHouseLancerDataType(term));
         }
         if (term instanceof Primitive p) {
             return generatePrimitiveConstant(p.kind());
@@ -522,16 +582,46 @@ public class ClickHouseExpressionGenerator
             return ClickHouseCreateConstant.createStringConstant(globalState.getRandomly().getString());
         case Bool:
             return ClickHouseCreateConstant.createBoolean(Randomly.getBoolean());
-        case UUID:
         case Date:
         case Date32:
+            // CAST('YYYY-MM-DD' AS Date|Date32). The literal is the same across both kinds; the cast
+            // tag carries the range difference (Date32 spans 1900..2299, Date 1970..2149).
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(randomDateLiteral()),
+                    new ClickHouseLancerDataType(new Primitive(kind)));
+        case DateTime:
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(randomDateTimeLiteral()),
+                    new ClickHouseLancerDataType(new Primitive(Kind.DateTime)));
+        case UUID:
         case IPv4:
         case IPv6:
         default:
-            // v1 generator doesn't pick these kinds; if encountered (e.g. via schema reflection of a
-            // pre-existing table), skip the attempt rather than fabricating a literal here.
+            // Literal emission for these scalar kinds is feasible (toUUID(...) / toIPv4(...)) but
+            // the picker does not synthesise columns of these types, and reflection-loaded columns
+            // are exceptionally rare. Skip the attempt rather than fabricate a literal here so the
+            // generator does not produce surface that has no corresponding PQS round-trip path.
             throw new IgnoreMeException();
         }
+    }
+
+    // Random YYYY-MM-DD within a reasonable bug-bait range: covers the Date<->Date32 boundary
+    // around the Unix epoch and the year-2038 / year-2105 transition surfaces ClickHouse handles
+    // separately under the hood. Output is always a valid Gregorian date for any month/day combo
+    // the constructor accepts.
+    private String randomDateLiteral() {
+        int year = 1970 + (int) Randomly.getNotCachedInteger(0, 80);
+        int month = 1 + (int) Randomly.getNotCachedInteger(0, 12);
+        int day = 1 + (int) Randomly.getNotCachedInteger(0, 28);
+        return String.format("%04d-%02d-%02d", year, month, day);
+    }
+
+    private String randomDateTimeLiteral() {
+        int year = 1970 + (int) Randomly.getNotCachedInteger(0, 80);
+        int month = 1 + (int) Randomly.getNotCachedInteger(0, 12);
+        int day = 1 + (int) Randomly.getNotCachedInteger(0, 28);
+        int hour = (int) Randomly.getNotCachedInteger(0, 24);
+        int min = (int) Randomly.getNotCachedInteger(0, 60);
+        int sec = (int) Randomly.getNotCachedInteger(0, 60);
+        return String.format("%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, min, sec);
     }
 
     public ClickHouseExpression getHavingClause() {

@@ -71,6 +71,9 @@ public class ClickHouseTableGenerator {
         sb.append(this.tableName);
         sb.append(" (");
         int nrColumns = 1 + Randomly.smallNumber();
+        // Pre-build dummy columns with their final types. The same dataType instance is then handed
+        // to the column builder so the emitted DDL matches what the in-memory column list claims;
+        // ORDER BY / PARTITION BY / engine-arg pickers downstream rely on this invariant.
         for (int i = 0; i < nrColumns; i++) {
             columns.add(ClickHouseSchema.ClickHouseColumn.createDummy(ClickHouseCommon.createColumnName(i), null,
                     globalState));
@@ -79,9 +82,10 @@ public class ClickHouseTableGenerator {
             if (i != 0) {
                 sb.append(", ");
             }
-            String columnName = ClickHouseCommon.createColumnName(columnId);
+            ClickHouseSchema.ClickHouseColumn dummy = columns.get(i);
+            String columnName = dummy.getName();
             ClickHouseColumnBuilder columnBuilder = new ClickHouseColumnBuilder();
-            sb.append(columnBuilder.createColumn(columnName, globalState, columns));
+            sb.append(columnBuilder.createColumn(columnName, dummy.getType(), globalState, columns));
             columnNames.add(columnName);
             columnId++;
         }
@@ -178,13 +182,95 @@ public class ClickHouseTableGenerator {
                 || engine == ClickHouseEngine.SummingMergeTree;
     }
 
-    // ReplacingMergeTree's ver argument must be UInt*/Date/DateTime -- signed Int32 is rejected
-    // and the v1 type system does not yet emit unsigned or date types. SummingMergeTree's columns
-    // argument must be numeric AND not part of the primary key, which we cannot guarantee at this
-    // point in CREATE generation. Both engines accept the empty-args form, so we omit args for
-    // now. Once the v1 type system emits UInt32/Date, ReplacingMergeTree can pick a ver column.
+    // ReplacingMergeTree(ver) requires UInt*/Date/DateTime; SummingMergeTree(col[, ...]) requires
+    // numeric columns. With type-system v2 the picker emits UInt32/UInt64/Date/DateTime so a
+    // suitable column is now available. We still emit the empty-args form often -- both engines
+    // accept it and merge-by-PK is the default shape -- but when a viable column exists we pick
+    // one ~50% of the time so dedup-on-ver / sum-on-merge code paths are exercised.
     private String renderEngineArgs(ClickHouseEngine engine) {
+        if (engine == ClickHouseEngine.ReplacingMergeTree) {
+            List<ClickHouseSchema.ClickHouseColumn> candidates = columns.stream().filter(this::isValidReplacingVer)
+                    .collect(Collectors.toList());
+            if (candidates.isEmpty() || !Randomly.getBoolean()) {
+                return "";
+            }
+            return Randomly.fromList(candidates).getName();
+        }
+        if (engine == ClickHouseEngine.SummingMergeTree) {
+            List<ClickHouseSchema.ClickHouseColumn> candidates = columns.stream().filter(this::isValidSummingCol)
+                    .collect(Collectors.toList());
+            if (candidates.isEmpty() || !Randomly.getBoolean()) {
+                return "";
+            }
+            // SummingMergeTree's args slot is "0 or 1 parameter" -- one identifier or one tuple of
+            // identifiers. Always pick one column here; multi-column tuple emission `((c0, c1))` is
+            // grammatically valid but compounds the PK/partition-overlap rejection rate and adds
+            // no extra bug surface at this stage. The col cannot overlap the primary key, but ORDER
+            // BY is generated after this method so we cannot pre-validate; ClickHouse rejects the
+            // overlap at CREATE time and the error catalog absorbs it.
+            return Randomly.fromList(candidates).getName();
+        }
         return "";
+    }
+
+    // ReplacingMergeTree(ver) accepts only unsigned integers (any width) and date / datetime types.
+    // Nullable wrappers are rejected; LowCardinality wrappers are too. Match against the unwrapped
+    // root ClickHouseDataType, then exclude wrappers explicitly.
+    private boolean isValidReplacingVer(ClickHouseSchema.ClickHouseColumn col) {
+        sqlancer.clickhouse.ClickHouseType term = col.getType().getTypeTerm();
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Nullable
+                || term instanceof sqlancer.clickhouse.ClickHouseType.LowCardinality
+                || term instanceof sqlancer.clickhouse.ClickHouseType.Array
+                || term instanceof sqlancer.clickhouse.ClickHouseType.Unknown) {
+            return false;
+        }
+        ClickHouseDataType t = col.getType().getType();
+        switch (t) {
+        case UInt8:
+        case UInt16:
+        case UInt32:
+        case UInt64:
+        case UInt128:
+        case UInt256:
+        case Date:
+        case Date32:
+        case DateTime:
+        case DateTime32:
+        case DateTime64:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    // SummingMergeTree(col) accepts numeric columns. Nullable / Array / LowCardinality variants are
+    // rejected. The col MUST be outside the ORDER BY tuple, which we cannot prove here -- if the
+    // server rejects, the error catalog absorbs.
+    private boolean isValidSummingCol(ClickHouseSchema.ClickHouseColumn col) {
+        sqlancer.clickhouse.ClickHouseType term = col.getType().getTypeTerm();
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Nullable
+                || term instanceof sqlancer.clickhouse.ClickHouseType.LowCardinality
+                || term instanceof sqlancer.clickhouse.ClickHouseType.Array
+                || term instanceof sqlancer.clickhouse.ClickHouseType.Unknown) {
+            return false;
+        }
+        ClickHouseDataType t = col.getType().getType();
+        switch (t) {
+        case Int8:
+        case Int16:
+        case Int32:
+        case Int64:
+        case UInt8:
+        case UInt16:
+        case UInt32:
+        case UInt64:
+        case Float32:
+        case Float64:
+        case Decimal:
+            return true;
+        default:
+            return false;
+        }
     }
 
     // Projection emission. Picks one of two shapes:
