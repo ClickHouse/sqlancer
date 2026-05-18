@@ -89,7 +89,12 @@ public final class ClickHouseErrors {
                 // provided -- ClickHouse plugs NULL and the cast to a non-Nullable target fails.
                 // Becomes more frequent once the v1 type flags emit mixed Nullable/non-Nullable
                 // columns with INSERT-projection MATERIALIZED clauses.
-                "Cannot convert NULL value to non-Nullable type", "CANNOT_INSERT_NULL_IN_ORDINARY_COLUMN");
+                "Cannot convert NULL value to non-Nullable type", "CANNOT_INSERT_NULL_IN_ORDINARY_COLUMN",
+                // max_execution_time=120 is set on the JDBC URL in ClickHouseProvider to cap server-side
+                // query execution; long-running random queries (heavy JOINs, large aggregations) hit this
+                // cap and ClickHouse returns TIMEOUT_EXCEEDED. The multi-word "Timeout exceeded: elapsed"
+                // substring is specific enough to avoid masking unrelated "timeout" errors.
+                "Timeout exceeded: elapsed", "(TIMEOUT_EXCEEDED)");
     }
 
     public static void addExpectedExpressionErrors(ExpectedErrors errors) {

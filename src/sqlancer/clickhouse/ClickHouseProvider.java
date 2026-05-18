@@ -148,8 +148,13 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         // by default as SUSPICIOUS_TYPE_FOR_LOW_CARDINALITY. The v1 type-system foundation
         // deliberately exercises this combination.
         String lcExtra = clickHouseOptions.enableLowCardinality ? "&allow_suspicious_low_cardinality_types=1" : "";
+        // max_execution_time=120 caps server-side query execution at 120s; without this, occasional
+        // heavyweight random queries hit the 300s socket_timeout below and produce ambiguous client-side
+        // timeout exceptions (observed in the 2026-05-18 baseline: 3 such timeouts in 15 min). The
+        // server-side cap surfaces as a clean TIMEOUT_EXCEEDED error that ClickHouseErrors absorbs.
         con = DriverManager.getConnection(
-                String.format("jdbc:clickhouse://%s:%d/%s?socket_timeout=300000%s%s", host, port, databaseName,
+                String.format("jdbc:clickhouse://%s:%d/%s?socket_timeout=300000&max_execution_time=120%s%s",
+                        host, port, databaseName,
                         clickHouseOptions.enableAnalyzer ? "&allow_experimental_analyzer=1" : "", lcExtra),
                 globalState.getOptions().getUserName(), globalState.getOptions().getPassword());
         if (clickHouseOptions.randomSessionSettings) {
