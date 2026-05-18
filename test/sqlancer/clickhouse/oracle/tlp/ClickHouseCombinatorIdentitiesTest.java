@@ -42,13 +42,25 @@ class ClickHouseCombinatorIdentitiesTest {
     }
 
     @Test
-    void ifFamilyKeepsNullForEmptyOn() {
+    void ifFamilySumLikeKeepsNullForEmptyOn() {
+        // Sum-family -If identities keep null_for_empty=1 because sum-family's empty-input return
+        // (NULL) coincides with the combinator's empty-input return on both sides. countIf is the
+        // documented asymmetric exception: count returns 0 on empty regardless, while the sum-based
+        // rewrite would return NULL under =1.
         for (ClickHouseCombinatorIdentities.Identity id : ClickHouseCombinatorIdentities.CATALOG) {
-            if (id.name().endsWith("If")) {
+            if (id.name().endsWith("If") && !id.name().equals("countIf")) {
                 assertEquals(ClickHouseCombinatorIdentities.SETTINGS_NULL_FOR_EMPTY_ON, id.settings(),
                         id.name() + " must run with aggregate_functions_null_for_empty=1");
             }
         }
+    }
+
+    @Test
+    void countIfRunsWithNullForEmptyOff() {
+        ClickHouseCombinatorIdentities.Identity countIf = ClickHouseCombinatorIdentities.CATALOG.stream()
+                .filter(i -> i.name().equals("countIf")).findFirst().orElseThrow();
+        assertEquals(ClickHouseCombinatorIdentities.SETTINGS_NULL_FOR_EMPTY_OFF, countIf.settings(),
+                "countIf must run with aggregate_functions_null_for_empty=0 to match count's empty-input semantics");
     }
 
     @Test

@@ -23,8 +23,11 @@ import sqlancer.common.visitor.UnaryOperation;
 public class ClickHouseTableGenerator {
 
     private enum ClickHouseEngine {
-        // TinyLog, StripeLog,
-        Log, Memory, MergeTree
+        // Only MergeTree is kept. Log-family (Log, TinyLog, StripeLog) lacks parts, projections, and
+        // skipping indexes; Memory lacks persistence-layer plumbing and behaves differently for
+        // mutations / inserts; planner-level oracles hit false-positive divergence on both without
+        // yielding bug-finding signal in proportion.
+        MergeTree
     }
 
     private final StringBuilder sb = new StringBuilder();

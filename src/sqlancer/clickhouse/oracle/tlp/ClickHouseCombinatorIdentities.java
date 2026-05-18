@@ -49,8 +49,12 @@ final class ClickHouseCombinatorIdentities {
                     ClickHouseCombinatorIdentities::isNumericType, SETTINGS_NULL_FOR_EMPTY_ON, true,
                     args -> "sumIf(" + args.xSql() + ", " + args.condSql() + ")",
                     args -> "sum(if(" + args.condSql() + ", " + args.xSql() + ", 0))"),
+            // countIf is asymmetric vs the sum-family rewrite: countIf over empty input is 0 (count
+            // always returns 0 on empty regardless of null_for_empty), but sum(toUInt64(c)) over
+            // empty with null_for_empty=1 returns NULL. Pin null_for_empty=0 so the sum side also
+            // returns 0 on empty.
             new Identity("countIf", fn -> fn == ClickHouseAggregate.ClickHouseAggregateFunction.COUNT, t -> true,
-                    SETTINGS_NULL_FOR_EMPTY_ON, true, args -> "countIf(" + args.condSql() + ")",
+                    SETTINGS_NULL_FOR_EMPTY_OFF, true, args -> "countIf(" + args.condSql() + ")",
                     args -> "sum(toUInt64(" + args.condSql() + "))"),
             new Identity("avgOrNull", fn -> fn == ClickHouseAggregate.ClickHouseAggregateFunction.AVG,
                     ClickHouseCombinatorIdentities::isNumericType, SETTINGS_NULL_FOR_EMPTY_OFF, false,

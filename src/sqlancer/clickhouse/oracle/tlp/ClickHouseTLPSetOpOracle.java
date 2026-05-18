@@ -163,6 +163,10 @@ public class ClickHouseTLPSetOpOracle extends ClickHouseTLPBase {
 
         logSubstantiveCounter("UNION_DISTINCT", baselineRows, branchRows);
 
+        if (containsNanOrInfinity(baselineRows) || containsNanOrInfinity(branchRows)) {
+            throw new IgnoreMeException();
+        }
+
         Set<String> baselineSet = new HashSet<>(baselineRows);
         Set<String> branchSet = new HashSet<>(branchRows);
         if (!baselineSet.equals(branchSet)) {
@@ -170,38 +174,68 @@ public class ClickHouseTLPSetOpOracle extends ClickHouseTLPBase {
         }
     }
 
-    // ----- Mode: INTERSECT (pairwise disjointness) -----
-
-    private void checkIntersect() throws SQLException {
-        String tpDistinct = renderDistinctOf(renderBranchQuery(predicate));
-        String tnpDistinct = renderDistinctOf(renderBranchQuery(negatedPredicate));
-        String tnullDistinct = renderDistinctOf(renderBranchQuery(isNullPredicate));
-
-        String[] pairs = {
-                wrapParen(tpDistinct) + " " + SetOpKind.INTERSECT_ALL.getKeyword() + " " + wrapParen(tnpDistinct)
-                        + SETTINGS_SUFFIX,
-                wrapParen(tpDistinct) + " " + SetOpKind.INTERSECT_ALL.getKeyword() + " " + wrapParen(tnullDistinct)
-                        + SETTINGS_SUFFIX,
-                wrapParen(tnpDistinct) + " " + SetOpKind.INTERSECT_ALL.getKeyword() + " " + wrapParen(tnullDistinct)
-                        + SETTINGS_SUFFIX };
-
-        int substantive = 0;
-        for (String q : pairs) {
-            List<String> rows = ComparatorHelper.getResultSetFirstColumnAsString(q, errors, state);
-            if (!rows.isEmpty()) {
-                throw new AssertionError("INTERSECT pairwise-disjointness violated: " + q + " produced " + rows);
+    // Set operations in SQL use scalar equality, but NaN != NaN. So {NaN} INTERSECT {NaN} is empty
+    // in ClickHouse even though both sets contain a value rendered as "NaN", and {NaN} EXCEPT {NaN}
+    // leaves {NaN}. This breaks the set-coverage and subset invariants whenever any branch projects
+    // NaN. Same story for signed infinities and negative zero. Skip the comparison entirely when
+    // the result set contains any of these tokens -- a deny-list local to the comparison helper,
+    // with no false negatives because the deny-listed values are well-defined and never coincide
+    // with normal numeric outputs.
+    private static boolean containsNanOrInfinity(List<String> rows) {
+        for (String r : rows) {
+            if (r == null) {
+                continue;
             }
-            // For the substantive counter: a pair is substantive if either side was non-empty before
-            // intersection -- but we don't materialize them here. Approximate by counting all-empty
-            // as trivial via the baseline check below.
-            substantive++;
+            if (r.equals("nan") || r.equals("NaN") || r.equals("-nan") || r.equals("Infinity") || r.equals("-Infinity")
+                    || r.equals("inf") || r.equals("-inf")) {
+                return true;
+            }
         }
-        state.getState().getLocalState()
-                .log("setop-tlp: kind=INTERSECT, substantive_count=" + substantive + "/" + pairs.length);
+        return false;
     }
 
-    // ----- Mode: EXCEPT (coverage + pairwise disjointness) -----
+    // ----- Mode: INTERSECT (subset relationship via operator routing) -----
 
+    // Note: the pairwise-disjointness invariant (Tp ∩ Tnp = ∅) is unsound on projections -- TLP
+    // partitions rows, but the SELECT-list projection can collapse rows in Tp and Tnp to identical
+    // values (e.g., constant fetchCol, c0/c0, anything that ignores the predicate-discriminating
+    // input). What's still invariant is: DISTINCT(branch) INTERSECT DISTINCT(T) ≡ DISTINCT(branch),
+    // because every projected value in a branch must also appear in T (the branch's rows are a
+    // subset of T's rows). This exercises the INTERSECT operator without claiming row-disjointness.
+    private void checkIntersect() throws SQLException {
+        String tDistinct = renderDistinctOf(renderBaselineQuery());
+        List<String[]> branchPairs = List.of(new String[] { "Tp", renderDistinctOf(renderBranchQuery(predicate)) },
+                new String[] { "Tnp", renderDistinctOf(renderBranchQuery(negatedPredicate)) },
+                new String[] { "Tnull", renderDistinctOf(renderBranchQuery(isNullPredicate)) });
+        for (String[] pair : branchPairs) {
+            String branchName = pair[0];
+            String branchSql = pair[1];
+            String intersectQ = wrapParen(branchSql) + " " + SetOpKind.INTERSECT_ALL.getKeyword() + " "
+                    + wrapParen(tDistinct) + SETTINGS_SUFFIX;
+            List<String> intersectRows = ComparatorHelper.getResultSetFirstColumnAsString(intersectQ, errors, state);
+            List<String> branchRows = ComparatorHelper.getResultSetFirstColumnAsString(branchSql + SETTINGS_SUFFIX,
+                    errors, state);
+            if (containsNanOrInfinity(branchRows) || containsNanOrInfinity(intersectRows)) {
+                throw new IgnoreMeException();
+            }
+            Set<String> intersectSet = new HashSet<>(intersectRows);
+            Set<String> branchSet = new HashSet<>(branchRows);
+            if (!intersectSet.equals(branchSet)) {
+                throw new AssertionError(
+                        "INTERSECT subset violated: branch=" + branchName + " INTERSECT T produced " + intersectRows
+                                + ", expected branch's own distinct rows " + branchRows + " for query " + intersectQ);
+            }
+        }
+        state.getState().getLocalState().log("setop-tlp: kind=INTERSECT, branches_checked=3");
+    }
+
+    // ----- Mode: EXCEPT (coverage of the value space) -----
+
+    // Note: the pairwise EXCEPT invariant (DISTINCT(Tp) EXCEPT DISTINCT(Tnp) ≡ DISTINCT(Tp)) is
+    // unsound for the same reason as pairwise INTERSECT -- projections collapse rows so Tp and Tnp
+    // can share projected values even when their underlying rows are disjoint. Only the coverage
+    // invariant is kept: every distinct value produced by the full baseline must be produced by at
+    // least one branch (since every row of T lands in exactly one branch by construction).
     private void checkExcept() throws SQLException {
         String tDistinct = renderDistinctOf(renderBaselineQuery());
         String tpDistinct = renderDistinctOf(renderBranchQuery(predicate));
@@ -212,27 +246,13 @@ public class ClickHouseTLPSetOpOracle extends ClickHouseTLPBase {
                 + " " + SetOpKind.EXCEPT_ALL.getKeyword() + " " + wrapParen(tnpDistinct) + " "
                 + SetOpKind.EXCEPT_ALL.getKeyword() + " " + wrapParen(tnullDistinct) + SETTINGS_SUFFIX;
         List<String> coverageRows = ComparatorHelper.getResultSetFirstColumnAsString(coverage, errors, state);
+        if (containsNanOrInfinity(coverageRows)) {
+            throw new IgnoreMeException();
+        }
         if (!coverageRows.isEmpty()) {
             throw new AssertionError("EXCEPT coverage violated: " + coverage + " produced " + coverageRows);
         }
-
-        // Pairwise disjointness: DISTINCT(Tp) EXCEPT ALL DISTINCT(Tnp) ≡ DISTINCT(Tp), symmetric.
-        // Routes through the EXCEPT planner with different argument shapes than coverage above.
-        for (String[] pair : new String[][] { { tpDistinct, tnpDistinct }, { tnpDistinct, tpDistinct },
-                { tpDistinct, tnullDistinct }, { tnpDistinct, tnullDistinct } }) {
-            String exceptQ = wrapParen(pair[0]) + " " + SetOpKind.EXCEPT_ALL.getKeyword() + " " + wrapParen(pair[1])
-                    + SETTINGS_SUFFIX;
-            List<String> exceptRows = ComparatorHelper.getResultSetFirstColumnAsString(exceptQ, errors, state);
-            List<String> leftRows = ComparatorHelper.getResultSetFirstColumnAsString(pair[0] + SETTINGS_SUFFIX, errors,
-                    state);
-            Set<String> exceptSet = new HashSet<>(exceptRows);
-            Set<String> leftSet = new HashSet<>(leftRows);
-            if (!exceptSet.equals(leftSet)) {
-                throw new AssertionError("EXCEPT pairwise-disjointness violated: " + exceptQ + " produced " + exceptRows
-                        + ", expected " + leftRows);
-            }
-        }
-        state.getState().getLocalState().log("setop-tlp: kind=EXCEPT, coverage_ok=true, pairwise_ok=true");
+        state.getState().getLocalState().log("setop-tlp: kind=EXCEPT, coverage_ok=true");
     }
 
     // ----- Render helpers -----
