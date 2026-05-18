@@ -23,6 +23,10 @@ public final class ClickHouseErrors {
                                                                                                                       // ()
                 "Function 'like' doesn't support search with non-constant needles in constant haystack", "Illegal type",
                 "Illegal value (aggregate function) for positional argument in GROUP BY",
+                // ClickHouse 26+ new-analyzer variant of the same generator-induced issue:
+                // a positional GROUP BY pointer (e.g., GROUP BY 1) resolving to an aggregate
+                // SELECT-list column. Old analyzer error above, new analyzer error here.
+                "is found in GROUP BY in query", "(ILLEGAL_AGGREGATION)",
                 "Invalid escape sequence at the end of LIKE pattern", "Invalid type for filter in", "Memory limit",
                 "OptimizedRegularExpression: cannot compile re2", "Partition key cannot contain constants",
                 "Positional argument out of bounds", "Sampling expression must be present in the primary key",
