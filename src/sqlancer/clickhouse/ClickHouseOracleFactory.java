@@ -7,6 +7,7 @@ import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
 import sqlancer.clickhouse.gen.ClickHouseExpressionGenerator;
 import sqlancer.clickhouse.oracle.cert.ClickHouseCERTOracle;
 import sqlancer.clickhouse.oracle.coddtest.ClickHouseCODDTestOracle;
+import sqlancer.clickhouse.oracle.eet.ClickHouseEETOracle;
 import sqlancer.clickhouse.oracle.pqs.ClickHousePivotedQuerySynthesisOracle;
 import sqlancer.clickhouse.oracle.semr.ClickHouseSEMROracle;
 import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPAggregateOracle;
@@ -85,6 +86,12 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseSEMROracle(globalState);
+        }
+    },
+    EET {
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseEETOracle(globalState);
         }
     }
 }

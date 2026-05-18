@@ -166,4 +166,13 @@ public class TestClickHouse {
                         "--oracle", "SEMR", "--random-session-settings", "true"));
     }
 
+    @Test
+    public void testClickHouseEET() {
+        assumeTrue(TestConfig.isEnvironmentTrue(TestConfig.CLICKHOUSE_ENV));
+        assertEquals(0,
+                Main.executeMain("--log-each-select", "true", "--print-failed", "false", "--timeout-seconds", "60",
+                        "--num-queries", TestConfig.NUM_QUERIES, "--num-threads", "1", "--username", "default",
+                        "--password", "", "--database-prefix", "T18_", "clickhouse", "--oracle", "EET"));
+    }
+
 }
