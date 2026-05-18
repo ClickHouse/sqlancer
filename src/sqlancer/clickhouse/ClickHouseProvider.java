@@ -170,10 +170,34 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         // the buggy code path is bypassed entirely (the response stream is the raw chunked HTTP
         // body, no LZ4 frame parsing). Cost: responses ~3x larger on the wire, but SQLancer's
         // queries are small and the connection is loopback, so net throughput is unaffected.
+        //
+        // http_response_buffer_size raised to 100 MB forces ClickHouse to buffer the full response
+        // server-side for SQLancer-sized queries, so mid-stream execution errors (e.g., a row
+        // triggers ILLEGAL_DIVISION
+        // partway through a streamed RowBinary result) surface as a clean HTTP 500 with a
+        // parseable error body instead of a chunked transport that gets prematurely closed.
+        //
+        // Without this, the server commits to `HTTP/1.1 200 + Transfer-Encoding: chunked` before
+        // knowing if the query will error; on a mid-stream error it writes plain-text
+        // "(ILLEGAL_DIVISION) ..." into the already-binary body and closes the connection.
+        // clickhouse-jdbc 0.9.8's BinaryStreamReader then hits EOF on `readDoubleLE` / `readIntLE`
+        // and surfaces as `SQLException: Failed to read value for column ...` with
+        // `ConnectionClosedException: Premature end of chunk coded message body` underneath.
+        // Baseline 2026-05-18 burn-in: ~10% of SetOpTLP queries and ~same on TLPWhere hit this.
+        //
+        // `wait_end_of_query=1` alone is NOT sufficient -- it only takes effect when the response
+        // fits the *default* http_response_buffer_size (a few MB). For larger results the server
+        // starts streaming anyway. 100 MB is the chosen size: covers every SQLancer-generated
+        // result observed so far (bounded by --max-num-inserts and single-column fetchColumn
+        // constraint), without giving the server license to allocate gigabytes per query under
+        // concurrency. Cost: memory proportional to result size up to the cap, but typical actual
+        // usage is tiny (<1 MB) so the cap rarely binds.
         con = DriverManager.getConnection(
                 String.format(
                         "jdbc:clickhouse://%s:%d/%s?socket_timeout=300000&compress=false"
-                                + "&clickhouse_setting_max_execution_time=120%s%s",
+                                + "&clickhouse_setting_max_execution_time=120"
+                                + "&clickhouse_setting_http_response_buffer_size=104857600"
+                                + "&clickhouse_setting_wait_end_of_query=1%s%s",
                         host, port, databaseName, analyzerExtra, lcExtra),
                 globalState.getOptions().getUserName(), globalState.getOptions().getPassword());
         if (clickHouseOptions.randomSessionSettings) {
