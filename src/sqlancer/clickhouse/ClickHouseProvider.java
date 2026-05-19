@@ -228,15 +228,19 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         // execution-sample frames in the iter-8 profile -- moving them to SET keeps the
         // connection URL short and the server still sees session-scoped settings for the life
         // of the connection.)
-        // compress=false disables LZ4 response compression. clickhouse-jdbc 0.9.6/0.9.8 share a
-        // defect in their LZ4-over-chunked-HTTP decoder (ClickHouseLZ4InputStream + Apache HC
-        // ChunkedInputStream interaction) — verified byte-identical between the two versions —
-        // surfacing as `MalformedChunkCodingException: CRLF expected at end of chunk`, wrapped
-        // at the JDBC layer as `SQLException: Failed to read value for column …`. Observed 16
-        // times in the 2026-05-18 15-min baseline (0.33% per-query rate). With compression off
-        // the buggy code path is bypassed entirely (the response stream is the raw chunked HTTP
-        // body, no LZ4 frame parsing). Cost: responses ~3x larger on the wire, but SQLancer's
-        // queries are small and the connection is loopback, so net throughput is unaffected.
+        // Response compression goes through HTTP `Content-Encoding`, not ClickHouse's native
+        // protocol framing. clickhouse-jdbc 0.9.6/0.9.8 share a defect in their native-protocol
+        // LZ4 decoder (`ClickHouseLZ4InputStream` + Apache HC `ChunkedInputStream` interaction) —
+        // verified byte-identical between the two versions — surfacing as
+        // `MalformedChunkCodingException: CRLF expected at end of chunk`, wrapped at the JDBC
+        // layer as `SQLException: Failed to read value for column …` (observed 16 times in the
+        // 2026-05-18 15-min baseline, 0.33% per-query rate). `client.use_http_compression=true`
+        // moves response decoding off that buggy class entirely: the driver advertises
+        // `Accept-Encoding: lz4`, the server responds with `Content-Encoding: lz4`, and the body
+        // is decoded by Apache Commons Compress's lz4-framed decoder (via `CompressedEntity`) —
+        // a separate, sound implementation. The driver also auto-appends
+        // `enable_http_compression=1` to every request URL when this mode is on, so we don't
+        // need a clickhouse_setting_* opt-in.
         //
         // http_response_buffer_size raised to 100 MB forces ClickHouse to buffer the full response
         // server-side for SQLancer-sized queries, so mid-stream execution errors (e.g., a row
@@ -274,7 +278,8 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         // URL-side application costs a few bytes of URI per request but guarantees the cap is
         // attached before the server starts streaming.
         con = DriverManager.getConnection(
-                String.format("jdbc:clickhouse://%s:%d/%s?socket_timeout=60000&compress=false"
+                String.format("jdbc:clickhouse://%s:%d/%s?socket_timeout=60000"
+                        + "&compress=true&client.use_http_compression=true"
                         + "&clickhouse_setting_http_response_buffer_size=104857600&clickhouse_setting_wait_end_of_query=1"
                         + "&clickhouse_setting_max_execution_time=30",
                         host, port, databaseName),
