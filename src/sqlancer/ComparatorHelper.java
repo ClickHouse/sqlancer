@@ -18,6 +18,30 @@ public final class ComparatorHelper {
     private ComparatorHelper() {
     }
 
+    /**
+     * Equivalent of {@code s.replaceAll("[\\.]0+$", "")} -- trim a literal dot followed by one
+     * or more trailing zeros at the end of the string. The original regex form dominated the
+     * SQLancer-side CPU profile (`Pattern.compile`/`Matcher.replaceAll` was ~24% of execution
+     * samples in the 2026-05-19 ClickHouse baseline, because it ran on every row of every
+     * oracle-emitted result set). Scanning from the end is constant-time for the common case of
+     * strings that don't end in '0' (single char compare) and at most O(n) for trailing-zero
+     * runs.
+     */
+    private static String trimTrailingDotZeros(String s) {
+        int len = s.length();
+        if (len < 2 || s.charAt(len - 1) != '0') {
+            return s;
+        }
+        int i = len - 1;
+        while (i > 0 && s.charAt(i) == '0') {
+            i--;
+        }
+        if (s.charAt(i) != '.') {
+            return s;
+        }
+        return s.substring(0, i);
+    }
+
     public static boolean isEqualDouble(String first, String second) {
         try {
             double val = Double.parseDouble(first);
@@ -60,8 +84,8 @@ public final class ComparatorHelper {
             while (result.next()) {
                 String resultTemp = result.getString(1);
                 if (resultTemp != null) {
-                    resultTemp = resultTemp.replaceAll("[\\.]0+$", ""); // Remove the trailing zeros as many DBMS treat
-                    // it as non-bugs
+                    // Remove trailing dot-zeros as many DBMS treat it as non-bugs.
+                    resultTemp = trimTrailingDotZeros(resultTemp);
                 }
                 resultSet.add(resultTemp);
             }

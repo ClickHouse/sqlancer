@@ -110,7 +110,11 @@ public final class ClickHouseErrors {
                 "DECIMAL_OVERFLOW", "Cannot convert: Float64 to Decimal", "Too many digits", "ARGUMENT_OUT_OF_BOUND",
                 // FixedString CAST when the literal length doesn't match. The emitter pads / truncates
                 // to N but DEFAULT clauses generated from a longer source string can still trip this.
-                "String literal", "FIXED_STRING");
+                // CH 26.5 surfaces oversized literals as `TOO_LARGE_STRING_SIZE` (Code 131), which
+                // doesn't contain the upper-case `FIXED_STRING` substring -- without the explicit
+                // code it escapes the generator's expected-errors filter and tears down the thread.
+                // Observed twice in the 2026-05-19 180s baseline, costing 2/6 threads (~33% capacity).
+                "String literal", "FIXED_STRING", "TOO_LARGE_STRING_SIZE");
     }
 
     public static void addExpectedExpressionErrors(ExpectedErrors errors) {

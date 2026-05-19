@@ -245,8 +245,13 @@ public final class Main {
             }
             try {
                 getCurrentFileWriter().write(loggable.getLogString());
-
-                currentFileWriter.flush();
+                // Intentionally not flushing per write. The current-database log file is closed
+                // (and therefore implicitly flushed) on both the success and failure paths of
+                // DBMSExecutor.run, so reproducer integrity for an AssertionError is preserved.
+                // A per-write flush was costing one OS write() syscall per logged query and
+                // showed up under heavy oracle workloads -- the only behaviour we lose is the
+                // very last few queries being durable if the JVM is hard-killed (SIGKILL/native
+                // crash) before the finally-block close runs.
             } catch (IOException e) {
                 throw new AssertionError();
             }

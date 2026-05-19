@@ -125,7 +125,16 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         String databaseName = globalState.getDatabaseName();
         Connection con = DriverManager.getConnection(url, globalState.getOptions().getUserName(),
                 globalState.getOptions().getPassword());
-        String dropDatabaseCommand = "DROP DATABASE IF EXISTS " + databaseName;
+        // The `SYNC` modifier on DROP DATABASE forces ClickHouse to fully detach metadata
+        // and wait for the dropped engine to finish cleanup before returning, instead of the
+        // default Atomic-engine behaviour of renaming the data directory to a hex name and
+        // cleaning up asynchronously. Combined with the immediately-following CREATE on the
+        // same connection, this removes the need for the two `Thread.sleep(1000)` calls that
+        // the original 2020 module rewrite used as a race-avoidance heuristic.
+        // Measured cost of the old sleeps in the 2026-05-19 baseline: ~84 thread-seconds out of
+        // 6×180s = 1080s total thread budget (~8%); every freshly-rolled database paid 2 seconds
+        // of pure wallclock latency before the first INSERT could run.
+        String dropDatabaseCommand = "DROP DATABASE IF EXISTS " + databaseName + " SYNC";
         globalState.getState().logStatement(dropDatabaseCommand);
         String createDatabaseCommand = "CREATE DATABASE IF NOT EXISTS " + databaseName;
         globalState.getState().logStatement(createDatabaseCommand);
@@ -133,15 +142,9 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         globalState.getState().logStatement(useDatabaseCommand);
         try (Statement s = con.createStatement()) {
             s.execute(dropDatabaseCommand);
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
         }
         try (Statement s = con.createStatement()) {
             s.execute(createDatabaseCommand);
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
         }
         con.close();
         // Server-level ClickHouse settings are passed via the `clickhouse_setting_<name>` prefix.
@@ -157,10 +160,12 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         // occasional heavyweight random queries hit the 300s socket_timeout and produce
         // ambiguous client-side timeout exceptions (3 observed in the 2026-05-18 baseline).
         // The cap surfaces as a clean TIMEOUT_EXCEEDED error that ClickHouseErrors absorbs.
-        String lcExtra = clickHouseOptions.enableLowCardinality
-                ? "&clickhouse_setting_allow_suspicious_low_cardinality_types=1" : "";
-        String analyzerExtra = clickHouseOptions.enableAnalyzer ? "&clickhouse_setting_allow_experimental_analyzer=1"
-                : "";
+        // (The clickhouse_setting_* parameters that used to be appended to the URL here are now
+        // applied via SET commands below, after the connection is established. The driver's
+        // per-query URI builder otherwise re-applied them on every request, contributing ~700
+        // execution-sample frames in the iter-8 profile -- moving them to SET keeps the
+        // connection URL short and the server still sees session-scoped settings for the life
+        // of the connection.)
         // compress=false disables LZ4 response compression. clickhouse-jdbc 0.9.6/0.9.8 share a
         // defect in their LZ4-over-chunked-HTTP decoder (ClickHouseLZ4InputStream + Apache HC
         // ChunkedInputStream interaction) — verified byte-identical between the two versions —
@@ -192,18 +197,43 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         // constraint), without giving the server license to allocate gigabytes per query under
         // concurrency. Cost: memory proportional to result size up to the cap, but typical actual
         // usage is tiny (<1 MB) so the cap rarely binds.
-        con = DriverManager.getConnection(
-                String.format(
-                        "jdbc:clickhouse://%s:%d/%s?socket_timeout=300000&compress=false"
-                                + "&clickhouse_setting_max_execution_time=120"
-                                + "&clickhouse_setting_http_response_buffer_size=104857600"
-                                + "&clickhouse_setting_wait_end_of_query=1%s%s",
-                        host, port, databaseName, analyzerExtra, lcExtra),
-                globalState.getOptions().getUserName(), globalState.getOptions().getPassword());
+        // Settings that affect the HTTP transport must remain on the connection URL:
+        //   * `wait_end_of_query=1` is HTTP-protocol-only (SET returns UNKNOWN_SETTING).
+        //   * `http_response_buffer_size` is taken at the moment the server commits to a chunked
+        //     HTTP response; SETting it later doesn't retroactively change buffering for the
+        //     current request, leaving us back at the `Premature end of chunk coded message body`
+        //     tear-down the original workaround was designed to avoid (observed 7 times in the
+        //     first iter-9 attempt before the param was returned to the URL).
+        // Other clickhouse_setting_* params are session-scoped and applied via SET below.
+        con = DriverManager.getConnection(String.format("jdbc:clickhouse://%s:%d/%s?socket_timeout=300000&compress=false"
+                + "&clickhouse_setting_http_response_buffer_size=104857600&clickhouse_setting_wait_end_of_query=1", host,
+                port, databaseName), globalState.getOptions().getUserName(),
+                globalState.getOptions().getPassword());
+        applyConnectionLevelSettings(con, clickHouseOptions);
         if (clickHouseOptions.randomSessionSettings) {
             applyRandomSessionSettings(globalState, clickHouseOptions, con);
         }
         return new SQLConnection(con);
+    }
+
+    private static void applyConnectionLevelSettings(Connection con, ClickHouseOptions clickHouseOptions)
+            throws SQLException {
+        // These settings used to live as `clickhouse_setting_*` parameters on the JDBC URL. The
+        // 0.9.8 driver re-applied them on every per-query request URI build, costing ~25% of CPU
+        // in URI parsing. Setting them once per session via SET keeps the per-request URI to the
+        // bare endpoint (`/?database=...`).
+        try (Statement s = con.createStatement()) {
+            // Cap server-side query execution at 120 s; without it occasional heavyweight random
+            // queries hit the 300 s socket_timeout and produce ambiguous client-side timeouts
+            // rather than a clean TIMEOUT_EXCEEDED. Session-scoped, so SET is sufficient.
+            s.execute("SET max_execution_time = 120");
+            if (clickHouseOptions.enableAnalyzer) {
+                s.execute("SET allow_experimental_analyzer = 1");
+            }
+            if (clickHouseOptions.enableLowCardinality) {
+                s.execute("SET allow_suspicious_low_cardinality_types = 1");
+            }
+        }
     }
 
     private static void applyRandomSessionSettings(ClickHouseGlobalState globalState,

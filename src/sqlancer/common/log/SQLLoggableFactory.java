@@ -10,16 +10,43 @@ public class SQLLoggableFactory extends LoggableFactory {
 
     @Override
     protected Loggable createLoggable(String input, String suffix) {
-        String completeString = input;
-        if (!input.endsWith(";")) {
-            completeString += ";";
+        // Fast path: most SQLancer-generated SQL is single-line and already ends in ';'. Skipping
+        // the two `String.replace` passes (each of which scans the string and allocates a fresh
+        // String even when no replacement occurs) is worth ~1% of total CPU under TLPWhere on
+        // ClickHouse, because every logged statement funnels through here -- twice per query
+        // when --log-execution-time=true (once for the SQL, once for the timing suffix).
+        boolean endsWithSemicolon = input.endsWith(";");
+        boolean hasNewline = input.indexOf('\n') >= 0 || input.indexOf('\r') >= 0;
+        boolean hasSuffix = suffix != null && !suffix.isEmpty();
+        if (endsWithSemicolon && !hasNewline && !hasSuffix) {
+            return new LoggedString(input);
         }
-        completeString = completeString.replace("\n", "\\n");
-        completeString = completeString.replace("\r", "\\r");
-        if (suffix != null && !suffix.isEmpty()) {
-            completeString += suffix;
+
+        StringBuilder sb = new StringBuilder(input.length() + 4 + (hasSuffix ? suffix.length() : 0));
+        if (hasNewline) {
+            // Escape \n and \r in a single pass rather than via two `String.replace` calls plus
+            // intermediate Strings.
+            int len = input.length();
+            for (int i = 0; i < len; i++) {
+                char c = input.charAt(i);
+                if (c == '\n') {
+                    sb.append("\\n");
+                } else if (c == '\r') {
+                    sb.append("\\r");
+                } else {
+                    sb.append(c);
+                }
+            }
+        } else {
+            sb.append(input);
         }
-        return new LoggedString(completeString);
+        if (!endsWithSemicolon) {
+            sb.append(';');
+        }
+        if (hasSuffix) {
+            sb.append(suffix);
+        }
+        return new LoggedString(sb.toString());
     }
 
     @Override
