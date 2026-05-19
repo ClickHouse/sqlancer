@@ -50,6 +50,13 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--semr-arity", description = "Number of SEMR settings to toggle together per query for the SEMRMulti oracle (>= 2)")
     public int semrArity = 2;
 
+    public enum Transport {
+        HTTP, JDBC
+    }
+
+    @Parameter(names = "--transport", description = "Wire transport for ClickHouse: 'jdbc' (default, clickhouse-jdbc 0.9.8) or 'http' (raw HTTP POST). HTTP bypasses the driver's chunked-decoder / UInt64-overflow / per-request URI-rebuild costs documented in the 2026-05-19 run; it is interchangeable with JDBC but ~30% slower due to TSV parsing")
+    public Transport transport = Transport.JDBC;
+
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;

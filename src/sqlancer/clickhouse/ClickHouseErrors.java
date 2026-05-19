@@ -64,6 +64,29 @@ public final class ClickHouseErrors {
 
                 // JDBC driver may fail to decompress error responses under certain conditions
                 "Magic is not correct",
+                // clickhouse-jdbc 0.9.8 + Apache HC chunked-decoder intermittently fail with
+                // these on responses ≥ ~100 KB under concurrent thread load. Compression is
+                // already disabled via compress=false on the URL; the underlying chunked-transfer
+                // corruption remains. Absorb so a transport-layer flake doesn't poison the
+                // oracle.  Observed 12 + 2 times in the 2026-05-19 48-min run, in stack chains
+                // wrapped at the JDBC layer as `SQLException: Failed to read value for column X`
+                // → `ClientException: Failed to read value for column X` → either of these:
+                "MalformedChunkCodingException", "CRLF expected at end of chunk", "TruncatedChunkException",
+                "Truncated chunk (expected size:",
+                // Same family, different message — fires when the server closes the chunked
+                // response stream before writing the terminating "0\r\n\r\n" closing chunk
+                // (seen in post-fix run-163913: 2 occurrences in 60 s).
+                "ConnectionClosedException", "Premature end of chunk coded message body",
+                // Same family: under sustained concurrent load the JDBC client's per-request HTTP
+                // socket occasionally trips its read timeout before the response completes. The
+                // server-side cap is max_execution_time=30 (set on the URL), so this should be
+                // rare, but it can still happen if the response body itself is slow to drain.
+                "SocketTimeoutException", "Read timed out", "Query request failed (attempt:",
+                "DataTransferException",
+                // PQS pivot rows containing legitimate UInt64 values above Long.MAX_VALUE. The
+                // sqlancer-side ClickHouseSchema.getConstant currently widens via ResultSet.getLong
+                // and overflows. Mark as expected until that path is widened to BigInteger.
+                "cannot be presented as long",
 
                 // v1 type-system foundation: Nullable / LowCardinality activation patterns. These
                 // are added defensively from common ClickHouse error families; the full triage is

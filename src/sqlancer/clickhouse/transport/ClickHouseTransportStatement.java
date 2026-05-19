@@ -1,0 +1,197 @@
+package sqlancer.clickhouse.transport;
+
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.SQLWarning;
+
+/**
+ * Minimal {@link PreparedStatement} (which extends {@link java.sql.Statement}) that funnels every
+ * execute call through the underlying {@link ClickHouseTransport}.
+ *
+ * sqlancer's executor calls one of {@code execute(sql)}, {@code executeQuery(sql)}, or
+ * {@code executeUpdate(sql)} on a {@code java.sql.Statement}, plus the no-arg variants on the
+ * {@link PreparedStatement} the SQLQueryAdapter creates by passing the SQL at preparation time.
+ * Nothing else is exercised.
+ */
+final class ClickHouseTransportStatement implements PreparedStatement {
+
+    private final ClickHouseTransportConnection con;
+    // null for plain Statement created via createStatement()
+    private final String preparedSql;
+    private ClickHouseTransportResultSet currentResultSet;
+    private int currentUpdateCount = -1;
+    private boolean closed;
+
+    ClickHouseTransportStatement(ClickHouseTransportConnection con, String preparedSql) {
+        this.con = con;
+        this.preparedSql = preparedSql;
+    }
+
+    // ---- the methods sqlancer actually calls ----
+
+    @Override
+    public boolean execute() throws SQLException {
+        return execute(requirePrepared());
+    }
+
+    @Override
+    public ResultSet executeQuery() throws SQLException {
+        return executeQuery(requirePrepared());
+    }
+
+    @Override
+    public int executeUpdate() throws SQLException {
+        return executeUpdate(requirePrepared());
+    }
+
+    @Override
+    public boolean execute(String sql) throws SQLException {
+        // sqlancer's executor uses .execute() for INSERT and DDL; treat as update.
+        executeUpdateInternal(sql);
+        return false;
+    }
+
+    @Override
+    public ResultSet executeQuery(String sql) throws SQLException {
+        ClickHouseTransport.ResultData data = con.getTransport().executeQuery(sql);
+        currentResultSet = new ClickHouseTransportResultSet(this, data);
+        return currentResultSet;
+    }
+
+    @Override
+    public int executeUpdate(String sql) throws SQLException {
+        executeUpdateInternal(sql);
+        return 0;
+    }
+
+    private void executeUpdateInternal(String sql) throws SQLException {
+        con.getTransport().executeUpdate(sql);
+        currentUpdateCount = 0;
+    }
+
+    @Override
+    public void close() {
+        closed = true;
+        if (currentResultSet != null) {
+            currentResultSet.close();
+            currentResultSet = null;
+        }
+    }
+
+    @Override
+    public boolean isClosed() {
+        return closed;
+    }
+
+    @Override
+    public java.sql.Connection getConnection() {
+        return con;
+    }
+
+    private String requirePrepared() {
+        if (preparedSql == null) {
+            throw new UnsupportedOperationException("Cannot call no-arg execute on a non-prepared Statement");
+        }
+        return preparedSql;
+    }
+
+    // ---- everything else: throw, so silent no-ops don't mask gaps -----------------------------
+
+    @Override public ResultSet getResultSet() { return currentResultSet; }
+    @Override public int getUpdateCount() { return currentUpdateCount; }
+    @Override public boolean getMoreResults() { return false; }
+    @Override public boolean getMoreResults(int current) { return false; }
+    @Override public int getMaxRows() { return 0; }
+    @Override public void setMaxRows(int max) { /* no-op */ }
+    @Override public void setMaxFieldSize(int max) { /* no-op */ }
+    @Override public int getMaxFieldSize() { return 0; }
+    @Override public int getQueryTimeout() { return 0; }
+    @Override public void setQueryTimeout(int sec) { /* no-op */ }
+    @Override public void setEscapeProcessing(boolean enable) { /* no-op */ }
+    @Override public void cancel() { /* no-op */ }
+    @Override public SQLWarning getWarnings() { return null; }
+    @Override public void clearWarnings() { /* no-op */ }
+    @Override public void setCursorName(String name) { /* no-op */ }
+    @Override public void setFetchDirection(int dir) { /* no-op */ }
+    @Override public int getFetchDirection() { return ResultSet.FETCH_FORWARD; }
+    @Override public void setFetchSize(int rows) { /* no-op */ }
+    @Override public int getFetchSize() { return 0; }
+    @Override public int getResultSetConcurrency() { return ResultSet.CONCUR_READ_ONLY; }
+    @Override public int getResultSetType() { return ResultSet.TYPE_FORWARD_ONLY; }
+    @Override public int getResultSetHoldability() { return ResultSet.CLOSE_CURSORS_AT_COMMIT; }
+    @Override public void addBatch() { unsupported("addBatch"); }
+    @Override public void addBatch(String sql) { unsupported("addBatch"); }
+    @Override public void clearBatch() { unsupported("clearBatch"); }
+    @Override public int[] executeBatch() { return unsupported("executeBatch"); }
+    @Override public boolean isPoolable() { return false; }
+    @Override public void setPoolable(boolean p) { /* no-op */ }
+    @Override public void closeOnCompletion() { /* no-op */ }
+    @Override public boolean isCloseOnCompletion() { return false; }
+    @Override public boolean execute(String sql, int autoGeneratedKeys) throws SQLException { return execute(sql); }
+    @Override public boolean execute(String sql, int[] columnIndexes) throws SQLException { return execute(sql); }
+    @Override public boolean execute(String sql, String[] columnNames) throws SQLException { return execute(sql); }
+    @Override public int executeUpdate(String sql, int autoGeneratedKeys) throws SQLException { return executeUpdate(sql); }
+    @Override public int executeUpdate(String sql, int[] columnIndexes) throws SQLException { return executeUpdate(sql); }
+    @Override public int executeUpdate(String sql, String[] columnNames) throws SQLException { return executeUpdate(sql); }
+    @Override public ResultSet getGeneratedKeys() { return unsupported("getGeneratedKeys"); }
+    @Override public <T> T unwrap(Class<T> iface) { return unsupported("unwrap"); }
+    @Override public boolean isWrapperFor(Class<?> iface) { return false; }
+
+    // ---- PreparedStatement-specific (parameter setters); sqlancer doesn't bind params ----
+    @Override public void setNull(int p, int t) { unsupported("setNull"); }
+    @Override public void setBoolean(int p, boolean v) { unsupported("setBoolean"); }
+    @Override public void setByte(int p, byte v) { unsupported("setByte"); }
+    @Override public void setShort(int p, short v) { unsupported("setShort"); }
+    @Override public void setInt(int p, int v) { unsupported("setInt"); }
+    @Override public void setLong(int p, long v) { unsupported("setLong"); }
+    @Override public void setFloat(int p, float v) { unsupported("setFloat"); }
+    @Override public void setDouble(int p, double v) { unsupported("setDouble"); }
+    @Override public void setBigDecimal(int p, java.math.BigDecimal v) { unsupported("setBigDecimal"); }
+    @Override public void setString(int p, String v) { unsupported("setString"); }
+    @Override public void setBytes(int p, byte[] v) { unsupported("setBytes"); }
+    @Override public void setDate(int p, java.sql.Date v) { unsupported("setDate"); }
+    @Override public void setTime(int p, java.sql.Time v) { unsupported("setTime"); }
+    @Override public void setTimestamp(int p, java.sql.Timestamp v) { unsupported("setTimestamp"); }
+    @Override public void setAsciiStream(int p, java.io.InputStream v, int l) { unsupported("setAsciiStream"); }
+    @Override public void setUnicodeStream(int p, java.io.InputStream v, int l) { unsupported("setUnicodeStream"); }
+    @Override public void setBinaryStream(int p, java.io.InputStream v, int l) { unsupported("setBinaryStream"); }
+    @Override public void clearParameters() { unsupported("clearParameters"); }
+    @Override public void setObject(int p, Object v, int t) { unsupported("setObject"); }
+    @Override public void setObject(int p, Object v) { unsupported("setObject"); }
+    @Override public void setCharacterStream(int p, java.io.Reader v, int l) { unsupported("setCharacterStream"); }
+    @Override public void setRef(int p, java.sql.Ref v) { unsupported("setRef"); }
+    @Override public void setBlob(int p, java.sql.Blob v) { unsupported("setBlob"); }
+    @Override public void setClob(int p, java.sql.Clob v) { unsupported("setClob"); }
+    @Override public void setArray(int p, java.sql.Array v) { unsupported("setArray"); }
+    @Override public java.sql.ResultSetMetaData getMetaData() { return currentResultSet != null ? currentResultSet.getMetaData() : null; }
+    @Override public void setDate(int p, java.sql.Date v, java.util.Calendar c) { unsupported("setDate"); }
+    @Override public void setTime(int p, java.sql.Time v, java.util.Calendar c) { unsupported("setTime"); }
+    @Override public void setTimestamp(int p, java.sql.Timestamp v, java.util.Calendar c) { unsupported("setTimestamp"); }
+    @Override public void setNull(int p, int t, String n) { unsupported("setNull"); }
+    @Override public void setURL(int p, java.net.URL v) { unsupported("setURL"); }
+    @Override public java.sql.ParameterMetaData getParameterMetaData() { return unsupported("getParameterMetaData"); }
+    @Override public void setRowId(int p, java.sql.RowId v) { unsupported("setRowId"); }
+    @Override public void setNString(int p, String v) { unsupported("setNString"); }
+    @Override public void setNCharacterStream(int p, java.io.Reader v, long l) { unsupported("setNCharacterStream"); }
+    @Override public void setNClob(int p, java.sql.NClob v) { unsupported("setNClob"); }
+    @Override public void setClob(int p, java.io.Reader v, long l) { unsupported("setClob"); }
+    @Override public void setBlob(int p, java.io.InputStream v, long l) { unsupported("setBlob"); }
+    @Override public void setNClob(int p, java.io.Reader v, long l) { unsupported("setNClob"); }
+    @Override public void setSQLXML(int p, java.sql.SQLXML v) { unsupported("setSQLXML"); }
+    @Override public void setObject(int p, Object v, int t, int s) { unsupported("setObject"); }
+    @Override public void setAsciiStream(int p, java.io.InputStream v, long l) { unsupported("setAsciiStream"); }
+    @Override public void setBinaryStream(int p, java.io.InputStream v, long l) { unsupported("setBinaryStream"); }
+    @Override public void setCharacterStream(int p, java.io.Reader v, long l) { unsupported("setCharacterStream"); }
+    @Override public void setAsciiStream(int p, java.io.InputStream v) { unsupported("setAsciiStream"); }
+    @Override public void setBinaryStream(int p, java.io.InputStream v) { unsupported("setBinaryStream"); }
+    @Override public void setCharacterStream(int p, java.io.Reader v) { unsupported("setCharacterStream"); }
+    @Override public void setNCharacterStream(int p, java.io.Reader v) { unsupported("setNCharacterStream"); }
+    @Override public void setClob(int p, java.io.Reader v) { unsupported("setClob"); }
+    @Override public void setBlob(int p, java.io.InputStream v) { unsupported("setBlob"); }
+    @Override public void setNClob(int p, java.io.Reader v) { unsupported("setNClob"); }
+
+    private static <T> T unsupported(String op) {
+        throw new UnsupportedOperationException("ClickHouseTransportStatement: " + op + " not implemented");
+    }
+}

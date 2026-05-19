@@ -136,8 +136,55 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
 
         ClickHouseOptions clickHouseOptions = globalState.getDbmsSpecificOptions();
         globalState.setClickHouseOptions(clickHouseOptions);
-        String url = String.format("jdbc:clickhouse://%s:%d/%s", host, port, "default");
         String databaseName = globalState.getDatabaseName();
+
+        if (clickHouseOptions.transport == ClickHouseOptions.Transport.HTTP) {
+            return createDatabaseHttp(globalState, host, port, databaseName, clickHouseOptions);
+        }
+        return createDatabaseJdbc(globalState, host, port, databaseName, clickHouseOptions);
+    }
+
+    private SQLConnection createDatabaseHttp(ClickHouseGlobalState globalState, String host, int port,
+            String databaseName, ClickHouseOptions clickHouseOptions) throws SQLException {
+        // HTTP path: every statement is a POST to /?database=... with the SQL as the body. Same
+        // settings the JDBC URL carried (max_execution_time=30, wait_end_of_query=1,
+        // http_response_buffer_size=100MB) ride as query-string parameters; analyser/LowCardinality
+        // flags ride alongside. No clickhouse-jdbc anywhere in the path -- avoids the chunked-decoder
+        // and UInt64-overflow failures we triaged.
+        java.util.LinkedHashMap<String, String> settings = new java.util.LinkedHashMap<>();
+        settings.put("max_execution_time", "30");
+        settings.put("wait_end_of_query", "1");
+        settings.put("http_response_buffer_size", "104857600");
+        if (clickHouseOptions.enableAnalyzer) {
+            settings.put("allow_experimental_analyzer", "1");
+        }
+        if (clickHouseOptions.enableLowCardinality) {
+            settings.put("allow_suspicious_low_cardinality_types", "1");
+        }
+        // First create against the `default` database, then switch the transport's database
+        // pointer so subsequent oracle queries land in the freshly-created schema.
+        sqlancer.clickhouse.transport.ClickHouseHttpTransport transport = new sqlancer.clickhouse.transport.ClickHouseHttpTransport(
+                host, port, globalState.getOptions().getUserName(), globalState.getOptions().getPassword(),
+                "default", settings, 5_000, 60_000);
+        String dropDatabaseCommand = "DROP DATABASE IF EXISTS " + databaseName + " SYNC";
+        String createDatabaseCommand = "CREATE DATABASE IF NOT EXISTS " + databaseName;
+        String useDatabaseCommand = "USE " + databaseName;
+        globalState.getState().logStatement(dropDatabaseCommand);
+        globalState.getState().logStatement(createDatabaseCommand);
+        globalState.getState().logStatement(useDatabaseCommand);
+        transport.executeUpdate(dropDatabaseCommand);
+        transport.executeUpdate(createDatabaseCommand);
+        transport.executeUpdate(useDatabaseCommand);
+        Connection con = new sqlancer.clickhouse.transport.ClickHouseTransportConnection(transport);
+        if (clickHouseOptions.randomSessionSettings) {
+            applyRandomSessionSettings(globalState, clickHouseOptions, con);
+        }
+        return new SQLConnection(con);
+    }
+
+    private SQLConnection createDatabaseJdbc(ClickHouseGlobalState globalState, String host, int port,
+            String databaseName, ClickHouseOptions clickHouseOptions) throws SQLException {
+        String url = String.format("jdbc:clickhouse://%s:%d/%s", host, port, "default");
         Connection con = DriverManager.getConnection(url, globalState.getOptions().getUserName(),
                 globalState.getOptions().getPassword());
         // The `SYNC` modifier on DROP DATABASE forces ClickHouse to fully detach metadata
@@ -220,9 +267,16 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         // tear-down the original workaround was designed to avoid (observed 7 times in the
         // first iter-9 attempt before the param was returned to the URL).
         // Other clickhouse_setting_* params are session-scoped and applied via SET below.
+        // max_execution_time on the URL (not as a session SET) so it is part of every per-request
+        // URI the driver builds. Empirically, the prior SET-only placement let some heavy random
+        // queries reach the 300 s JDBC socket_timeout instead of the server-side 30 s cap (4
+        // SocketTimeoutException + 2 DataTransferException observed in the 2026-05-19 48-min run).
+        // URL-side application costs a few bytes of URI per request but guarantees the cap is
+        // attached before the server starts streaming.
         con = DriverManager.getConnection(
-                String.format("jdbc:clickhouse://%s:%d/%s?socket_timeout=300000&compress=false"
-                        + "&clickhouse_setting_http_response_buffer_size=104857600&clickhouse_setting_wait_end_of_query=1",
+                String.format("jdbc:clickhouse://%s:%d/%s?socket_timeout=60000&compress=false"
+                        + "&clickhouse_setting_http_response_buffer_size=104857600&clickhouse_setting_wait_end_of_query=1"
+                        + "&clickhouse_setting_max_execution_time=30",
                         host, port, databaseName),
                 globalState.getOptions().getUserName(), globalState.getOptions().getPassword());
         applyConnectionLevelSettings(con, clickHouseOptions);
