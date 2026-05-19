@@ -133,16 +133,27 @@ public class ClickHouseTableGenerator {
             Supplier<ClickHouseExpression> exprFactory = () -> gen.generateExpressionWithColumns(
                     columns.stream().map(c -> c.asColumnReference(null)).collect(Collectors.toList()), 3);
 
+            // Replacing/Summing dedupe rows by ORDER BY key; ORDER BY tuple() (empty sort key)
+            // treats every row as a duplicate, so visible row counts drift with the merge
+            // schedule and any oracle that compares two SELECTs against the same table sees
+            // racy cardinality (the false (756/126), (78/13), (5/1) trips in the 2026-05-19
+            // run all came from this combination). For these engines we require a non-empty
+            // sort key -- fall back to the first column rather than tuple().
+            boolean engineRequiresNonEmptyOrderBy = engine == ClickHouseEngine.ReplacingMergeTree
+                    || engine == ClickHouseEngine.SummingMergeTree;
+            String fallbackOrderBy = engineRequiresNonEmptyOrderBy ? " ORDER BY " + columns.get(0).getName() + " "
+                    : " ORDER BY tuple() ";
+
             if (Randomly.getBoolean()) {
                 ClickHouseExpression expr = generateValidated(exprFactory, ClickHouseTableGenerator::isValidOrderBy);
                 if (expr != null) {
                     sb.append(" ORDER BY ");
                     sb.append(ClickHouseToStringVisitor.asString(expr));
                 } else {
-                    sb.append(" ORDER BY tuple() ");
+                    sb.append(fallbackOrderBy);
                 }
             } else {
-                sb.append(" ORDER BY tuple() ");
+                sb.append(fallbackOrderBy);
             }
 
             if (Randomly.getBoolean()) {

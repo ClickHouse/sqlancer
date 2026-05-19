@@ -39,6 +39,7 @@
 - Maven: vendored under `tmp/apache-maven-3.9.9/` (not on `$PATH` by default).
 - Argument order is positional: global options (`--num-threads`, `--host`, `--port`, `--username`, `--password`, etc.) must come **before** the DBMS subcommand (`clickhouse`); DBMS-specific options come after. Putting `--host` after `clickhouse` gives `Was passed main parameter '--host' but no main parameter was defined in your arg class`.
 - Run-to-stop knobs: `--num-tries 999999 --timeout-seconds 180 --use-connection-test false --print-progress-summary true`. Without a huge `--num-tries` you stop after the first 100 found errors.
+- **Raise heap for long runs**: invoke as `java -Xmx4g -jar target/sqlancer-2.0.0.jar ...`. The default heap fills mid-run on dense reproducer dumps and 37 of 38 saved `logs/clickhouse/database*.log` files in the 2026-05-19 48-minute baseline were OOM-truncated (the AssertionError reproducer wrote the schema + INSERTs successfully but the JVM died before serialising the failing query). 4 GiB is enough for a 25-oracle composite × 6 threads × multi-hour run.
 - Default oracle for ClickHouse is `TLPWhere`.
 - `--log-each-select=true` is default and is required for AssertionError reproducer files; turning it off is invasive.
 - The default `--num-threads=16` is too high for a `--cpus=6` CH server (CH becomes the bottleneck); 6 sqlancer threads matched the 6 CPU cores cleanly.
