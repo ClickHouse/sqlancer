@@ -1,0 +1,16 @@
+<clickhouse>
+    <!-- Disable the system.trace_log table entirely. The trace_log captures sampled stack traces
+         (controlled by query_profiler_real_time_period_ns / query_profiler_cpu_time_period_ns)
+         which sqlancer dev runs do not consume; the table is pure overhead under fuzz pressure
+         (~3 MB on disk in ~3 minutes of a 6-thread sqlancer run).
+
+         The `remove="remove"` attribute is the documented ClickHouse mechanism for cancelling a
+         parent-config entry from a config.d override: it tells the merger to delete the
+         <trace_log> block from /etc/clickhouse-server/config.xml entirely, preventing the
+         server from creating system.trace_log on startup.
+
+         This is a heavier hammer than the TTL approach (system.trace_log MODIFY TTL ... 1 HOUR);
+         the TTL caps storage but the table still accumulates writes between merges. `remove`
+         skips the writes altogether. -->
+    <trace_log remove="remove"/>
+</clickhouse>

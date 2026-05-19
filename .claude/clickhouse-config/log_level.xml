@@ -1,0 +1,14 @@
+<clickhouse>
+    <!-- Drop the server-side file logger from trace to warning. With trace enabled, a fuzzer-paced
+         workload (sqlancer, 6 threads) fills /var/log/clickhouse-server/clickhouse-server.log at
+         ~70 MB/min, and the 1000 MB rotation cap is hit in ~14 minutes. At warning the same
+         workload produces ~10 MB/min, and the cap is hit in hours rather than minutes.
+
+         This file is mounted at /etc/clickhouse-server/config.d/log_level.xml inside the
+         container; ClickHouse merges every config.d/*.xml on top of /etc/clickhouse-server/config.xml
+         at startup, so this override survives container recreation as long as the parent directory
+         is volume-mounted (see CLAUDE.md docker run snippet). -->
+    <logger>
+        <level>warning</level>
+    </logger>
+</clickhouse>

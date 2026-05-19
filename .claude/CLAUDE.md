@@ -6,12 +6,28 @@
 - Required env vars on first run: without `CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1` + `CLICKHOUSE_SKIP_USER_SETUP=1` the entrypoint disables network access for the `default` user (`Authentication failed: password is incorrect`). Logs print `neither CLICKHOUSE_USER nor CLICKHOUSE_PASSWORD is set, disabling network access` — that's the signal.
 - Working command:
   ```
+  CFG="$(pwd)/.claude/clickhouse-config"
   docker run --ulimit nofile=262144:262144 --name clickhouse-server-perf -p18124:8123 -d \
     --cpus=6 -m=8g \
     -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 -e CLICKHOUSE_SKIP_USER_SETUP=1 \
+    -v "$CFG/log_level.xml:/etc/clickhouse-server/config.d/sf_log_level.xml:ro" \
+    -v "$CFG/trace_log_disabled.xml:/etc/clickhouse-server/config.d/sf_trace_log_disabled.xml:ro" \
+    -v "$CFG/system_log_ttl.xml:/etc/clickhouse-server/config.d/sf_system_log_ttl.xml:ro" \
     clickhouse/clickhouse-server:head
   ```
+  The three `-v` flags mount disk-pressure mitigation overrides (`log_level.xml` drops logger to
+  `warning`; `trace_log_disabled.xml` removes the trace_log table entirely via the
+  `remove="remove"` attribute; `system_log_ttl.xml` caps `processors_profile_log` retention at 1
+  hour). Files must be mounted directly into config.d — ClickHouse's config processor scans only
+  flat `*.xml` files there, not subdirectories. The `sf_` prefix on each filename keeps them
+  sorted next to the entrypoint-generated `docker_related_config.xml` for easy inspection. With 6
+  sqlancer threads these three together hold the data dir + file logs under ~150 MB during a
+  15-minute run versus ~1 GB without them. Drop a `-v` flag (or all three) if you specifically
+  want trace_log / verbose server logs for a debugging session.
 - Readiness probe: `until curl -sf http://127.0.0.1:18124/ping; do sleep 1; done`.
+- Between runs: `.claude/clickhouse-disk-cleanup.sh` truncates the system observability tables and
+  in-container file logs and drops orphan sqlancer databases. Idempotent; ~87% reduction on a
+  populated container in benchmarks.
 - HTTP-vs-SET trap:
   - `wait_end_of_query` is **HTTP-only** (SET returns `UNKNOWN_SETTING` and suggests `http_wait_end_of_query`).
   - `http_response_buffer_size` is consumed at the moment the server commits to a chunked response — SETting after a query starts is too late, so it must also stay on the URL.

@@ -78,7 +78,22 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
 
         @Override
         public String getDatabaseName() {
-            return super.getDatabaseName() + this.getOracleName();
+            // ClickHouse stores per-database metadata as `<dbname>.sql` on the local disk. On ext4
+            // the filename limit is 255 bytes, and "database<N>" + a 25-oracle suffix overflows
+            // it. ENAMETOOLONG surfaces as Code: 458 "Cannot unlink file ..." on every DROP /
+            // CREATE DATABASE attempt and the worker dies. We keep the human-readable oracle
+            // suffix when it fits and substitute a stable short hash when it doesn't, so a single
+            // composite-oracle run still has a recognisable database name while runs with many
+            // oracles do not crash.
+            String base = super.getDatabaseName();
+            String suffix = this.getOracleName();
+            // Conservative budget: 255 byte ext4 limit minus 20 bytes for ".sql.tmp" + a small
+            // safety margin against any future on-disk decorations ClickHouse adds.
+            int maxSuffix = 200 - base.length();
+            if (suffix.length() <= maxSuffix) {
+                return base + suffix;
+            }
+            return base + "o" + Integer.toHexString(suffix.hashCode());
         }
 
         @Override
@@ -223,10 +238,13 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         // in URI parsing. Setting them once per session via SET keeps the per-request URI to the
         // bare endpoint (`/?database=...`).
         try (Statement s = con.createStatement()) {
-            // Cap server-side query execution at 120 s; without it occasional heavyweight random
-            // queries hit the 300 s socket_timeout and produce ambiguous client-side timeouts
-            // rather than a clean TIMEOUT_EXCEEDED. Session-scoped, so SET is sufficient.
-            s.execute("SET max_execution_time = 120");
+            // Cap server-side query execution at 30 s. The old cap of 120 s was set when JOINs
+            // were less common and Cartesian-product SELECTs were rare; the W3 JOIN-shape work
+            // emits multi-table FROMs ("SELECT * FROM t1, t2, t3") regularly, and at 120 s those
+            // queries can monopolise a thread for the full 2 min reading a huge result set.
+            // 30 s preserves the "clean TIMEOUT_EXCEEDED rather than ambiguous socket_timeout"
+            // property of the original cap while keeping the per-thread blockage bounded.
+            s.execute("SET max_execution_time = 30");
             if (clickHouseOptions.enableAnalyzer) {
                 s.execute("SET allow_experimental_analyzer = 1");
             }

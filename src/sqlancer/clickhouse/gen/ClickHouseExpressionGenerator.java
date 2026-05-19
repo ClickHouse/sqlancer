@@ -460,8 +460,11 @@ public class ClickHouseExpressionGenerator
                 ClickHouseTableReference rightTable = new ClickHouseTableReference(Randomly.fromList(tables),
                         "right_" + i);
                 ClickHouseExpression.ClickHouseJoinOnClause joinClause = generateJoinClause(leftTable, rightTable);
-                ClickHouseExpression.ClickHouseJoin.JoinType options = Randomly
-                        .fromOptions(ClickHouseExpression.ClickHouseJoin.JoinType.values());
+                // ANY / SEMI joins are non-deterministic across algorithms and break TLP /
+                // NoREC / SEMR multiset equality. Restrict the random pick to deterministic
+                // shapes; the dedicated JoinAlgorithm oracle filters non-deterministic shapes a
+                // second time at oracle level.
+                ClickHouseExpression.ClickHouseJoin.JoinType options = Randomly.fromList(DETERMINISTIC_JOIN_TYPES);
                 ClickHouseExpression.ClickHouseJoin j = new ClickHouseExpression.ClickHouseJoin(leftTable, rightTable,
                         options, joinClause);
                 joinStatements.add(j);
@@ -470,6 +473,18 @@ public class ClickHouseExpressionGenerator
         }
         return joinStatements;
     }
+
+    // JOIN types whose result multiset is determined uniquely by the inputs + ON clause. ANY,
+    // SEMI (added in W3 of the wrong-result push) are deliberately excluded -- their per-row
+    // choice is implementation-defined and would produce false-positive multiset diffs in TLP /
+    // NoREC / SEMR. JoinAlgorithmOracle gates these out a second time at oracle level.
+    private static final List<ClickHouseExpression.ClickHouseJoin.JoinType> DETERMINISTIC_JOIN_TYPES = List.of(
+            ClickHouseExpression.ClickHouseJoin.JoinType.INNER, ClickHouseExpression.ClickHouseJoin.JoinType.CROSS,
+            ClickHouseExpression.ClickHouseJoin.JoinType.LEFT_OUTER,
+            ClickHouseExpression.ClickHouseJoin.JoinType.RIGHT_OUTER,
+            ClickHouseExpression.ClickHouseJoin.JoinType.FULL_OUTER,
+            ClickHouseExpression.ClickHouseJoin.JoinType.LEFT_ANTI,
+            ClickHouseExpression.ClickHouseJoin.JoinType.RIGHT_ANTI);
 
     @Override
     protected boolean canGenerateColumnOfType(ClickHouseLancerDataType type) {
@@ -714,8 +729,11 @@ public class ClickHouseExpressionGenerator
                 ClickHouseTableReference rightTable = new ClickHouseTableReference(Randomly.fromList(tables),
                         "right_" + i);
                 ClickHouseExpression.ClickHouseJoinOnClause joinClause = generateJoinClause(leftTable, rightTable);
-                ClickHouseExpression.ClickHouseJoin.JoinType options = Randomly
-                        .fromOptions(ClickHouseExpression.ClickHouseJoin.JoinType.values());
+                // ANY / SEMI joins are non-deterministic across algorithms and break TLP /
+                // NoREC / SEMR multiset equality. Restrict the random pick to deterministic
+                // shapes; the dedicated JoinAlgorithm oracle filters non-deterministic shapes a
+                // second time at oracle level.
+                ClickHouseExpression.ClickHouseJoin.JoinType options = Randomly.fromList(DETERMINISTIC_JOIN_TYPES);
                 ClickHouseExpression.ClickHouseJoin j = new ClickHouseExpression.ClickHouseJoin(leftTable, rightTable,
                         options, joinClause);
                 joinStatements.add(j);
