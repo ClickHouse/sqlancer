@@ -67,11 +67,16 @@ public abstract class ClickHouseExpression implements Expression<ClickHouseColum
 
     public static class ClickHouseJoin extends ClickHouseExpression
             implements Join<ClickHouseExpression, ClickHouseTable, ClickHouseColumn> {
-        // TODO: support ANY, ALL, ASOF modifiers
-        // LEFT_SEMI, RIGHT_SEMI are not deterministic as ClickHouse allows to read columns from
-        // whitelist table as well
+        // ANY modifiers select an arbitrary single matched row per left row (LEFT ANY / RIGHT ANY
+        // / ANY INNER); SEMI returns left/right rows that have a match (without join expansion).
+        // Both are first-class ClickHouse joins and are exactly the surface where #99431 (LEFT
+        // ANY default-on wrong result) and #100029 (SEMI/ANTI misconversion) reproduce. SEMI is
+        // non-deterministic in projected columns from the OTHER side -- the JOIN-shape oracle
+        // therefore projects only same-side columns when SEMI is chosen, and the differential is
+        // against an IN/EXISTS rewrite, not against another join shape.
         public enum JoinType {
-            INNER, CROSS, LEFT_OUTER, RIGHT_OUTER, FULL_OUTER, LEFT_ANTI, RIGHT_ANTI;
+            INNER, CROSS, LEFT_OUTER, RIGHT_OUTER, FULL_OUTER, LEFT_ANTI, RIGHT_ANTI, LEFT_ANY, RIGHT_ANY, ANY_INNER,
+            LEFT_SEMI, RIGHT_SEMI;
         }
 
         private final ClickHouseTableReference leftTable;

@@ -47,6 +47,9 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--test-array-join", description = "Enable ARRAY JOIN structural emission (no-op until Array column generation lands in type-system v2)", arity = 1)
     public boolean enableArrayJoin = false;
 
+    @Parameter(names = "--semr-arity", description = "Number of SEMR settings to toggle together per query for the SEMRMulti oracle (>= 2)")
+    public int semrArity = 2;
+
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;

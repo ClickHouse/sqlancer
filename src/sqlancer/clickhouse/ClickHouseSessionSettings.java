@@ -66,7 +66,34 @@ public final class ClickHouseSessionSettings {
             "optimize_aggregators_of_group_by_keys",
             // Trivial count(*) -> read part rows. The optimized-trivial-count code path was the
             // home of #100794 (wrong AggregateFunction type signature with mixed integer widths).
-            "optimize_trivial_count_query");
+            "optimize_trivial_count_query",
+            // Distributed shard skipping; default-on. ClickHouse#92375 reports a wrong DISTINCT
+            // result when this fires against a sharded table; SEMR catches the single-query
+            // manifestation by toggling the flag against the same SELECT.
+            "optimize_skip_unused_shards",
+            // Function-to-subcolumn rewrite (length(arr) -> arr.size0 etc.). ClickHouse#85633 +
+            // #101271 are the head of this family; both shipped a regression test that is
+            // structurally identical to what SEMR diffs.
+            "optimize_functions_to_subcolumns",
+            // Regexp rewrite optimizer. ClickHouse#93434 shipped result divergence when this
+            // setting flipped on; SEMR is the canonical local signal for any future regression.
+            "optimize_rewrite_regexp_functions",
+            // Logical join step in the new query plan. Default-on in 26.x; the LEFT ANY case
+            // (ClickHouse#99431, P0 in the report) reproduces under SEMR by toggling this flag
+            // against a query that contains a JOIN.
+            "query_plan_use_logical_join_step",
+            // Text-index pruning. ClickHouse#103812 -- wrong result when text-index direct read
+            // is combined with the hint-add flag. SEMR per-query toggle pair plus the dedicated
+            // text-index settings group below cover both single-flag and combined exposures.
+            "query_plan_direct_read_from_text_index",
+            "query_plan_text_index_add_hint",
+            // Read-in-order buffering layer; private#35000 (parallel replicas reverse order)
+            // is the most recent regression and is exactly the kind of result-affecting reordering
+            // that SEMR's multiset comparison catches.
+            "read_in_order_use_buffering",
+            // JIT scalar sort path. Sister of compile_expressions / compile_aggregate_expressions
+            // already in this list; folded in to extend JIT-pair coverage with no extra plumbing.
+            "compile_sort_description");
 
     // Execution-mode settings the random-session-settings layer may apply via
     // SET k = v at connect time. Each entry has discrete candidate values picked
@@ -119,6 +146,25 @@ public final class ClickHouseSessionSettings {
         }
         String name = Randomly.fromList(SEMR_SETTINGS);
         return new SemrCandidate(name, "0", "1");
+    }
+
+    // Pick `arity` distinct SEMR settings to toggle together. The multi-SEMR oracle uses this to
+    // build a (k-bit) corner of the optimizer-setting hypercube and diff it against the all-zero
+    // corner. Arity 1 degenerates to the single-setting oracle; arity >= 2 catches optimizer-pass
+    // interactions that the 1-flag SEMR cannot reach (e.g., analyzer x subcolumn rewrite x
+    // filter-pushdown, which is the #100029 / #93483 cluster).
+    public static List<SemrCandidate> pickSemrCandidates(Randomly r, int arity) {
+        if (arity <= 0) {
+            throw new IllegalArgumentException("SEMR arity must be >= 1; got " + arity);
+        }
+        if (SEMR_SETTINGS.isEmpty()) {
+            throw new IllegalStateException("SEMR_SETTINGS is empty -- configuration bug");
+        }
+        int n = Math.min(arity, SEMR_SETTINGS.size());
+        // Randomly.extractNrRandomColumns is the in-tree helper for sample-without-replacement; it
+        // takes any List and a count and returns a fresh List of distinct elements.
+        List<String> picked = Randomly.extractNrRandomColumns(SEMR_SETTINGS, n);
+        return picked.stream().map(name -> new SemrCandidate(name, "0", "1")).toList();
     }
 
     public static LinkedHashMap<String, String> pickRandomProfile(Randomly r, int budget) {

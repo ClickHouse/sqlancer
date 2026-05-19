@@ -234,6 +234,21 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
         } else if (type == ClickHouseExpression.ClickHouseJoin.JoinType.RIGHT_ANTI) {
             sb.append(" RIGHT ANTI JOIN ");
             visit(join.getRightTable());
+        } else if (type == ClickHouseExpression.ClickHouseJoin.JoinType.LEFT_ANY) {
+            sb.append(" LEFT ANY JOIN ");
+            visit(join.getRightTable());
+        } else if (type == ClickHouseExpression.ClickHouseJoin.JoinType.RIGHT_ANY) {
+            sb.append(" RIGHT ANY JOIN ");
+            visit(join.getRightTable());
+        } else if (type == ClickHouseExpression.ClickHouseJoin.JoinType.ANY_INNER) {
+            sb.append(" ANY INNER JOIN ");
+            visit(join.getRightTable());
+        } else if (type == ClickHouseExpression.ClickHouseJoin.JoinType.LEFT_SEMI) {
+            sb.append(" LEFT SEMI JOIN ");
+            visit(join.getRightTable());
+        } else if (type == ClickHouseExpression.ClickHouseJoin.JoinType.RIGHT_SEMI) {
+            sb.append(" RIGHT SEMI JOIN ");
+            visit(join.getRightTable());
         } else {
             throw new UnsupportedOperationException();
         }
