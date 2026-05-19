@@ -274,8 +274,8 @@ public class ClickHouseTableGenerator {
     }
 
     // Projection emission. Picks one of two shapes:
-    //   1) PROJECTION p (SELECT col1, col2)            -- a "reorder" projection (column subset).
-    //   2) PROJECTION p (SELECT count() GROUP BY cN)   -- an "aggregating" projection on one key.
+    // 1) PROJECTION p (SELECT col1, col2) -- a "reorder" projection (column subset).
+    // 2) PROJECTION p (SELECT count() GROUP BY cN) -- an "aggregating" projection on one key.
     // Aggregating projections must be over an aggregate function with a GROUP BY; without GROUP BY
     // the projection would materialise a single row per part and ClickHouse rejects it as
     // ambiguous against base reads. Both shapes are valid for the v1 type system (Int32/String).

@@ -26,9 +26,9 @@ import sqlancer.clickhouse.ClickHouseType.Unknown;
  *
  * <p>
  * Bracketed argument lists are scanned with a balanced-paren walker so nested wrappers (e.g.
- * {@code Array(Nullable(Decimal(9, 3)))}) parse correctly. Single-quoted strings inside arguments are skipped
- * verbatim (used by Enum and timezone-bearing DateTime forms, neither of which the parser materialises -- they fall
- * through to {@link Unknown}).
+ * {@code Array(Nullable(Decimal(9, 3)))}) parse correctly. Single-quoted strings inside arguments are skipped verbatim
+ * (used by Enum and timezone-bearing DateTime forms, neither of which the parser materialises -- they fall through to
+ * {@link Unknown}).
  * </p>
  *
  * <p>

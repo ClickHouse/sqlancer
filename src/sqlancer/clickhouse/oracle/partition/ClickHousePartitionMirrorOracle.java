@@ -28,9 +28,9 @@ import sqlancer.common.query.SQLQueryAdapter;
  *
  * <p>
  * For every iteration: pick a table that has a {@code PARTITION BY} clause, introspect its DDL via
- * {@code SHOW CREATE TABLE}, build a sister table with the same column schema and {@code ORDER BY} but
- * <strong>no PARTITION BY</strong>, copy data over, and diff the same generated SELECT against both. Drop the sister
- * before returning.
+ * {@code SHOW CREATE TABLE}, build a sister table with the same column schema and {@code ORDER BY} but <strong>no
+ * PARTITION BY</strong>, copy data over, and diff the same generated SELECT against both. Drop the sister before
+ * returning.
  *
  * <p>
  * Two bug classes are caught simultaneously by this single shape:
@@ -203,8 +203,8 @@ public class ClickHousePartitionMirrorOracle implements TestOracle<ClickHouseGlo
         // Find the end of the PARTITION BY clause: scan for the next top-level keyword on either a
         // whitespace or a newline boundary. Word-boundary \b on both sides keeps "SAMPLE BY" from
         // matching inside a column comment or default expression.
-        java.util.regex.Pattern terminator = java.util.regex.Pattern.compile(
-                "(?m)(\\s)(ORDER\\s+BY\\b|SAMPLE\\s+BY\\b|TTL\\b|SETTINGS\\b|COMMENT\\b|PRIMARY\\s+KEY\\b)");
+        java.util.regex.Pattern terminator = java.util.regex.Pattern
+                .compile("(?m)(\\s)(ORDER\\s+BY\\b|SAMPLE\\s+BY\\b|TTL\\b|SETTINGS\\b|COMMENT\\b|PRIMARY\\s+KEY\\b)");
         java.util.regex.Matcher tm = terminator.matcher(createTableText);
         int end = createTableText.length();
         if (tm.find(afterKeyword)) {

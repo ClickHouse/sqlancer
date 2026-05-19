@@ -117,14 +117,14 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
         }
 
         // Weighted scalar-type pick. Distribution biased toward bug-bait surfaces:
-        //   * Int32 / String -- v1 default, keeps generated output close to historical baselines.
-        //   * UInt32 / UInt64 -- needed for ReplacingMergeTree(ver) and Summing column args, and to
-        //     surface mixed-width JOIN-key cross-type bugs (e.g. #101652).
-        //   * Date / DateTime -- exercises Date arithmetic and time-based partition keys
-        //     (toYYYYMM(t) shape from #104781 reporter).
-        //   * Other Int*/Float* variants -- low individual weight, present for coverage.
-        //   * FixedString(N) / Decimal(p,s) / DateTime64(prec) -- parameterised, exercised at low
-        //     rate so the generator surfaces them without dominating the pool.
+        // * Int32 / String -- v1 default, keeps generated output close to historical baselines.
+        // * UInt32 / UInt64 -- needed for ReplacingMergeTree(ver) and Summing column args, and to
+        // surface mixed-width JOIN-key cross-type bugs (e.g. #101652).
+        // * Date / DateTime -- exercises Date arithmetic and time-based partition keys
+        // (toYYYYMM(t) shape from #104781 reporter).
+        // * Other Int*/Float* variants -- low individual weight, present for coverage.
+        // * FixedString(N) / Decimal(p,s) / DateTime64(prec) -- parameterised, exercised at low
+        // rate so the generator surfaces them without dominating the pool.
         // UUID / IPv4 / IPv6 are omitted from the picker: literal emission is feasible (toUUID(...)
         // etc.) but PQS does not have ResultSet round-trip support for them, so columns of those
         // types poison PQS iterations with IgnoreMeException at the row-fetch step. They remain
@@ -324,10 +324,10 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
             extends AbstractRelationalTable<ClickHouseColumn, TableIndex, ClickHouseGlobalState> {
 
         /**
-         * Engine name as returned by {@code system.tables.engine} (e.g. {@code MergeTree},
-         * {@code ReplacingMergeTree}, {@code View}). Used by oracles to gate engine-specific query shapes: {@code FINAL}
-         * is rejected by plain {@code MergeTree} but accepted by Replacing/Summing/Aggregating variants, so emitting
-         * FINAL blindly poisons iterations against plain MergeTree tables.
+         * Engine name as returned by {@code system.tables.engine} (e.g. {@code MergeTree}, {@code ReplacingMergeTree},
+         * {@code View}). Used by oracles to gate engine-specific query shapes: {@code FINAL} is rejected by plain
+         * {@code MergeTree} but accepted by Replacing/Summing/Aggregating variants, so emitting FINAL blindly poisons
+         * iterations against plain MergeTree tables.
          *
          * <p>
          * Empty string when the engine could not be discovered (legacy or stripped catalog response). Callers treat

@@ -42,16 +42,16 @@ import sqlancer.common.query.SQLQueryAdapter;
  * <li>Drop the server-side query-condition cache so we start clean.</li>
  * <li>Run the baseline {@code SELECT count() FROM t WHERE p} with {@code use_query_condition_cache=0} to record the
  * "truth" cardinality independent of the cache.</li>
- * <li>Run a small number of trigger queries with the cache enabled. Triggers are deliberately shaped like the
- * #104781 reproducer: {@code PREWHERE eq + WHERE col IN (literals)}. Each trigger executes through the cache code path
- * and writes a cache entry.</li>
+ * <li>Run a small number of trigger queries with the cache enabled. Triggers are deliberately shaped like the #104781
+ * reproducer: {@code PREWHERE eq + WHERE col IN (literals)}. Each trigger executes through the cache code path and
+ * writes a cache entry.</li>
  * <li>Re-run the baseline with the cache enabled. It must return the same result as step 2; otherwise the cache has
  * been poisoned by a trigger.</li>
  * </ol>
  *
  * <p>
- * The oracle is intentionally tolerant of trigger-query errors -- a malformed or type-mismatched trigger is a
- * generator slip, not a bug -- but it does NOT tolerate baseline-mismatches; those are exactly the bug we're hunting.
+ * The oracle is intentionally tolerant of trigger-query errors -- a malformed or type-mismatched trigger is a generator
+ * slip, not a bug -- but it does NOT tolerate baseline-mismatches; those are exactly the bug we're hunting.
  */
 public class ClickHouseQueryConditionCacheOracle implements TestOracle<ClickHouseGlobalState> {
 
@@ -156,15 +156,15 @@ public class ClickHouseQueryConditionCacheOracle implements TestOracle<ClickHous
 
         List<String> triggers = new ArrayList<>();
         // Canonical #104781 shape.
-        triggers.add(String.format("SELECT %s FROM %s PREWHERE %s = %s WHERE %s IN (%s, %s)",
-                prewhereColName, tableName, prewhereColName, prewhereLiteral, whereColName, inLiteralA, inLiteralB));
+        triggers.add(String.format("SELECT %s FROM %s PREWHERE %s = %s WHERE %s IN (%s, %s)", prewhereColName,
+                tableName, prewhereColName, prewhereLiteral, whereColName, inLiteralA, inLiteralB));
         // Swapped shape -- in the original report this DOES NOT poison; we run it anyway because
         // an adjacent code-path regression would flip that immunity into a new bug.
-        triggers.add(String.format("SELECT %s FROM %s PREWHERE %s IN (%s, %s) WHERE %s = %s", whereColName,
-                tableName, whereColName, inLiteralA, inLiteralB, prewhereColName, prewhereLiteral));
+        triggers.add(String.format("SELECT %s FROM %s PREWHERE %s IN (%s, %s) WHERE %s = %s", whereColName, tableName,
+                whereColName, inLiteralA, inLiteralB, prewhereColName, prewhereLiteral));
         // Combined-PREWHERE shape -- known no-poison in #104781; same rationale for inclusion.
-        triggers.add(String.format("SELECT %s FROM %s PREWHERE %s = %s AND %s IN (%s, %s)", prewhereColName,
-                tableName, prewhereColName, prewhereLiteral, whereColName, inLiteralA, inLiteralB));
+        triggers.add(String.format("SELECT %s FROM %s PREWHERE %s = %s AND %s IN (%s, %s)", prewhereColName, tableName,
+                prewhereColName, prewhereLiteral, whereColName, inLiteralA, inLiteralB));
         // Truncate to TRIGGERS_PER_CHECK; in case future variants are added beyond the cap the
         // canonical shape is always first so it is always exercised.
         if (triggers.size() > TRIGGERS_PER_CHECK) {

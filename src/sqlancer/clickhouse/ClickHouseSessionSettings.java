@@ -59,8 +59,7 @@ public final class ClickHouseSessionSettings {
             // surfaces compiled-vs-interpreted divergence as a SEMR failure rather than relying on
             // workload-driven discovery. Note: also present in RANDOM_SESSION_SETTINGS for the
             // execution-mode picker, but SEMR's per-query comparison is what asserts equivalence.
-            "compile_expressions",
-            "compile_aggregate_expressions",
+            "compile_expressions", "compile_aggregate_expressions",
             // Aggregator constant-folding over GROUP BY keys. Result must be invariant; included
             // pre-emptively for the same family of analyzer-bound rewrites as #94339.
             "optimize_aggregators_of_group_by_keys",
@@ -85,8 +84,7 @@ public final class ClickHouseSessionSettings {
             // Text-index pruning. ClickHouse#103812 -- wrong result when text-index direct read
             // is combined with the hint-add flag. SEMR per-query toggle pair plus the dedicated
             // text-index settings group below cover both single-flag and combined exposures.
-            "query_plan_direct_read_from_text_index",
-            "query_plan_text_index_add_hint",
+            "query_plan_direct_read_from_text_index", "query_plan_text_index_add_hint",
             // Read-in-order buffering layer; private#35000 (parallel replicas reverse order)
             // is the most recent regression and is exactly the kind of result-affecting reordering
             // that SEMR's multiset comparison catches.

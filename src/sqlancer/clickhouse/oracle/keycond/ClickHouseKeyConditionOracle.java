@@ -23,13 +23,14 @@ import sqlancer.common.query.ExpectedErrors;
  * KeyCondition / skip-index pruning oracle.
  *
  * <p>
- * ClickHouse uses the primary key and secondary skip-indices to prune granules at query time -- the {@code KeyCondition}
- * subsystem decides which parts and granules to read by analysing the predicate. Bugs in that subsystem produce wrong
- * results that look identical to an unindexed scan would, so they are invisible to oracles that compare two indexed
- * paths against each other (TLP, SEMR, ...).
+ * ClickHouse uses the primary key and secondary skip-indices to prune granules at query time -- the
+ * {@code KeyCondition} subsystem decides which parts and granules to read by analysing the predicate. Bugs in that
+ * subsystem produce wrong results that look identical to an unindexed scan would, so they are invisible to oracles that
+ * compare two indexed paths against each other (TLP, SEMR, ...).
  *
  * <p>
- * ClickHouse#92492 is the canonical recent example: {@code KeyCondition} mis-evaluated a regex with {@code ?} and {@code
+ * ClickHouse#92492 is the canonical recent example: {@code KeyCondition} mis-evaluated a regex with {@code ?} and
+ * {@code
  * not} operators, dropping granules that should have matched. The fix landed in 25.x but the same shape can recur in
  * any monotonicity or function-tracking change to {@code KeyCondition.cpp}.
  *
@@ -44,10 +45,10 @@ import sqlancer.common.query.ExpectedErrors;
  * </ol>
  *
  * <p>
- * If the two row multisets disagree, KeyCondition pruned a granule it should have kept (or vice versa). The single-table
- * shape and the absence of GROUP BY / ORDER BY in the generated SELECT is intentional: it keeps the failure
- * attribution focused on the predicate <-> KeyCondition path. JOINs add their own row-cardinality variance which would
- * dilute the signal.
+ * If the two row multisets disagree, KeyCondition pruned a granule it should have kept (or vice versa). The
+ * single-table shape and the absence of GROUP BY / ORDER BY in the generated SELECT is intentional: it keeps the
+ * failure attribution focused on the predicate <-> KeyCondition path. JOINs add their own row-cardinality variance
+ * which would dilute the signal.
  */
 public class ClickHouseKeyConditionOracle implements TestOracle<ClickHouseGlobalState> {
 

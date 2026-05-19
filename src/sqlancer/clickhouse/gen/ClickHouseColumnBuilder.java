@@ -85,8 +85,8 @@ public class ClickHouseColumnBuilder {
                     // Render through the visitor -- ClickHouseExpression instances that don't
                     // override toString() (Cast wrappers used for v2 Date/Decimal/FixedString
                     // emission) would otherwise stringify as Object hash codes.
-                    sb.append(ClickHouseVisitor.asString(
-                            new ClickHouseExpressionGenerator(globalState).generateConstant(dataType)));
+                    sb.append(ClickHouseVisitor
+                            .asString(new ClickHouseExpressionGenerator(globalState).generateConstant(dataType)));
                 }
                 break;
             case ALIAS:

@@ -19,8 +19,8 @@ import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPBase;
  * ClickHouse implements every JOIN variant through one of several algorithms (selected via the {@code join_algorithm}
  * setting): {@code hash}, {@code parallel_hash}, {@code partial_merge}, {@code grace_hash}, {@code direct},
  * {@code full_sorting_merge}. The algorithms are supposed to be result-equivalent but historically diverge:
- * ClickHouse#100781 was a grace-hash wrong-result bug specifically tied to {@code grace_hash_join_initial_buckets};
- * the SEMI/ANTI conversion path lives almost entirely inside the algorithm dispatch.
+ * ClickHouse#100781 was a grace-hash wrong-result bug specifically tied to {@code grace_hash_join_initial_buckets}; the
+ * SEMI/ANTI conversion path lives almost entirely inside the algorithm dispatch.
  *
  * <p>
  * The oracle reuses {@link ClickHouseTLPBase} to generate a SELECT (with --test-joins on, this will include a JOIN
@@ -29,8 +29,8 @@ import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPBase;
  * <ol>
  * <li>{@code join_algorithm = 'hash'} -- the conservative baseline.</li>
  * <li>{@code join_algorithm = 'partial_merge'} -- triggers the merge-join shape.</li>
- * <li>{@code join_algorithm = 'grace_hash', grace_hash_join_initial_buckets = 4} -- bucket-spilling code path that
- * has the most recent regression history (#100781).</li>
+ * <li>{@code join_algorithm = 'grace_hash', grace_hash_join_initial_buckets = 4} -- bucket-spilling code path that has
+ * the most recent regression history (#100781).</li>
  * </ol>
  *
  * <p>

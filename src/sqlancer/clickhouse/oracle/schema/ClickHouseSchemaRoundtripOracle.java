@@ -26,8 +26,8 @@ import sqlancer.common.query.SQLQueryAdapter;
  * Per iteration: create two tables side-by-side, both declaring {@code c0 Int32 NOT NULL}. One CREATE runs under
  * {@code SETTINGS data_type_default_nullable = 0} (the conservative baseline) and the other under
  * {@code data_type_default_nullable = 1}. Read the resulting column type back from {@code system.columns}. Assert that
- * neither table's column is {@code Nullable(Int32)}. If the bug fires, the {@code _on} table's column type starts
- * with {@code Nullable(}.
+ * neither table's column is {@code Nullable(Int32)}. If the bug fires, the {@code _on} table's column type starts with
+ * {@code Nullable(}.
  *
  * <p>
  * Both tables are dropped before the next iteration. The oracle is structurally independent of the random table

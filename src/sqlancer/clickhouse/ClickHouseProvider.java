@@ -213,17 +213,18 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         // concurrency. Cost: memory proportional to result size up to the cap, but typical actual
         // usage is tiny (<1 MB) so the cap rarely binds.
         // Settings that affect the HTTP transport must remain on the connection URL:
-        //   * `wait_end_of_query=1` is HTTP-protocol-only (SET returns UNKNOWN_SETTING).
-        //   * `http_response_buffer_size` is taken at the moment the server commits to a chunked
-        //     HTTP response; SETting it later doesn't retroactively change buffering for the
-        //     current request, leaving us back at the `Premature end of chunk coded message body`
-        //     tear-down the original workaround was designed to avoid (observed 7 times in the
-        //     first iter-9 attempt before the param was returned to the URL).
+        // * `wait_end_of_query=1` is HTTP-protocol-only (SET returns UNKNOWN_SETTING).
+        // * `http_response_buffer_size` is taken at the moment the server commits to a chunked
+        // HTTP response; SETting it later doesn't retroactively change buffering for the
+        // current request, leaving us back at the `Premature end of chunk coded message body`
+        // tear-down the original workaround was designed to avoid (observed 7 times in the
+        // first iter-9 attempt before the param was returned to the URL).
         // Other clickhouse_setting_* params are session-scoped and applied via SET below.
-        con = DriverManager.getConnection(String.format("jdbc:clickhouse://%s:%d/%s?socket_timeout=300000&compress=false"
-                + "&clickhouse_setting_http_response_buffer_size=104857600&clickhouse_setting_wait_end_of_query=1", host,
-                port, databaseName), globalState.getOptions().getUserName(),
-                globalState.getOptions().getPassword());
+        con = DriverManager.getConnection(
+                String.format("jdbc:clickhouse://%s:%d/%s?socket_timeout=300000&compress=false"
+                        + "&clickhouse_setting_http_response_buffer_size=104857600&clickhouse_setting_wait_end_of_query=1",
+                        host, port, databaseName),
+                globalState.getOptions().getUserName(), globalState.getOptions().getPassword());
         applyConnectionLevelSettings(con, clickHouseOptions);
         if (clickHouseOptions.randomSessionSettings) {
             applyRandomSessionSettings(globalState, clickHouseOptions, con);

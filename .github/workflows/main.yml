@@ -58,7 +58,15 @@ jobs:
       - name: Set up ClickHouse
         run: |
           docker pull clickhouse/clickhouse-server:head
-          docker run --ulimit nofile=262144:262144 --name clickhouse-server -p8123:8123 -d clickhouse/clickhouse-server:head
+          # The :head image's entrypoint disables network access for the `default` user when
+          # neither CLICKHOUSE_USER nor CLICKHOUSE_PASSWORD is set (tightened sometime between
+          # 2026-05-16 and 2026-05-18; previously the default-user-no-password path was open).
+          # Surface symptom: every test fails with "Code: 194 REQUIRED_PASSWORD". Setting
+          # CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 + CLICKHOUSE_SKIP_USER_SETUP=1 keeps the
+          # default-user-passwordless path open without baking a credential into the workflow.
+          docker run --ulimit nofile=262144:262144 --name clickhouse-server -p8123:8123 -d \
+            -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 -e CLICKHOUSE_SKIP_USER_SETUP=1 \
+            clickhouse/clickhouse-server:head
           until curl -sf http://127.0.0.1:8123/ping 2>/dev/null; do sleep 1; done
       - name: Run Tests
         run: CLICKHOUSE_AVAILABLE=true mvn -Djacoco.skip=true -Dtest=ClickHouseBinaryComparisonOperationTest,TestClickHouse,ClickHouseOperatorsVisitorTest,ClickHouseToStringVisitorTest,ClickHouseTypeTest,ClickHouseTypeParserTest,ClickHouseTypeGenerationTest,ClickHouseCastExtensionTest,ClickHouseCODDTestFilterTest,ClickHouseCERTGeneratorTest,ClickHouseTableGeneratorTest test

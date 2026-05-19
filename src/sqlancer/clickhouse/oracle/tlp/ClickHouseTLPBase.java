@@ -63,9 +63,8 @@ public class ClickHouseTLPBase extends TernaryLogicPartitioningOracleBase<ClickH
         // every emission shrinks the rest of the predicate / join surface for this iteration.
         if (state.getClickHouseOptions().enableArrayJoin && select.getJoinClauses().isEmpty()
                 && Randomly.getBooleanWithRatherLowProbability()) {
-            List<ClickHouseColumnReference> arrayCols = table.getColumnReferences().stream()
-                    .filter(c -> c.getColumn().getType()
-                            .getTypeTerm() instanceof sqlancer.clickhouse.ClickHouseType.Array)
+            List<ClickHouseColumnReference> arrayCols = table.getColumnReferences().stream().filter(
+                    c -> c.getColumn().getType().getTypeTerm() instanceof sqlancer.clickhouse.ClickHouseType.Array)
                     .collect(Collectors.toList());
             if (!arrayCols.isEmpty()) {
                 ClickHouseColumnReference arrayCol = Randomly.fromList(arrayCols);

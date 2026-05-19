@@ -38,9 +38,9 @@ public class ClickHouseSelect extends ClickHouseExpression implements
     private List<ClickHouseExpression> arrayJoinExprs = Collections.emptyList();
     private boolean arrayJoinLeft;
     /**
-     * If true, the rendered SELECT applies the {@code FINAL} modifier to the FROM table. Only valid for MergeTree-family
-     * engines; the table generator only emits MergeTree-family tables so this is unconditionally safe in the current
-     * generator. FINAL forces merge-on-read deduplication, which exercises a separate code path through
+     * If true, the rendered SELECT applies the {@code FINAL} modifier to the FROM table. Only valid for
+     * MergeTree-family engines; the table generator only emits MergeTree-family tables so this is unconditionally safe
+     * in the current generator. FINAL forces merge-on-read deduplication, which exercises a separate code path through
      * skip-indexes, PREWHERE, row-policy, and lazy-materialization (see #97076, #98097, #91847).
      */
     private boolean isFinal;

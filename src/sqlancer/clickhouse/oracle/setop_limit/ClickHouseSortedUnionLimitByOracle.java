@@ -55,8 +55,8 @@ import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPBase;
 public class ClickHouseSortedUnionLimitByOracle extends ClickHouseTLPBase {
 
     /**
-     * Outer post-filter. The bug class fires on both {@code LIMIT BY} and {@code DISTINCT}; we pick one per check rather
-     * than running both (cost halves; the per-mode bug-finding probability is similar).
+     * Outer post-filter. The bug class fires on both {@code LIMIT BY} and {@code DISTINCT}; we pick one per check
+     * rather than running both (cost halves; the per-mode bug-finding probability is similar).
      */
     private enum OuterMode {
         LIMIT_BY, DISTINCT

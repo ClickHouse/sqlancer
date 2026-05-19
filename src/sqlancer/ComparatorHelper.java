@@ -19,13 +19,11 @@ public final class ComparatorHelper {
     }
 
     /**
-     * Equivalent of {@code s.replaceAll("[\\.]0+$", "")} -- trim a literal dot followed by one
-     * or more trailing zeros at the end of the string. The original regex form dominated the
-     * SQLancer-side CPU profile (`Pattern.compile`/`Matcher.replaceAll` was ~24% of execution
-     * samples in the 2026-05-19 ClickHouse baseline, because it ran on every row of every
-     * oracle-emitted result set). Scanning from the end is constant-time for the common case of
-     * strings that don't end in '0' (single char compare) and at most O(n) for trailing-zero
-     * runs.
+     * Equivalent of {@code s.replaceAll("[\\.]0+$", "")} -- trim a literal dot followed by one or more trailing zeros
+     * at the end of the string. The original regex form dominated the SQLancer-side CPU profile
+     * (`Pattern.compile`/`Matcher.replaceAll` was ~24% of execution samples in the 2026-05-19 ClickHouse baseline,
+     * because it ran on every row of every oracle-emitted result set). Scanning from the end is constant-time for the
+     * common case of strings that don't end in '0' (single char compare) and at most O(n) for trailing-zero runs.
      */
     private static String trimTrailingDotZeros(String s) {
         int len = s.length();

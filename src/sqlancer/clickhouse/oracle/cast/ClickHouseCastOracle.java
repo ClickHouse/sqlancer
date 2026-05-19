@@ -27,26 +27,25 @@ import sqlancer.common.query.ExpectedErrors;
  * </ul>
  *
  * <p>
- * They must agree on the values that DO fit. ClickHouse#100697 (QBit accurate cast silently
- * loses precision) and #100471 ({@code date_time_overflow_behavior='throw'} silently ignored for
- * Int/Float -> DateTime64 casts) are both in this family. The oracle pattern: for every fitting
- * value, the OrNull variant returns the same value as the throwing variant. For every non-fitting
- * value, OrNull returns NULL.
+ * They must agree on the values that DO fit. ClickHouse#100697 (QBit accurate cast silently loses precision) and
+ * #100471 ({@code date_time_overflow_behavior='throw'} silently ignored for Int/Float -> DateTime64 casts) are both in
+ * this family. The oracle pattern: for every fitting value, the OrNull variant returns the same value as the throwing
+ * variant. For every non-fitting value, OrNull returns NULL.
  *
  * <p>
  * Concretely, for each generated cast site, the oracle issues:
  *
  * <ol>
  * <li>{@code SELECT accurateCastOrNull(c, 'T') FROM t} -- the reference column.</li>
- * <li>{@code SELECT IF(accurateCastOrNull(c, 'T') IS NULL, NULL, accurateCast(c, 'T')) FROM t} -- the throwing
- * variant guarded by the IS-NULL test, which short-circuits the throw on non-fitting inputs.</li>
+ * <li>{@code SELECT IF(accurateCastOrNull(c, 'T') IS NULL, NULL, accurateCast(c, 'T')) FROM t} -- the throwing variant
+ * guarded by the IS-NULL test, which short-circuits the throw on non-fitting inputs.</li>
  * </ol>
  *
  * <p>
  * If the two results disagree on any row, {@code accurateCast} and {@code accurateCastOrNull} disagree on a fitting
  * input -- a wrong-result bug. ClickHouse's parser evaluates IF arms eagerly in some engines but the analyzer's
- * short-circuit logic for {@code IS NULL} should keep {@code accurateCast} from being evaluated when the OrNull
- * variant already returned NULL.
+ * short-circuit logic for {@code IS NULL} should keep {@code accurateCast} from being evaluated when the OrNull variant
+ * already returned NULL.
  */
 public class ClickHouseCastOracle implements TestOracle<ClickHouseGlobalState> {
 
