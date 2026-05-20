@@ -51,11 +51,11 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     public int semrArity = 2;
 
     public enum Transport {
-        HTTP, JDBC
+        HTTP, CLIENT
     }
 
-    @Parameter(names = "--transport", description = "Wire transport for ClickHouse: 'jdbc' (default, clickhouse-jdbc 0.9.8) or 'http' (raw HTTP POST). HTTP bypasses the driver's chunked-decoder / UInt64-overflow / per-request URI-rebuild costs documented in the 2026-05-19 run; it is interchangeable with JDBC but ~30% slower due to TSV parsing")
-    public Transport transport = Transport.JDBC;
+    @Parameter(names = "--transport", description = "Wire transport for ClickHouse: 'client' (default, clickhouse-java client-v2) or 'http' (raw HTTPURLConnection POST). Both request TabSeparatedWithNamesAndTypes and parse it the same way; client-v2 brings httpclient5 + connection pooling, http brings zero extra deps and bypasses Apache HC's chunked decoder. jdbc-v2 was dropped in favour of client-v2 -- see ClickHouseClientV2Transport for the rationale")
+    public Transport transport = Transport.CLIENT;
 
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {

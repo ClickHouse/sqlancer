@@ -1,6 +1,5 @@
 package sqlancer.clickhouse.transport;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -8,10 +7,8 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -53,7 +50,6 @@ public final class ClickHouseHttpTransport implements ClickHouseTransport {
     }
 
     private static final Pattern ERROR_CODE = Pattern.compile("Code: (\\d+)");
-    private static final String FORMAT = "TabSeparatedWithNamesAndTypes";
 
     private final String baseUrl; // "http://host:port"
     private final String authHeader; // may be null for unauthenticated default user
@@ -101,8 +97,8 @@ public final class ClickHouseHttpTransport implements ClickHouseTransport {
 
     @Override
     public ResultData executeQuery(String sql) throws SQLException {
-        String body = trimTrailingSemicolon(sql) + " FORMAT " + FORMAT;
-        return post(body, ResultParser.INSTANCE);
+        String body = trimTrailingSemicolon(sql) + " FORMAT " + ClickHouseTsvParser.FORMAT;
+        return post(body, ClickHouseTsvParser::parse);
     }
 
     @Override
@@ -123,43 +119,6 @@ public final class ClickHouseHttpTransport implements ClickHouseTransport {
 
     private interface ResponseHandler<T> {
         T parse(InputStream body) throws IOException;
-    }
-
-    private static final class ResultParser implements ResponseHandler<ResultData> {
-        static final ResultParser INSTANCE = new ResultParser();
-
-        @Override
-        public ResultData parse(InputStream body) throws IOException {
-            // TabSeparatedWithNamesAndTypes:
-            //   line 1: column names (TAB-separated)
-            //   line 2: column types (TAB-separated)
-            //   line 3..: rows
-            // TSV-escaping: \t \n \\ \\N (the last is the literal SQL NULL token, distinct from
-            // an empty cell).
-            byte[] raw = readAllBytes(body);
-            String text = new String(raw, StandardCharsets.UTF_8);
-            if (text.isEmpty()) {
-                return new ResultData(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
-            }
-            // Split into logical lines respecting TSV row delimiter (raw '\n'; escaped is '\\n').
-            // Standard String.split won't do because escaped backslash-n must NOT terminate a row.
-            List<String> lines = splitTsvLines(text);
-            if (lines.size() < 2) {
-                // Update with no rows (empty SELECT) shouldn't reach here -- but be defensive.
-                return new ResultData(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
-            }
-            List<String> names = splitTsvFields(lines.get(0));
-            List<String> types = splitTsvFields(lines.get(1));
-            List<List<String>> rows = new ArrayList<>(Math.max(0, lines.size() - 2));
-            for (int i = 2; i < lines.size(); i++) {
-                if (lines.get(i).isEmpty()) {
-                    // Trailing newline produces an empty tail entry; skip it.
-                    continue;
-                }
-                rows.add(splitTsvFields(lines.get(i)));
-            }
-            return new ResultData(names, types, rows);
-        }
     }
 
     private <T> T post(String body, ResponseHandler<T> handler) throws SQLException {
@@ -264,16 +223,6 @@ public final class ClickHouseHttpTransport implements ClickHouseTransport {
                 + (query.length() > 120 ? query.substring(0, 120) + "..." : query) + "]", null, vendorCode);
     }
 
-    private static byte[] readAllBytes(InputStream in) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream(8192);
-        byte[] buf = new byte[8192];
-        int n;
-        while ((n = in.read(buf)) > 0) {
-            out.write(buf, 0, n);
-        }
-        return out.toByteArray();
-    }
-
     private static void drain(InputStream in) throws IOException {
         byte[] buf = new byte[4096];
         while (in.read(buf) > 0) {
@@ -286,78 +235,10 @@ public final class ClickHouseHttpTransport implements ClickHouseTransport {
             if (es == null) {
                 return "(no error stream)";
             }
-            return new String(readAllBytes(es), StandardCharsets.UTF_8);
+            return new String(ClickHouseTsvParser.readAllBytes(es), StandardCharsets.UTF_8);
         } catch (IOException e) {
             return "(error stream read failed: " + e.getMessage() + ")";
         }
-    }
-
-    // ===== TSV split logic (TabSeparatedWithNamesAndTypes) ====================================
-
-    private static List<String> splitTsvLines(String text) {
-        // Rows are separated by literal '\n' (0x0A). Within a value, '\n' is encoded as the two
-        // characters '\\' + 'n' -- so we walk byte by byte and only split on literal LF.
-        List<String> out = new ArrayList<>();
-        int start = 0;
-        for (int i = 0; i < text.length(); i++) {
-            if (text.charAt(i) == '\n') {
-                out.add(text.substring(start, i));
-                start = i + 1;
-            }
-        }
-        if (start < text.length()) {
-            out.add(text.substring(start));
-        }
-        return out;
-    }
-
-    private static List<String> splitTsvFields(String line) {
-        // Fields separated by literal '\t' (0x09). '\t' inside a value is "\\t". We process
-        // escapes after splitting because raw '\t' is a hard delimiter ClickHouse never emits
-        // inside a value.
-        List<String> out = new ArrayList<>();
-        int start = 0;
-        for (int i = 0; i < line.length(); i++) {
-            if (line.charAt(i) == '\t') {
-                out.add(unescapeTsv(line.substring(start, i)));
-                start = i + 1;
-            }
-        }
-        out.add(unescapeTsv(line.substring(start)));
-        return out;
-    }
-
-    private static String unescapeTsv(String raw) {
-        if (raw.equals("\\N")) {
-            return null; // SQL NULL sentinel
-        }
-        if (raw.indexOf('\\') < 0) {
-            return raw;
-        }
-        StringBuilder sb = new StringBuilder(raw.length());
-        for (int i = 0; i < raw.length(); i++) {
-            char c = raw.charAt(i);
-            if (c == '\\' && i + 1 < raw.length()) {
-                char next = raw.charAt(i + 1);
-                switch (next) {
-                case 't': sb.append('\t'); break;
-                case 'n': sb.append('\n'); break;
-                case 'r': sb.append('\r'); break;
-                case '0': sb.append('\0'); break;
-                case 'b': sb.append('\b'); break;
-                case 'f': sb.append('\f'); break;
-                case 'a': sb.append((char) 7); break;
-                case 'v': sb.append((char) 11); break;
-                case '\\': sb.append('\\'); break;
-                case '\'': sb.append('\''); break;
-                default: sb.append(next); break;
-                }
-                i++;
-            } else {
-                sb.append(c);
-            }
-        }
-        return sb.toString();
     }
 
     // ===== misc ===============================================================================

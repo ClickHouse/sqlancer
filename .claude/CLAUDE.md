@@ -39,55 +39,37 @@
 - Maven: vendored under `tmp/apache-maven-3.9.9/` (not on `$PATH` by default).
 - Argument order is positional: global options (`--num-threads`, `--host`, `--port`, `--username`, `--password`, etc.) must come **before** the DBMS subcommand (`clickhouse`); DBMS-specific options come after. Putting `--host` after `clickhouse` gives `Was passed main parameter '--host' but no main parameter was defined in your arg class`.
 - Run-to-stop knobs: `--num-tries 999999 --timeout-seconds 180 --use-connection-test false --print-progress-summary true`. Without a huge `--num-tries` you stop after the first 100 found errors.
-- **Raise heap for long runs**: invoke as `java -Xmx4g -jar target/sqlancer-2.0.0.jar ...`. The default heap fills mid-run on dense reproducer dumps and 37 of 38 saved `logs/clickhouse/database*.log` files in the 2026-05-19 48-minute baseline were OOM-truncated (the AssertionError reproducer wrote the schema + INSERTs successfully but the JVM died before serialising the failing query). 4 GiB is enough for a 25-oracle composite × 6 threads × multi-hour run.
+- **Raise heap for long runs**: invoke as `java -Xmx8g -jar target/sqlancer-2.0.0.jar ...`. The default heap fills mid-run on dense reproducer dumps and 37 of 38 saved `logs/clickhouse/database*.log` files in the 2026-05-19 48-minute baseline were OOM-truncated (the AssertionError reproducer wrote the schema + INSERTs successfully but the JVM died before serialising the failing query). 4 GiB was previously thought sufficient but the 2026-05-20 1-hour 25-oracle composite run still produced 3 `OutOfMemoryError: Java heap space` reproducers (db2, db6, db10) inside `AbstractBinaryFormatReader.getString` / `DataTypeConverter` paths — those were JVM heap exhaustion, not real ClickHouse oracle trips. 8 GiB is the new floor for 25-oracle × 6-thread runs; the JDBC reader materialises full result-sets into Java strings before TLPWhere can compare them, and large `Date`/`DateTime` columns × multi-row reads blow past 4 GiB.
 - Default oracle for ClickHouse is `TLPWhere`.
 - `--log-each-select=true` is default and is required for AssertionError reproducer files; turning it off is invasive.
 - The default `--num-threads=16` is too high for a `--cpus=6` CH server (CH becomes the bottleneck); 6 sqlancer threads matched the 6 CPU cores cleanly.
 - Progress line interpretation: `Threads shut down: N` means `N` of `--num-threads` workers have died via `AssertionError` (real bug or unhandled error) and are gone for the rest of the run; throughput drops proportionally.
 
-## Local-patched clickhouse-jdbc driver
+## Wire transports
 
-The clickhouse-jdbc 0.9.8 jar in `target/lib/` and in `~/.m2/repository/com/clickhouse/
-clickhouse-jdbc/0.9.8/` is a **locally patched** build, not the upstream artifact. Patch
-source lives at `/tmp/clickhouse-java` on branch `fix/resultset-close-swallow-stream-errors`
-(open as draft PR https://github.com/ClickHouse/clickhouse-java/pull/2857). The fix
-downgrades `ConnectionClosedException: Premature end of chunk coded message body`
-from a thrown SQLException to a debug log inside `ResultSetImpl.close()`. Without it,
-sqlancer's 25-oracle composite would lose ~7 oracle iterations per 5-minute window to
-close-time noise (server send_timeout firing before the terminating zero-length chunk
-is written); each lost iteration costs a full database rebuild including CERT's 50k-row
-`INSERT … SELECT … FROM numbers(50000)` bulk-load, dragging steady-state throughput
-from ~90 q/s down to 0 q/s by minute 5.
+Two interchangeable transports, both requesting `TabSeparatedWithNamesAndTypes` and parsed
+through the shared `ClickHouseTsvParser`:
 
-- Affected file: `jdbc-v2/src/main/java/com/clickhouse/jdbc/ResultSetImpl.java`. The
-  patch adds a package-private `isStreamDrainException(Throwable)` classifier gating
-  the two `e = re;` assignments in `close()`.
-- Rebuilding the patched jar (after editing `/tmp/clickhouse-java`):
-  ```
-  unset JAVA_TOOL_OPTIONS; unset ASAN_OPTIONS
-  cd /tmp/clickhouse-java
-  javac -cp /home/nik/work/sqlancer-fork/target/lib/clickhouse-jdbc-0.9.8-all.jar:\
-  /home/nik/work/sqlancer-fork/target/lib/slf4j-api-2.0.6.jar \
-        -d /tmp/repro-out \
-        jdbc-v2/src/main/java/com/clickhouse/jdbc/ResultSetImpl.java
-  cp /home/nik/work/sqlancer-fork/target/lib/clickhouse-jdbc-0.9.8-all.jar /tmp/patched/
-  cd /tmp/patched
-  jar uvf clickhouse-jdbc-0.9.8-all.jar \
-      -C /tmp/repro-out com/clickhouse/jdbc/ResultSetImpl.class \
-      -C /tmp/repro-out com/clickhouse/jdbc/ResultSetImpl\$1.class
-  cp clickhouse-jdbc-0.9.8-all.jar /home/nik/work/sqlancer-fork/target/lib/
-  cp clickhouse-jdbc-0.9.8-all.jar /home/nik/.m2/repository/com/clickhouse/clickhouse-jdbc/0.9.8/
-  ```
-  Both the local `target/lib/` copy and the maven cache copy must be updated, otherwise
-  `mvn package` will overwrite the local jar from the cache on the next sqlancer build.
-- Verify the patch is live: `unzip -p target/lib/clickhouse-jdbc-0.9.8-all.jar
-  com/clickhouse/jdbc/ResultSetImpl.class | strings | grep isStreamDrainException`
-  should print the classifier method name.
-- Backup of the stock 0.9.8 jar (no patch) is at
-  `target/lib/clickhouse-jdbc-0.9.8-all.jar.bak`. Restore if comparing against unpatched
-  behaviour: `cp target/lib/clickhouse-jdbc-0.9.8-all.jar.bak target/lib/clickhouse-jdbc-0.9.8-all.jar`.
-- Upstream PR getting merged with a different fix would require re-patching against a new
-  driver version; until then, keep the local patch in place.
+- `--transport client` (default): backed by `com.clickhouse.client.api.Client` (clickhouse-java
+  client-v2 0.9.8). Brings httpclient5 + connection pooling. Server-side settings
+  (`max_execution_time`, `wait_end_of_query`, `http_response_buffer_size`,
+  `allow_experimental_analyzer`, `allow_suspicious_low_cardinality_types`) are attached per-query
+  via `QuerySettings.serverSetting` so pooled connections all carry them.
+- `--transport http`: raw `HttpURLConnection`, zero extra deps. Useful as a fallback when an
+  Apache HC regression appears under client-v2.
+
+`jdbc-v2` (clickhouse-jdbc 0.9.8) was the historical transport and is dropped. The local patch
+to `ResultSetImpl.close()` that suppressed `ConnectionClosedException: Premature end of chunk
+coded message body` is no longer needed -- client-v2 owns the response stream directly so the
+close-time noise the patch fixed cannot occur from the transport layer. Other JDBC-specific
+losses also disappear:
+
+- UInt64 → `long` overflow (`ArithmeticException`) in PQS' `fetchPivotRow` is gone: the parser
+  hands us the textual value, oracle-side code calls `getString` and decides how to use it.
+- `java.time.DateTimeException: Instant exceeds minimum or maximum` from JDBC's
+  `getTimestamp()` is gone for the same reason.
+- `OutOfMemoryError` in `AbstractBinaryFormatReader.getString` is gone because the binary
+  reader is not on the path -- TSV bytes go straight into `ClickHouseTsvParser`.
 
 ## Environment quirks
 

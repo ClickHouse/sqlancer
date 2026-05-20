@@ -311,9 +311,8 @@
     </dependency>
     <dependency>
       <groupId>com.clickhouse</groupId>
-      <artifactId>clickhouse-jdbc</artifactId>
+      <artifactId>client-v2</artifactId>
       <version>0.9.8</version>
-      <classifier>all</classifier>
     </dependency>
     <dependency>
       <groupId>com.h2database</groupId>
@@ -399,11 +398,12 @@
       <artifactId>log4j-core</artifactId>
       <version>2.24.3</version>
     </dependency>
-    <dependency>
-      <groupId>org.apache.logging.log4j</groupId>
-      <artifactId>log4j-slf4j2-impl</artifactId>
-      <version>2.24.3</version>
-    </dependency>
+    <!-- log4j-slf4j2-impl removed: it competed with slf4j-simple as an SLF4J 2.x provider and
+         caused "Class path contains multiple SLF4J providers" on every JVM start. The slf4j-log4j12
+         and slf4j-reload4j entries that still sit transitively under hive-jdbc / hadoop-common are
+         SLF4J 1.x bindings, which SLF4J 2.x's ServiceLoader does not pick up, so they are inert
+         and do not need exclusion. With this removed slf4j-simple is the sole 2.x provider on the
+         classpath and the warning is silent. -->
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-common</artifactId>
