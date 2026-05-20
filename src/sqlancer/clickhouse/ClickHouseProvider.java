@@ -23,6 +23,8 @@ import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
 import sqlancer.clickhouse.gen.ClickHouseCommon;
 import sqlancer.clickhouse.gen.ClickHouseInsertGenerator;
 import sqlancer.clickhouse.gen.ClickHouseTableGenerator;
+import sqlancer.clickhouse.oracle.ClickHouseOptimizingOracle;
+import sqlancer.common.oracle.TestOracle;
 import sqlancer.common.query.SQLQueryAdapter;
 import sqlancer.common.query.SQLQueryProvider;
 
@@ -121,6 +123,13 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
                     }
                 });
         se.executeStatements();
+    }
+
+    // Wrap whatever oracle the parent built (single or composite) with the dedupe-engine
+    // OPTIMIZE TABLE ... FINAL pre-flight. See ClickHouseOptimizingOracle for why.
+    @Override
+    protected TestOracle<ClickHouseGlobalState> getTestOracle(ClickHouseGlobalState globalState) throws Exception {
+        return new ClickHouseOptimizingOracle(globalState, super.getTestOracle(globalState));
     }
 
     @Override
