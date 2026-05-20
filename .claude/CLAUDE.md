@@ -45,6 +45,50 @@
 - The default `--num-threads=16` is too high for a `--cpus=6` CH server (CH becomes the bottleneck); 6 sqlancer threads matched the 6 CPU cores cleanly.
 - Progress line interpretation: `Threads shut down: N` means `N` of `--num-threads` workers have died via `AssertionError` (real bug or unhandled error) and are gone for the rest of the run; throughput drops proportionally.
 
+## Local-patched clickhouse-jdbc driver
+
+The clickhouse-jdbc 0.9.8 jar in `target/lib/` and in `~/.m2/repository/com/clickhouse/
+clickhouse-jdbc/0.9.8/` is a **locally patched** build, not the upstream artifact. Patch
+source lives at `/tmp/clickhouse-java` on branch `fix/resultset-close-swallow-stream-errors`
+(open as draft PR https://github.com/ClickHouse/clickhouse-java/pull/2857). The fix
+downgrades `ConnectionClosedException: Premature end of chunk coded message body`
+from a thrown SQLException to a debug log inside `ResultSetImpl.close()`. Without it,
+sqlancer's 25-oracle composite would lose ~7 oracle iterations per 5-minute window to
+close-time noise (server send_timeout firing before the terminating zero-length chunk
+is written); each lost iteration costs a full database rebuild including CERT's 50k-row
+`INSERT … SELECT … FROM numbers(50000)` bulk-load, dragging steady-state throughput
+from ~90 q/s down to 0 q/s by minute 5.
+
+- Affected file: `jdbc-v2/src/main/java/com/clickhouse/jdbc/ResultSetImpl.java`. The
+  patch adds a package-private `isStreamDrainException(Throwable)` classifier gating
+  the two `e = re;` assignments in `close()`.
+- Rebuilding the patched jar (after editing `/tmp/clickhouse-java`):
+  ```
+  unset JAVA_TOOL_OPTIONS; unset ASAN_OPTIONS
+  cd /tmp/clickhouse-java
+  javac -cp /home/nik/work/sqlancer-fork/target/lib/clickhouse-jdbc-0.9.8-all.jar:\
+  /home/nik/work/sqlancer-fork/target/lib/slf4j-api-2.0.6.jar \
+        -d /tmp/repro-out \
+        jdbc-v2/src/main/java/com/clickhouse/jdbc/ResultSetImpl.java
+  cp /home/nik/work/sqlancer-fork/target/lib/clickhouse-jdbc-0.9.8-all.jar /tmp/patched/
+  cd /tmp/patched
+  jar uvf clickhouse-jdbc-0.9.8-all.jar \
+      -C /tmp/repro-out com/clickhouse/jdbc/ResultSetImpl.class \
+      -C /tmp/repro-out com/clickhouse/jdbc/ResultSetImpl\$1.class
+  cp clickhouse-jdbc-0.9.8-all.jar /home/nik/work/sqlancer-fork/target/lib/
+  cp clickhouse-jdbc-0.9.8-all.jar /home/nik/.m2/repository/com/clickhouse/clickhouse-jdbc/0.9.8/
+  ```
+  Both the local `target/lib/` copy and the maven cache copy must be updated, otherwise
+  `mvn package` will overwrite the local jar from the cache on the next sqlancer build.
+- Verify the patch is live: `unzip -p target/lib/clickhouse-jdbc-0.9.8-all.jar
+  com/clickhouse/jdbc/ResultSetImpl.class | strings | grep isStreamDrainException`
+  should print the classifier method name.
+- Backup of the stock 0.9.8 jar (no patch) is at
+  `target/lib/clickhouse-jdbc-0.9.8-all.jar.bak`. Restore if comparing against unpatched
+  behaviour: `cp target/lib/clickhouse-jdbc-0.9.8-all.jar.bak target/lib/clickhouse-jdbc-0.9.8-all.jar`.
+- Upstream PR getting merged with a different fix would require re-patching against a new
+  driver version; until then, keep the local patch in place.
+
 ## Environment quirks
 
 - `JAVA_TOOL_OPTIONS` is poisoned in this user's shell: `-Djdk.attach.allowAttachSelf=trueASAN_OPTIONS=malloc_context_size=10 verbosity=1 ...`. **Every `java`/`mvn`/`jfr` invocation must start with `unset JAVA_TOOL_OPTIONS; unset ASAN_OPTIONS`** or the JVM refuses to start with `Unrecognized option: verbosity=1`.

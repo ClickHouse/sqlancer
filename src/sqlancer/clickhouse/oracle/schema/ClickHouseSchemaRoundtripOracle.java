@@ -66,6 +66,10 @@ public class ClickHouseSchemaRoundtripOracle implements TestOracle<ClickHouseGlo
         boolean offCreated = false;
         boolean onCreated = false;
         try {
+            if (state.getOptions().logEachSelect()) {
+                state.getLogger().writeCurrent(createOff);
+                state.getLogger().writeCurrent(createOn);
+            }
             offCreated = new SQLQueryAdapter(createOff, errors, true).execute(state, false);
             onCreated = new SQLQueryAdapter(createOn, errors, true).execute(state, false);
             if (!offCreated || !onCreated) {
@@ -100,6 +104,9 @@ public class ClickHouseSchemaRoundtripOracle implements TestOracle<ClickHouseGlo
         } finally {
             if (offCreated) {
                 try {
+                    if (state.getOptions().logEachSelect()) {
+                        state.getLogger().writeCurrent(dropOff);
+                    }
                     new SQLQueryAdapter(dropOff, errors, true).execute(state, false);
                 } catch (SQLException ignored) {
                     // best-effort
@@ -107,6 +114,9 @@ public class ClickHouseSchemaRoundtripOracle implements TestOracle<ClickHouseGlo
             }
             if (onCreated) {
                 try {
+                    if (state.getOptions().logEachSelect()) {
+                        state.getLogger().writeCurrent(dropOn);
+                    }
                     new SQLQueryAdapter(dropOn, errors, true).execute(state, false);
                 } catch (SQLException ignored) {
                     // best-effort

@@ -272,6 +272,9 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
             sb.append(generatorExprFor(c.getType().getTypeTerm())).append(" AS ").append(quote(c.getName()));
         }
         sb.append(" FROM numbers(").append(toInsert).append(")");
+        if (state.getOptions().logEachSelect()) {
+            state.getLogger().writeCurrent(sb.toString());
+        }
         try (Statement s = state.getConnection().createStatement()) {
             s.execute(sb.toString());
         } catch (SQLException ignored) {

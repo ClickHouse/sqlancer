@@ -114,12 +114,18 @@ public class ClickHousePartitionMirrorOracle implements TestOracle<ClickHouseGlo
             // the strip, race with another worker on the database, etc.) returns boolean false
             // rather than raising AssertionError that would otherwise kill the worker thread.
             // The oracle only asserts on the SELECT diff below.
+            String insertMirror = "INSERT INTO " + fqMirror + " SELECT * FROM " + fqSource;
+            if (state.getOptions().logEachSelect()) {
+                state.getLogger().writeCurrent(dropMirror);
+                state.getLogger().writeCurrent(mirrorDdl);
+                state.getLogger().writeCurrent(insertMirror);
+            }
             new SQLQueryAdapter(dropMirror, errors, true).execute(state, false);
             boolean created = new SQLQueryAdapter(mirrorDdl, errors, true).execute(state, false);
             if (!created) {
                 throw new IgnoreMeException();
             }
-            boolean inserted = new SQLQueryAdapter("INSERT INTO " + fqMirror + " SELECT * FROM " + fqSource, errors,
+            boolean inserted = new SQLQueryAdapter(insertMirror, errors,
                     false).execute(state, false);
             if (!inserted) {
                 safeDrop(dropMirror);
