@@ -67,8 +67,12 @@ public class ClickHouseSchemaRoundtripOracle implements TestOracle<ClickHouseGlo
         boolean onCreated = false;
         try {
             if (state.getOptions().logEachSelect()) {
+                // writeCurrent → -cur.log (live tail); logStatement → state.getStatements()
+                // which is what the AssertionError dump pulls into the persistent .log.
                 state.getLogger().writeCurrent(createOff);
                 state.getLogger().writeCurrent(createOn);
+                state.getState().logStatement(createOff);
+                state.getState().logStatement(createOn);
             }
             offCreated = new SQLQueryAdapter(createOff, errors, true).execute(state, false);
             onCreated = new SQLQueryAdapter(createOn, errors, true).execute(state, false);
@@ -106,6 +110,7 @@ public class ClickHouseSchemaRoundtripOracle implements TestOracle<ClickHouseGlo
                 try {
                     if (state.getOptions().logEachSelect()) {
                         state.getLogger().writeCurrent(dropOff);
+                        state.getState().logStatement(dropOff);
                     }
                     new SQLQueryAdapter(dropOff, errors, true).execute(state, false);
                 } catch (SQLException ignored) {
@@ -116,6 +121,7 @@ public class ClickHouseSchemaRoundtripOracle implements TestOracle<ClickHouseGlo
                 try {
                     if (state.getOptions().logEachSelect()) {
                         state.getLogger().writeCurrent(dropOn);
+                        state.getState().logStatement(dropOn);
                     }
                     new SQLQueryAdapter(dropOn, errors, true).execute(state, false);
                 } catch (SQLException ignored) {

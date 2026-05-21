@@ -273,7 +273,13 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
         }
         sb.append(" FROM numbers(").append(toInsert).append(")");
         if (state.getOptions().logEachSelect()) {
+            // writeCurrent updates the live `-cur.log` for tailing; logStatement adds it to the
+            // persisted reproducer that gets dumped on AssertionError (built from
+            // state.getStatements()). Without the second call CERT's bulk INSERT shows up in
+            // -cur.log but never in the saved database<N>.log, so saved reproducers from
+            // post-CERT iterations are missing the cardinality that triggered the bug.
             state.getLogger().writeCurrent(sb.toString());
+            state.getState().logStatement(sb.toString());
         }
         try (Statement s = state.getConnection().createStatement()) {
             s.execute(sb.toString());

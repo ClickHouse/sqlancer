@@ -116,9 +116,16 @@ public class ClickHousePartitionMirrorOracle implements TestOracle<ClickHouseGlo
             // The oracle only asserts on the SELECT diff below.
             String insertMirror = "INSERT INTO " + fqMirror + " SELECT * FROM " + fqSource;
             if (state.getOptions().logEachSelect()) {
+                // writeCurrent → live -cur.log; logStatement → state.getStatements(), which is
+                // what gets dumped to the persistent database<N>.log on AssertionError. Without
+                // the second call the mirror DDL+INSERT is invisible in saved reproducers and the
+                // failing SELECT references tables that don't exist on replay.
                 state.getLogger().writeCurrent(dropMirror);
                 state.getLogger().writeCurrent(mirrorDdl);
                 state.getLogger().writeCurrent(insertMirror);
+                state.getState().logStatement(dropMirror);
+                state.getState().logStatement(mirrorDdl);
+                state.getState().logStatement(insertMirror);
             }
             new SQLQueryAdapter(dropMirror, errors, true).execute(state, false);
             boolean created = new SQLQueryAdapter(mirrorDdl, errors, true).execute(state, false);
