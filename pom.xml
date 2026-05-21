@@ -248,6 +248,16 @@
   </build>
 
   <dependencies>
+    <!-- client-v2's RowBinaryWithNamesAndTypesFormatReader calls
+         ImmutableMap.Builder.buildKeepingLast(), introduced in Guava 31.1. The transitive
+         auto-service:1.0.1 below pulls 31.0.1-jre which lacks that method and triggers
+         NoSuchMethodError on every binary-format SELECT. Pin a newer Guava explicitly so the
+         dependency mediator picks 33.x over 31.0.1. -->
+    <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+      <version>33.4.0-jre</version>
+    </dependency>
     <dependency>
       <groupId>com.google.auto.service</groupId>
       <artifactId>auto-service</artifactId>

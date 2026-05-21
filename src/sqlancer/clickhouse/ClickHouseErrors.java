@@ -129,6 +129,17 @@ public final class ClickHouseErrors {
                 // the column's valid range (Date: 1970..2149, Date32: 1900..2299) and ClickHouse
                 // rejects the cast.
                 "Cannot parse Date", "CANNOT_PARSE_DATE", "Cannot parse DateTime", "CANNOT_PARSE_DATETIME",
+                // Generator may compose `'' < (true)` or similar `String <op> Bool` comparisons.
+                // ClickHouse rejects with `CANNOT_PARSE_BOOL: Expected boolean value but get EOF`
+                // (code 467). The whole comparison subexpression is invalid SQL by CH's typing
+                // rules, not a bug to file. Two-word substring kept narrow to avoid masking
+                // unrelated boolean-handling regressions.
+                "CANNOT_PARSE_BOOL", "Expected boolean value but get",
+                // Generator may emit `WHERE <numeric-expr>` (e.g. `WHERE abs(sin(c1))`) which CH
+                // rightly rejects since WHERE requires UInt8/Bool. The existing
+                // "Must be one unsigned integer type" catches the SAMPLE-BY variant but the
+                // WHERE-filter variant uses a different message; the bare code label covers both.
+                "(ILLEGAL_TYPE_OF_COLUMN_FOR_FILTER)",
                 // Decimal cast / arithmetic overflow once the picker emits Decimal(P, S) columns.
                 "DECIMAL_OVERFLOW", "Cannot convert: Float64 to Decimal", "Too many digits", "ARGUMENT_OUT_OF_BOUND",
                 // FixedString CAST when the literal length doesn't match. The emitter pads / truncates

@@ -132,6 +132,17 @@ public final class ComparatorHelper {
 
         boolean validateResultSizeOnly = state.getOptions().validateResultSizeOnly();
         if (!validateResultSizeOnly && !firstHashSet.equals(secondHashSet)) {
+            // ULP-different float representations are not a content mismatch: the same double
+            // can be rendered as both "-9908.828420722071" (17 digits) and "-9908.82842072207"
+            // (16 digits) by equivalent CH aggregates (e.g. avgOrNull vs sum/count). Round-trip
+            // each numeric-looking entry through Double.parseDouble + Double.toString to
+            // collapse equivalent forms before deciding the sets really differ. Conservative:
+            // non-numeric strings pass through untouched, so non-float bugs are still caught.
+            Set<String> firstFloatNorm = canonicalizeFloats(resultSet);
+            Set<String> secondFloatNorm = canonicalizeFloats(secondResultSet);
+            if (firstFloatNorm.equals(secondFloatNorm)) {
+                return;
+            }
             Set<String> firstResultSetMisses = new HashSet<>(firstHashSet);
             firstResultSetMisses.removeAll(secondHashSet);
             Set<String> secondResultSetMisses = new HashSet<>(secondHashSet);
@@ -198,6 +209,46 @@ public final class ComparatorHelper {
         combinedString.add(unionString);
         secondResultSet = getResultSetFirstColumnAsString(unionString, errors, state);
         return secondResultSet;
+    }
+
+    // Apply float normalization to every entry that parses as a finite double; pass through the
+    // rest. The cheap pre-check (must contain a digit AND a fraction marker '.', 'e', or 'E')
+    // avoids reformatting integer-looking strings like "50000" into "50000.0", which would
+    // create false-positive divergence on its own.
+    private static Set<String> canonicalizeFloats(List<String> values) {
+        Set<String> out = new HashSet<>(values.size() * 2);
+        for (String v : values) {
+            out.add(normalizeFloatString(v));
+        }
+        return out;
+    }
+
+    private static String normalizeFloatString(String v) {
+        if (v == null) {
+            return null;
+        }
+        boolean hasDigit = false;
+        boolean hasFractionMarker = false;
+        for (int i = 0; i < v.length(); i++) {
+            char c = v.charAt(i);
+            if (c >= '0' && c <= '9') {
+                hasDigit = true;
+            } else if (c == '.' || c == 'e' || c == 'E') {
+                hasFractionMarker = true;
+            }
+        }
+        if (!hasDigit || !hasFractionMarker) {
+            return v;
+        }
+        try {
+            double d = Double.parseDouble(v);
+            if (Double.isNaN(d) || Double.isInfinite(d)) {
+                return v;
+            }
+            return Double.toString(d);
+        } catch (NumberFormatException e) {
+            return v;
+        }
     }
 
     public static String canonicalizeResultValue(String value) {

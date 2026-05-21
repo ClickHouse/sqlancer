@@ -15,8 +15,8 @@ import java.util.regex.Pattern;
 
 /**
  * HTTP-backed transport. Posts each statement to {@code http://host:port/} with the SQL as the
- * request body and the result format pinned to {@code TabSeparatedWithNamesAndTypes} so we get a
- * deterministic header (names line + types line) plus rows. Bypasses clickhouse-jdbc entirely.
+ * request body and the result format pinned to {@code RowBinaryWithNamesAndTypes} so client-v2's
+ * binary reader (already a transitive dep) handles type decoding. Bypasses clickhouse-jdbc entirely.
  *
  * Design notes:
  * <ul>
@@ -97,8 +97,8 @@ public final class ClickHouseHttpTransport implements ClickHouseTransport {
 
     @Override
     public ResultData executeQuery(String sql) throws SQLException {
-        String body = trimTrailingSemicolon(sql) + " FORMAT " + ClickHouseTsvParser.FORMAT;
-        return post(body, ClickHouseTsvParser::parse);
+        String body = trimTrailingSemicolon(sql) + " FORMAT " + ClickHouseRowBinaryParser.FORMAT;
+        return post(body, ClickHouseRowBinaryParser::parse);
     }
 
     @Override
@@ -235,7 +235,7 @@ public final class ClickHouseHttpTransport implements ClickHouseTransport {
             if (es == null) {
                 return "(no error stream)";
             }
-            return new String(ClickHouseTsvParser.readAllBytes(es), StandardCharsets.UTF_8);
+            return new String(ClickHouseRowBinaryParser.readAllBytes(es), StandardCharsets.UTF_8);
         } catch (IOException e) {
             return "(error stream read failed: " + e.getMessage() + ")";
         }

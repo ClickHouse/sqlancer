@@ -10,11 +10,11 @@ import java.util.List;
  * Materialised {@link ResultSet} on top of {@link ClickHouseTransport.ResultData}.
  *
  * <p>Only the methods sqlancer exercises are implemented; the rest throw to make accidental
- * coverage gaps loud rather than silent. Values are stored as the raw text ClickHouse emits in
- * the {@code TabSeparatedWithNamesAndTypes} format; numeric getters parse on demand. This is
- * deliberate -- it sidesteps clickhouse-jdbc 0.9.8's UInt64-into-{@code long} overflow bug we
- * documented in the 2026-05-19 run (PQS oracle was crashing on legitimate values above
- * {@code Long.MAX_VALUE}).
+ * coverage gaps loud rather than silent. Values are stored as the textual rendering produced by
+ * client-v2's {@code RowBinaryWithNamesAndTypesFormatReader#getString(int)}, which matches CH's
+ * server-side text formatter byte-for-byte. Numeric getters parse on demand. This sidesteps
+ * clickhouse-jdbc 0.9.8's UInt64-into-{@code long} overflow bug we documented in the 2026-05-19
+ * run (PQS oracle was crashing on legitimate values above {@code Long.MAX_VALUE}).
  */
 final class ClickHouseTransportResultSet implements ResultSet {
 

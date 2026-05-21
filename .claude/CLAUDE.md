@@ -38,8 +38,8 @@
 - Built jar: `target/sqlancer-2.0.0.jar` (~3.4 MB) after `mvn -B package -DskipTests=true -Djacoco.skip=true`. **Must include `-Djacoco.skip=true`** — JaCoCo 0.8.12 fails on class file major version 69 (Java 25).
 - Maven: vendored under `tmp/apache-maven-3.9.9/` (not on `$PATH` by default).
 - Argument order is positional: global options (`--num-threads`, `--host`, `--port`, `--username`, `--password`, etc.) must come **before** the DBMS subcommand (`clickhouse`); DBMS-specific options come after. Putting `--host` after `clickhouse` gives `Was passed main parameter '--host' but no main parameter was defined in your arg class`.
-- Run-to-stop knobs: `--num-tries 999999 --timeout-seconds 180 --use-connection-test false --print-progress-summary true`. Without a huge `--num-tries` you stop after the first 100 found errors.
-- **Raise heap for long runs**: invoke as `java -Xmx8g -jar target/sqlancer-2.0.0.jar ...`. The default heap fills mid-run on dense reproducer dumps and 37 of 38 saved `logs/clickhouse/database*.log` files in the 2026-05-19 48-minute baseline were OOM-truncated (the AssertionError reproducer wrote the schema + INSERTs successfully but the JVM died before serialising the failing query). 4 GiB was previously thought sufficient but the 2026-05-20 1-hour 25-oracle composite run still produced 3 `OutOfMemoryError: Java heap space` reproducers (db2, db6, db10) inside `AbstractBinaryFormatReader.getString` / `DataTypeConverter` paths — those were JVM heap exhaustion, not real ClickHouse oracle trips. 8 GiB is the new floor for 25-oracle × 6-thread runs; the JDBC reader materialises full result-sets into Java strings before TLPWhere can compare them, and large `Date`/`DateTime` columns × multi-row reads blow past 4 GiB.
+- Run-to-stop knobs: `--num-tries 999999 --timeout-seconds <run-seconds> --use-connection-test false --print-progress-summary true`. **`--timeout-seconds` is the total wall-clock cap** for the whole sqlancer run (it backs `execService.awaitTermination` in `Main.java:738`), not a per-statement timeout. Pass the desired duration in seconds (e.g. `1800` for 30 min); `-1` disables the cap entirely. Without a huge `--num-tries` you also stop after the first 100 found errors.
+- **Raise heap for long runs**: invoke as `java -Xmx8g -jar target/sqlancer-2.0.0.jar ...`. The default heap fills mid-run on dense reproducer dumps and 37 of 38 saved `logs/clickhouse/database*.log` files in the 2026-05-19 48-minute baseline were OOM-truncated (the AssertionError reproducer wrote the schema + INSERTs successfully but the JVM died before serialising the failing query). 8 GiB is the floor for 25-oracle × 6-thread runs; oracles materialise full result-sets into Java strings before TLPWhere can compare them, and large `Date`/`DateTime` columns × multi-row reads blow past 4 GiB. The JoinAlgorithm oracle on cartesian self-joins can still OOM at 8 GiB — exclude it or raise to 12-16 GiB if you specifically want JoinAlgorithm coverage.
 - Default oracle for ClickHouse is `TLPWhere`.
 - `--log-each-select=true` is default and is required for AssertionError reproducer files; turning it off is invasive.
 - The default `--num-threads=16` is too high for a `--cpus=6` CH server (CH becomes the bottleneck); 6 sqlancer threads matched the 6 CPU cores cleanly.
@@ -47,8 +47,9 @@
 
 ## Wire transports
 
-Two interchangeable transports, both requesting `TabSeparatedWithNamesAndTypes` and parsed
-through the shared `ClickHouseTsvParser`:
+Two interchangeable transports, both requesting `RowBinaryWithNamesAndTypes` and parsed via
+client-v2's `RowBinaryWithNamesAndTypesFormatReader` through the thin adapter
+`ClickHouseRowBinaryParser`:
 
 - `--transport client` (default): backed by `com.clickhouse.client.api.Client` (clickhouse-java
   client-v2 0.9.8). Brings httpclient5 + connection pooling. Server-side settings
@@ -58,18 +59,38 @@ through the shared `ClickHouseTsvParser`:
 - `--transport http`: raw `HttpURLConnection`, zero extra deps. Useful as a fallback when an
   Apache HC regression appears under client-v2.
 
-`jdbc-v2` (clickhouse-jdbc 0.9.8) was the historical transport and is dropped. The local patch
-to `ResultSetImpl.close()` that suppressed `ConnectionClosedException: Premature end of chunk
-coded message body` is no longer needed -- client-v2 owns the response stream directly so the
-close-time noise the patch fixed cannot occur from the transport layer. Other JDBC-specific
-losses also disappear:
+`jdbc-v2` (clickhouse-jdbc 0.9.8) was the historical transport and is dropped. Both wins from
+that move stand:
 
-- UInt64 → `long` overflow (`ArithmeticException`) in PQS' `fetchPivotRow` is gone: the parser
-  hands us the textual value, oracle-side code calls `getString` and decides how to use it.
+- UInt64 → `long` overflow (`ArithmeticException`) in PQS' `fetchPivotRow` is gone: the reader
+  exposes `getString(int)` which routes UInt64 through `BigInteger`, and oracle-side code calls
+  `getString` and decides how to use it.
 - `java.time.DateTimeException: Instant exceeds minimum or maximum` from JDBC's
-  `getTimestamp()` is gone for the same reason.
-- `OutOfMemoryError` in `AbstractBinaryFormatReader.getString` is gone because the binary
-  reader is not on the path -- TSV bytes go straight into `ClickHouseTsvParser`.
+  `getTimestamp()` is gone: the reader's `getString` formats DateTime values via CH's own text
+  renderer rather than collapsing through `java.sql.Timestamp`.
+
+### RowBinaryWithNamesAndTypes specifics
+
+- The reader requires a timezone: `RowBinaryWithNamesAndTypesFormatReader`'s ctor refuses to
+  build without `QuerySettings.setUseTimeZone(...)` or `setUseServerTimeZone(true)`. We pass
+  `UTC`; sqlancer cares only about textual values, so any zone yields consistent rendering.
+- The reader uses `Guava 31.1+`'s `ImmutableMap.Builder.buildKeepingLast()`. The transitive
+  guava from `auto-service:1.0.1` is `31.0.1-jre` which lacks it, so `pom.xml` pins an
+  explicit `com.google.guava:guava:33.4.0-jre` dependency. Without that pin every binary
+  SELECT raises `NoSuchMethodError` deep inside the reader.
+- `getString(int)` is **1-based** (CH/JDBC convention) and returns Java `null` for SQL NULL
+  iff `hasValue(idx)` returns false; an empty string is `""` and `hasValue` is true. Empty vs
+  NULL are structurally distinct on the wire, unlike TSV's `''` vs `\N`.
+- Format rendering by `getString(int)` matches CH's TSV serialiser for the value types we
+  exercise (verified on probe: empty strings, UTF-8 multi-byte, UInt64 above Long.MAX_VALUE,
+  Float NaN/Infinity, Decimal(38,15)) with one cosmetic difference -- the reader emits
+  `"NaN"` and `"Infinity"` where TSV emits `"nan"` and `"inf"`. Oracle string compares operate
+  on values that all flow through the same reader, so they stay self-consistent.
+
+The previous `ClickHouseTsvParser` was removed as part of this change. It silently dropped
+single-column empty-string rows because of a misunderstanding of `BufferedReader.readLine`'s
+trailing-newline semantics, manifesting as NoREC `(N-K vs N)` false positives whenever a
+column held K empty values. Going binary eliminates the hand-rolled escape parser entirely.
 
 ## Environment quirks
 

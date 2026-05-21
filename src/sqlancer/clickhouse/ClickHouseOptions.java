@@ -54,7 +54,7 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
         HTTP, CLIENT
     }
 
-    @Parameter(names = "--transport", description = "Wire transport for ClickHouse: 'client' (default, clickhouse-java client-v2) or 'http' (raw HTTPURLConnection POST). Both request TabSeparatedWithNamesAndTypes and parse it the same way; client-v2 brings httpclient5 + connection pooling, http brings zero extra deps and bypasses Apache HC's chunked decoder. jdbc-v2 was dropped in favour of client-v2 -- see ClickHouseClientV2Transport for the rationale")
+    @Parameter(names = "--transport", description = "Wire transport for ClickHouse: 'client' (default, clickhouse-java client-v2) or 'http' (raw HTTPURLConnection POST). Both request RowBinaryWithNamesAndTypes and parse it via client-v2's RowBinaryWithNamesAndTypesFormatReader; client-v2 brings httpclient5 + connection pooling, http brings zero extra deps and bypasses Apache HC's chunked decoder. jdbc-v2 was dropped in favour of client-v2 -- see ClickHouseClientV2Transport for the rationale")
     public Transport transport = Transport.CLIENT;
 
     @Override

@@ -15,9 +15,9 @@ import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 
-// Transport backed by clickhouse-java's client-v2 (com.clickhouse.client.api.Client). Requests TSV
-// (TabSeparatedWithNamesAndTypes) output so the result-parsing layer is identical to
-// {@link ClickHouseHttpTransport} -- both feed bytes through {@link ClickHouseTsvParser} into the
+// Transport backed by clickhouse-java's client-v2 (com.clickhouse.client.api.Client). Requests
+// RowBinaryWithNamesAndTypes output so the result-parsing layer is identical to
+// {@link ClickHouseHttpTransport} -- both feed bytes through {@link ClickHouseRowBinaryParser} into the
 // transport-agnostic {@link ClickHouseTransport.ResultData}.
 //
 // Why client-v2 and not jdbc-v2 (the historical default):
@@ -84,9 +84,9 @@ public final class ClickHouseClientV2Transport implements ClickHouseTransport {
 
     @Override
     public ResultData executeQuery(String sql) throws SQLException {
-        String body = trimTrailingSemicolon(sql) + " FORMAT " + ClickHouseTsvParser.FORMAT;
+        String body = trimTrailingSemicolon(sql) + " FORMAT " + ClickHouseRowBinaryParser.FORMAT;
         try (QueryResponse response = runQuery(body); InputStream in = response.getInputStream()) {
-            return ClickHouseTsvParser.parse(in);
+            return ClickHouseRowBinaryParser.parse(in);
         } catch (IOException e) {
             throw new SQLException("Transport I/O error: " + e.getMessage(), e);
         } catch (Exception e) {
