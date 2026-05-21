@@ -59,7 +59,13 @@ public class ClickHouseTableGenerator {
     }
 
     public void start() {
-        ClickHouseEngine engine = Randomly.fromOptions(ClickHouseEngine.values());
+        // Dedupe-engine variants (Replacing/Summing) generate too many false-positive oracle trips:
+        // their visible cardinality drifts non-deterministically when ORDER BY expressions return
+        // NaN (log/sqrt of negative, etc.) or when many same-key rows collapse mid-test. The
+        // 2026-05-20 25-oracle smoke had 4 of 4 NoREC reproducers attributable to this class. Pin
+        // to plain MergeTree until the engine-specific issues are addressed at the generator level
+        // (e.g. refuse function-of-numeric ORDER BY for dedupe engines).
+        ClickHouseEngine engine = ClickHouseEngine.MergeTree;
         ClickHouseExpressionGenerator gen = new ClickHouseExpressionGenerator(globalState).allowAggregates(false);
         sb.append("CREATE ");
         sb.append("TABLE ");

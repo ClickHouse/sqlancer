@@ -126,10 +126,15 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
 
     // Wrap whatever oracle the parent built (single or composite) with the dedupe-engine
     // OPTIMIZE TABLE ... FINAL pre-flight. See ClickHouseOptimizingOracle for why.
-    @Override
-    protected TestOracle<ClickHouseGlobalState> getTestOracle(ClickHouseGlobalState globalState) throws Exception {
-        return new ClickHouseOptimizingOracle(globalState, super.getTestOracle(globalState));
-    }
+    //
+    // Disabled while ClickHouseTableGenerator is pinned to plain MergeTree (no dedupe engines, no
+    // merge race to drain -- supportsFinal() returns false for every table the generator emits,
+    // so the wrapper's optimize loop would be a no-op anyway). Re-enable by uncommenting once
+    // ReplacingMergeTree / SummingMergeTree are re-introduced into the engine pool.
+    // @Override
+    // protected TestOracle<ClickHouseGlobalState> getTestOracle(ClickHouseGlobalState globalState) throws Exception {
+    //     return new ClickHouseOptimizingOracle(globalState, super.getTestOracle(globalState));
+    // }
 
     @Override
     public SQLConnection createDatabase(ClickHouseGlobalState globalState) throws SQLException {
