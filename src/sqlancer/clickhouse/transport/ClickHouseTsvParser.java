@@ -1,8 +1,10 @@
 package sqlancer.clickhouse.transport;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,34 +19,51 @@ import java.util.List;
 //   line 3..: rows
 //   TSV escaping: \t \n \\ \\N (the last is the literal SQL NULL token, distinct from
 //   an empty cell).
+//
+// Parsing is streaming: we read one line at a time via BufferedReader rather than materialising
+// the whole response body into a single byte[]+String. The previous materialise-then-split
+// approach hit `ByteArrayOutputStream`'s `Integer.MAX_VALUE - 8` array-length limit on result
+// sets > 2 GiB (12 of 38 reproducer trips in the 2026-05-21 3-h baseline). Streaming bounds the
+// transient buffer to BufferedReader's default (8 KB) regardless of total response size; the
+// only memory still proportional to the result is the materialised `List<List<String>>` that
+// the oracles consume, which fits in the 8 GiB heap for everything sqlancer typically generates.
+//
+// TSV is safe to readLine() over: literal newlines and carriage returns are escaped as `\n` /
+// `\r` (two-character sequences) inside values, so {@link BufferedReader#readLine} never splits
+// inside a value -- only on the row delimiter.
 final class ClickHouseTsvParser {
 
     private ClickHouseTsvParser() {
     }
 
     static ClickHouseTransport.ResultData parse(InputStream body) throws IOException {
-        byte[] raw = readAllBytes(body);
-        String text = new String(raw, StandardCharsets.UTF_8);
-        if (text.isEmpty()) {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8));
+        String namesLine = reader.readLine();
+        if (namesLine == null) {
             return new ClickHouseTransport.ResultData(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
         }
-        List<String> lines = splitTsvLines(text);
-        if (lines.size() < 2) {
+        String typesLine = reader.readLine();
+        if (typesLine == null) {
+            // Header without a types line -- shouldn't happen for TabSeparatedWithNamesAndTypes,
+            // but be defensive.
             return new ClickHouseTransport.ResultData(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
         }
-        List<String> names = splitTsvFields(lines.get(0));
-        List<String> types = splitTsvFields(lines.get(1));
-        List<List<String>> rows = new ArrayList<>(Math.max(0, lines.size() - 2));
-        for (int i = 2; i < lines.size(); i++) {
-            if (lines.get(i).isEmpty()) {
+        List<String> names = splitTsvFields(namesLine);
+        List<String> types = splitTsvFields(typesLine);
+        List<List<String>> rows = new ArrayList<>();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            if (line.isEmpty()) {
                 // Trailing newline produces an empty tail entry; skip it.
                 continue;
             }
-            rows.add(splitTsvFields(lines.get(i)));
+            rows.add(splitTsvFields(line));
         }
         return new ClickHouseTransport.ResultData(names, types, rows);
     }
 
+    // Used only by the error-stream path in ClickHouseHttpTransport -- error bodies are bounded
+    // by ClickHouse's exception serialiser (a few KB) so the in-memory buffer is safe there.
     static byte[] readAllBytes(InputStream in) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream(8192);
         byte[] buf = new byte[8192];
@@ -53,23 +72,6 @@ final class ClickHouseTsvParser {
             out.write(buf, 0, n);
         }
         return out.toByteArray();
-    }
-
-    private static List<String> splitTsvLines(String text) {
-        // Rows are separated by literal '\n' (0x0A). Within a value, '\n' is encoded as the two
-        // characters '\\' + 'n' -- so we walk byte by byte and only split on literal LF.
-        List<String> out = new ArrayList<>();
-        int start = 0;
-        for (int i = 0; i < text.length(); i++) {
-            if (text.charAt(i) == '\n') {
-                out.add(text.substring(start, i));
-                start = i + 1;
-            }
-        }
-        if (start < text.length()) {
-            out.add(text.substring(start));
-        }
-        return out;
     }
 
     private static List<String> splitTsvFields(String line) {
