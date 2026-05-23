@@ -40,6 +40,16 @@ import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPBase;
  */
 public class ClickHouseJoinAlgorithmOracle extends ClickHouseTLPBase {
 
+    // Server-side caps appended to every algorithm-sweep query. The OOM that previously killed
+    // worker threads originated in the Java RowBinary parser materialising every cell into an
+    // ArrayList<String>: a 50k x 50k self-join produces 2.5 billion rows and exhausts even a
+    // 12 GiB heap before the comparator runs. Capping result rows + JOIN state + per-query
+    // memory at the server makes the unsupported corner trip a tolerated error
+    // (TOO_MANY_ROWS_OR_BYTES / SET_SIZE_LIMIT_EXCEEDED / MEMORY_LIMIT_EXCEEDED) instead of
+    // OOM-killing the JVM. Tolerated by the patterns added in the ctor below.
+    private static final String CAPS = "max_result_rows = 1000000, result_overflow_mode = 'throw', "
+            + "max_bytes_in_join = 268435456, max_memory_usage = 1073741824";
+
     public ClickHouseJoinAlgorithmOracle(ClickHouseGlobalState state) {
         super(state);
         ClickHouseErrors.addSessionSettingsErrors(errors);
@@ -52,6 +62,12 @@ public class ClickHouseJoinAlgorithmOracle extends ClickHouseTLPBase {
         errors.add("Join algorithm");
         errors.add("is not supported");
         errors.add("is not implemented");
+        // Caps appended to every algorithm-sweep query. See CAPS constant.
+        errors.add("Limit for result exceeded");
+        errors.add("Limit for JOIN exceeded");
+        errors.add("Memory limit");
+        errors.add("memory limit exceeded");
+        errors.add("MEMORY_LIMIT_EXCEEDED");
     }
 
     @Override
@@ -79,10 +95,10 @@ public class ClickHouseJoinAlgorithmOracle extends ClickHouseTLPBase {
         // Force a stable row order via the result-ordering helper: the algorithm-specific paths
         // can shuffle rows freely, and ComparatorHelper.assumeResultSetsAreEqual normalises by
         // sorting strings, so no explicit ORDER BY is required here.
-        String qHash = baseQuery + " SETTINGS join_algorithm = 'hash'";
-        String qMerge = baseQuery + " SETTINGS join_algorithm = 'partial_merge'";
+        String qHash = baseQuery + " SETTINGS join_algorithm = 'hash', " + CAPS;
+        String qMerge = baseQuery + " SETTINGS join_algorithm = 'partial_merge', " + CAPS;
         String qGrace = baseQuery + " SETTINGS join_algorithm = 'grace_hash', grace_hash_join_initial_buckets = "
-                + Randomly.fromOptions(1, 4, 32);
+                + Randomly.fromOptions(1, 4, 32) + ", " + CAPS;
 
         List<String> rowsHash;
         try {
