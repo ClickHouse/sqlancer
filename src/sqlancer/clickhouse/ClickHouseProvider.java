@@ -168,6 +168,15 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         settings.put("max_execution_time", "30");
         settings.put("wait_end_of_query", "1");
         settings.put("http_response_buffer_size", "104857600");
+        // Universal result-row cap. Without it, any oracle path that funnels through
+        // ComparatorHelper.getResultSetFirstColumnAsString -- TLPBase variants, JoinAlgorithm,
+        // SchemaRoundtrip's sister-table reads -- materialises the full server result into Java
+        // strings and OOMs the JVM on cartesian / many-to-many shapes. 1M rows is comfortably
+        // above the cardinality any non-buggy oracle iteration needs (oracles operate on small
+        // seeded tables) and tripping the cap surfaces as a tolerated "Limit for result exceeded"
+        // error (TOO_MANY_ROWS_OR_BYTES). The matching tolerance lives in ClickHouseErrors.
+        settings.put("max_result_rows", "1000000");
+        settings.put("result_overflow_mode", "throw");
         if (clickHouseOptions.enableAnalyzer) {
             settings.put("allow_experimental_analyzer", "1");
         }
@@ -213,6 +222,15 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         settings.put("max_execution_time", "30");
         settings.put("wait_end_of_query", "1");
         settings.put("http_response_buffer_size", "104857600");
+        // Universal result-row cap. Without it, any oracle path that funnels through
+        // ComparatorHelper.getResultSetFirstColumnAsString -- TLPBase variants, JoinAlgorithm,
+        // SchemaRoundtrip's sister-table reads -- materialises the full server result into Java
+        // strings and OOMs the JVM on cartesian / many-to-many shapes. 1M rows is comfortably
+        // above the cardinality any non-buggy oracle iteration needs (oracles operate on small
+        // seeded tables) and tripping the cap surfaces as a tolerated "Limit for result exceeded"
+        // error (TOO_MANY_ROWS_OR_BYTES). The matching tolerance lives in ClickHouseErrors.
+        settings.put("max_result_rows", "1000000");
+        settings.put("result_overflow_mode", "throw");
         if (clickHouseOptions.enableAnalyzer) {
             settings.put("allow_experimental_analyzer", "1");
         }

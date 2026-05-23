@@ -148,7 +148,18 @@ public final class ClickHouseErrors {
                 // doesn't contain the upper-case `FIXED_STRING` substring -- without the explicit
                 // code it escapes the generator's expected-errors filter and tears down the thread.
                 // Observed twice in the 2026-05-19 180s baseline, costing 2/6 threads (~33% capacity).
-                "String literal", "FIXED_STRING", "TOO_LARGE_STRING_SIZE");
+                "String literal", "FIXED_STRING", "TOO_LARGE_STRING_SIZE",
+                // Server-side result-row cap. ClickHouseProvider pins max_result_rows=1_000_000 +
+                // result_overflow_mode='throw' on every connection to keep ComparatorHelper from
+                // OOMing the JVM on cartesian / many-to-many oracle shapes. Tripping the cap is
+                // a "this iteration is uninformative" signal, not a wrong-result bug.
+                "Limit for result exceeded", "TOO_MANY_ROWS_OR_BYTES",
+                // CH 26.6 added bloom_filter type validation that rejects Decimal columns. The
+                // table generator emits Decimal + bloom_filter combinations at low rate; absorb
+                // the narrow message ("of bloom filter index") so a single generator-vs-catalog
+                // drift doesn't kill a worker. First observed 2026-05-23 in the dev-VM 3h run
+                // (database15.log of attempt-1). The substring is multi-word per the convention.
+                "of bloom filter index");
     }
 
     public static void addExpectedExpressionErrors(ExpectedErrors errors) {
