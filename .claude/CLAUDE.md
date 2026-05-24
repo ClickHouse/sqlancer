@@ -39,11 +39,86 @@
 - Maven: vendored under `tmp/apache-maven-3.9.9/` (not on `$PATH` by default).
 - Argument order is positional: global options (`--num-threads`, `--host`, `--port`, `--username`, `--password`, etc.) must come **before** the DBMS subcommand (`clickhouse`); DBMS-specific options come after. Putting `--host` after `clickhouse` gives `Was passed main parameter '--host' but no main parameter was defined in your arg class`.
 - Run-to-stop knobs: `--num-tries 999999 --timeout-seconds <run-seconds> --use-connection-test false --print-progress-summary true`. **`--timeout-seconds` is the total wall-clock cap** for the whole sqlancer run (it backs `execService.awaitTermination` in `Main.java:738`), not a per-statement timeout. Pass the desired duration in seconds (e.g. `1800` for 30 min); `-1` disables the cap entirely. Without a huge `--num-tries` you also stop after the first 100 found errors.
-- **Raise heap for long runs**: invoke as `java -Xmx8g -jar target/sqlancer-2.0.0.jar ...`. The default heap fills mid-run on dense reproducer dumps and 37 of 38 saved `logs/clickhouse/database*.log` files in the 2026-05-19 48-minute baseline were OOM-truncated (the AssertionError reproducer wrote the schema + INSERTs successfully but the JVM died before serialising the failing query). 8 GiB is the floor for 25-oracle × 6-thread runs; oracles materialise full result-sets into Java strings before TLPWhere can compare them, and large `Date`/`DateTime` columns × multi-row reads blow past 4 GiB. The JoinAlgorithm oracle previously OOMed on cartesian self-joins even at 12 GiB; each algorithm-sweep query now carries server-side caps (`max_result_rows=1_000_000`, `result_overflow_mode='throw'`, `max_bytes_in_join=256 MiB`, `max_memory_usage=1 GiB`) so the unsupported corner trips a tolerated error instead of materialising 2.5B rows into the JVM. **Do not raise heap to compensate for cartesian-join OOMs** — investigate why the cap is being bypassed instead.
+- **Raise heap for long runs**: invoke as `java -Xmx8g -jar target/sqlancer-2.0.0.jar ...`. The default heap fills mid-run on dense reproducer dumps and 37 of 38 saved `logs/clickhouse/database*.log` files in the 2026-05-19 48-minute baseline were OOM-truncated (the AssertionError reproducer wrote the schema + INSERTs successfully but the JVM died before serialising the failing query). 8 GiB is the floor for 25-oracle × 6-thread runs; oracles materialise full result-sets into Java strings before TLPWhere can compare them, and large `Date`/`DateTime` columns × multi-row reads blow past 4 GiB. **`ClickHouseProvider` now pins `max_result_rows=1_000_000` + `result_overflow_mode='throw'` on every connection** (both client-v2 and http transports), and `ClickHouseErrors` tolerates `"Limit for result exceeded"` / `"TOO_MANY_ROWS_OR_BYTES"` globally — that universal cap, not the JoinAlgorithm-specific one, is what eliminated the OOM-thread-death family across all oracles. With the cap in place, **8 threads × 16 GiB heap = 2 GiB/thread** is now a stable budget for a 3-hour run (1.58M queries, 0 OOMs, 0 GC stalls in the 2026-05-23 dev-VM attempt-3). Before the cap, the same 8/16 config GC-thrashed to a halt after 8 minutes. **Do not raise heap to compensate for OOMs** — first check that the universal cap is in place (`max_result_rows` should appear in `ClickHouseProvider.createDatabase{Http,Client}`'s `settings` map), then check what's bypassing it.
 - Default oracle for ClickHouse is `TLPWhere`.
 - `--log-each-select=true` is default and is required for AssertionError reproducer files; turning it off is invasive.
 - The default `--num-threads=16` is too high for a `--cpus=6` CH server (CH becomes the bottleneck); 6 sqlancer threads matched the 6 CPU cores cleanly.
-- Progress line interpretation: `Threads shut down: N` means `N` of `--num-threads` workers have died via `AssertionError` (real bug or unhandled error) and are gone for the rest of the run; throughput drops proportionally.
+- Progress line interpretation: `Threads shut down: N` means `N` of `--num-threads` workers have died via `AssertionError` (real bug or unhandled error). `Main`'s `ThreadPoolExecutor` replaces dead workers, so the **counter is cumulative across the run** (M deaths over time, not the current live count) and throughput stays steady even as the counter climbs. Compare against the saved `logs/clickhouse/database*.log` reproducer count for the real picture.
+
+## Running on the dev VM (Graviton ARM, CH HEAD)
+
+The dev-vm skill (`~/.claude/skills/dev-vm/`) owns connection details and lifecycle. The sqlancer-specific bootstrap that worked in the 2026-05-23 3-hour run:
+
+```bash
+# 1. Bootstrap (≈3 min on a fresh c7g.4xlarge)
+ssh ubuntu@nik-fomichev-dev-vm-1 'sudo apt-get update -qq && \
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -qq -y docker.io openjdk-25-jdk-headless rsync && \
+  sudo usermod -aG docker ubuntu && sudo docker pull clickhouse/clickhouse-server:head'
+
+# 2. Sync source tree (NEVER include database*.tmp/ — those are 7+ GiB of HSQLDB scratch
+#    from other DBMS oracles; sqlancer doesn't need them)
+rsync -az --exclude='target/' --exclude='target-root-old/' --exclude='logs/' \
+  --exclude='.git/' --exclude='database*.tmp/' --exclude='database*.properties' \
+  --exclude='database*.script' --exclude='database*.data' --exclude='database*.log' \
+  ./ ubuntu@nik-fomichev-dev-vm-1:~/sqlancer-fork/
+
+# 3. Build the jar on the VM (vendored Maven works fine on aarch64 — Maven is Java)
+ssh ubuntu@nik-fomichev-dev-vm-1 'cd ~/sqlancer-fork && \
+  unset JAVA_TOOL_OPTIONS; unset ASAN_OPTIONS; \
+  tmp/apache-maven-3.9.9/bin/mvn -B package -DskipTests=true -Djacoco.skip=true -q'
+```
+
+Scaling on c7g.4xlarge (16 vCPU / 32 GiB): cap CH at 10 cpu / 12 GiB (`--cpus=10 -m=12g`) and run sqlancer with `--num-threads 8 -Xmx16g`. CH at 12 cpu / 14 GiB + sqlancer at 12 threads / 12 GiB heap **overshoots** (per-thread heap drops below the 1.3 GiB floor) — attempt-1 of the 3h run died in 13 minutes that way. The 8-thread / 16-GiB / cap-in-place split survived 3 hours clean.
+
+## Reproducing findings
+
+- **Version-pin everything.** CH HEAD moves fast; bugs the fuzzer caught on 26.6.x do not always reproduce on 26.5.x. The 2026-05-23 `database48` finding (DISTINCT NaN coalescence) is 26.6-exclusive — single in-pass DISTINCT collapses different NaN bit patterns starting in 26.6, while the UNION-ALL+DISTINCT path doesn't; on 26.5 both paths kept them apart consistently. Record the CH version next to every saved reproducer; if a finding doesn't replay against the local 26.5 container, pull `clickhouse/clickhouse-server:head` (or query the dev-VM's container) before declaring it a flake.
+- **Replay flags.** Sqlancer's saved `database*.log` reproducers include all CREATE TABLE attempts (some failing with `BAD_ARGUMENTS` because the generator over-decorates the schema before settling on the one that succeeds), and the CERT-oracle filler uses `INSERT … FROM numbers(N)` against tables that have `PARTITION BY c0` (which trips `TOO_MANY_PARTS` without an explicit raise). The replay command must be:
+  ```bash
+  docker exec -i clickhouse-server-perf clickhouse-client \
+    --multiquery --ignore-error \
+    --max_partitions_per_insert_block=100000 \
+    < /tmp/databaseN-full.sql
+  ```
+  Without `--ignore-error` you stop on the first failed CREATE; without raising `max_partitions_per_insert_block` the CERT filler silently no-ops and your replay table has only the VALUES seed (~10-50 rows instead of 50k).
+- **Multi-INSERT history matters.** The `database10` LEFT ANTI JOIN bug only fires after a multi-part table is merged via `OPTIMIZE FINAL` (or natural background merge). A fresh single-INSERT table with the same data and schema does not reproduce, even though every other surface (data, schema, settings) is identical. When a reproducer doesn't fire on a clean `CREATE … ; INSERT …` setup, try `INSERT VALUES (…); INSERT VALUES (…); OPTIMIZE TABLE … FINAL;` to mimic the run's part history before concluding it's a flake.
+
+## Triaging a run's reproducers
+
+Most `database*.log` files in a long-run output are **not** wrong-result bugs. Categorise by the `Caused by:` line, not the AssertionError message (the AssertionError text is just the offending SQL):
+
+```bash
+# Bucket reproducers by their root cause
+for f in logs/clickhouse/database*.log; do
+  case "$f" in *-cur.log) continue;; esac
+  CAUSE=$(grep -m1 "Caused by:.*Code:" "$f" | grep -oE "Code: [0-9]+.*\([A-Z_]+\)" || \
+          head -1 "$f" | grep -oE "^(java\.[a-zA-Z.]+(Error|Exception))")
+  printf "%-22s %s\n" "${f##*/}" "${CAUSE:-(unknown)}"
+done | sort -k2 | uniq -c -f1 | sort -rn
+```
+
+Typical noise families (now tolerated globally in `ClickHouseErrors`, so a fresh run after `15b8a901` shouldn't surface them at all):
+
+- `Code: 241 (MEMORY_LIMIT_EXCEEDED)` — CH process hit its `-m=…` cgroup cap; the operator was just whatever was allocating at the moment. **Not a wrong-result bug.**
+- `Code: 27 (CANNOT_PARSE_INPUT_ASSERTION_FAILED)` — generator emitted a string like `'i'` or `'N-<.'` and CH tried to parse it as Float64 (`'i'` looks like the start of `'inf'`, etc.). **Sqlancer-side gap, not a CH bug.**
+- `java.lang.NullPointerException` in `ComparableTimSort` — `Collections.sort` on a list containing Java `null` for SQL NULL. **Sqlancer-side bug.**
+
+Genuine bug-shape signal usually comes from `ClickHouseTLPSetOpOracle` (real INTERSECT/UNION_DISTINCT divergence) or `ComparatorHelper.assumeResultSetsAreEqual:127` (row-count mismatch). For the latter, **TLP+`GROUP BY` queries** are a known TLP oracle limitation that produces false positives — the same group key can appear in multiple WHERE-partition branches and inflate the UNION ALL count. If you see a row-count mismatch on a query with `GROUP BY`, replay the same query without it before filing; if the non-`GROUP BY` version matches, it's an oracle artifact.
+
+## Preserving artefacts between attempts
+
+Long-run iterations on the same machine clobber each other's `logs/runs/` and `logs/clickhouse/database*.log`. The convention from the 2026-05-23 3h sequence:
+
+```bash
+ATTEMPT_DIR=logs/attempt${N}-${THREADS}thr-${HEAP}-${STATUS}
+mkdir -p "$ATTEMPT_DIR/clickhouse"
+mv logs/runs/all-oracles-*h-*.log "$ATTEMPT_DIR/"
+for f in logs/clickhouse/database*.log; do
+  case "$f" in *-cur.log) ;; *) mv "$f" "$ATTEMPT_DIR/clickhouse/" ;; esac
+done
+```
+
+`-cur.log` files are live transcripts, not saved reproducers; leave them in place so the next attempt's workers can overwrite them per database id.
 
 ## Wire transports
 
