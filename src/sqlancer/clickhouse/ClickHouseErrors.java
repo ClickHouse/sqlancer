@@ -159,7 +159,19 @@ public final class ClickHouseErrors {
                 // the narrow message ("of bloom filter index") so a single generator-vs-catalog
                 // drift doesn't kill a worker. First observed 2026-05-23 in the dev-VM 3h run
                 // (database15.log of attempt-1). The substring is multi-word per the convention.
-                "of bloom filter index");
+                "of bloom filter index",
+                // Server-side total memory cap (--max_server_memory_usage / cgroup RSS) trips
+                // mid-query under sustained 6-12 thread load on a memory-constrained CH. Not a
+                // wrong-result bug; this iteration is uninformative. Observed 34 of 43 times in
+                // the 2026-05-23 dev-VM 3h run when CH was capped at -m=12g.
+                "(MEMORY_LIMIT_EXCEEDED)", "memory limit exceeded",
+                // Generator emits short string literals (e.g. 'i', 'N-<.', 'i%( |b.}') that the
+                // server tries to parse as Float64 inside expressions like (s) > 0.43 or
+                // notEquals(avgOrNull(...), 'literal'). 'i'/'N' are the first chars of 'inf'/'nan'
+                // and CH's float parser dies mid-token with CANNOT_PARSE_INPUT_ASSERTION_FAILED.
+                // Generator-side gap, not a CH bug. Observed 3 of 43 times in the same run.
+                "Cannot parse infinity", "Cannot parse NaN",
+                "CANNOT_PARSE_INPUT_ASSERTION_FAILED");
     }
 
     public static void addExpectedExpressionErrors(ExpectedErrors errors) {

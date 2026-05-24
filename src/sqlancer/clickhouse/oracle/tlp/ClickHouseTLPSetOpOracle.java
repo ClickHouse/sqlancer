@@ -145,8 +145,11 @@ public class ClickHouseTLPSetOpOracle extends ClickHouseTLPBase {
 
         List<String> sortedBaseline = new ArrayList<>(baselineRows);
         List<String> sortedBranch = new ArrayList<>(branchRows);
-        Collections.sort(sortedBaseline);
-        Collections.sort(sortedBranch);
+        // SQL NULL surfaces as Java `null` from the RowBinary parser; the reproducer in
+        // database7.log NPE'd on String.compareTo. Use nullsFirst so the sort succeeds and the
+        // multiset comparison stays meaningful (NULL == NULL across both sides).
+        sortedBaseline.sort(java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder()));
+        sortedBranch.sort(java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder()));
         if (!sortedBaseline.equals(sortedBranch)) {
             throw new AssertionError(formatFailure("UNION_ALL", baseline, branchUnion, baselineRows, branchRows));
         }
