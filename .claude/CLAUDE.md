@@ -120,19 +120,15 @@ done
 
 `-cur.log` files are live transcripts, not saved reproducers; leave them in place so the next attempt's workers can overwrite them per database id.
 
-## Wire transports
+## Wire transport
 
-Two interchangeable transports, both requesting `RowBinaryWithNamesAndTypes` and parsed via
+Single transport: `ClickHouseClientV2Transport`, backed by `com.clickhouse.client.api.Client`
+(clickhouse-java client-v2 0.9.8). Requests `RowBinaryWithNamesAndTypes` and parses it via
 client-v2's `RowBinaryWithNamesAndTypesFormatReader` through the thin adapter
-`ClickHouseRowBinaryParser`:
-
-- `--transport client` (default): backed by `com.clickhouse.client.api.Client` (clickhouse-java
-  client-v2 0.9.8). Brings httpclient5 + connection pooling. Server-side settings
-  (`max_execution_time`, `wait_end_of_query`, `http_response_buffer_size`,
-  `allow_experimental_analyzer`, `allow_suspicious_low_cardinality_types`) are attached per-query
-  via `QuerySettings.serverSetting` so pooled connections all carry them.
-- `--transport http`: raw `HttpURLConnection`, zero extra deps. Useful as a fallback when an
-  Apache HC regression appears under client-v2.
+`ClickHouseRowBinaryParser`. Brings httpclient5 + connection pooling. Server-side settings
+(`max_execution_time`, `wait_end_of_query`, `http_response_buffer_size`,
+`allow_experimental_analyzer`, `allow_suspicious_low_cardinality_types`) are attached per-query
+via `QuerySettings.serverSetting` so pooled connections all carry them.
 
 `jdbc-v2` (clickhouse-jdbc 0.9.8) was the historical transport and is dropped. Both wins from
 that move stand:

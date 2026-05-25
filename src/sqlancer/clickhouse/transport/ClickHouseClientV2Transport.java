@@ -16,9 +16,8 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 
 // Transport backed by clickhouse-java's client-v2 (com.clickhouse.client.api.Client). Requests
-// RowBinaryWithNamesAndTypes output so the result-parsing layer is identical to
-// {@link ClickHouseHttpTransport} -- both feed bytes through {@link ClickHouseRowBinaryParser} into the
-// transport-agnostic {@link ClickHouseTransport.ResultData}.
+// RowBinaryWithNamesAndTypes output and feeds the bytes through {@link ClickHouseRowBinaryParser}
+// into the transport-agnostic {@link ClickHouseTransport.ResultData}.
 //
 // Why client-v2 and not jdbc-v2 (the historical default):
 //  - jdbc-v2 wraps client-v2 anyway; every error in the jdbc-v2 stack has a client-v2 root cause.

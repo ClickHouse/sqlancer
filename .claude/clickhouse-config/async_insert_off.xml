@@ -1,0 +1,14 @@
+<clickhouse>
+    <!-- Pin async_insert off in the default profile.
+         async_insert defers INSERT commit, breaking the SELECT-after-INSERT
+         invariant the oracles rely on; if the setting is randomized or
+         server-defaulted on, two reads of "the same" table inside one oracle
+         iteration can see different snapshots and produce false-positive
+         mismatch reproducers. CH currently defaults this to 0, so this file
+         is also forward-protection against any future default flip. -->
+    <profiles>
+        <default>
+            <async_insert>0</async_insert>
+        </default>
+    </profiles>
+</clickhouse>

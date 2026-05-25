@@ -130,7 +130,12 @@ public final class ClickHouseSessionSettings {
             // --analyzer
             "allow_experimental_analyzer",
             // --test-lowcardinality-types
-            "allow_suspicious_low_cardinality_types");
+            "allow_suspicious_low_cardinality_types",
+            // Pinned 0 server-side (.claude/clickhouse-config/async_insert_off.xml). async_insert
+            // defers INSERT commit, breaking the SELECT-after-INSERT snapshot invariant every
+            // oracle assumes. If any future addition lands this name in RANDOM_SESSION_SETTINGS
+            // by accident, the filter in pickRandomProfile() will drop it on the floor.
+            "async_insert");
 
     public record RandomEntry(String name, List<String> candidateValues) {
     }

@@ -50,13 +50,6 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--semr-arity", description = "Number of SEMR settings to toggle together per query for the SEMRMulti oracle (>= 2)")
     public int semrArity = 2;
 
-    public enum Transport {
-        HTTP, CLIENT
-    }
-
-    @Parameter(names = "--transport", description = "Wire transport for ClickHouse: 'client' (default, clickhouse-java client-v2) or 'http' (raw HTTPURLConnection POST). Both request RowBinaryWithNamesAndTypes and parse it via client-v2's RowBinaryWithNamesAndTypesFormatReader; client-v2 brings httpclient5 + connection pooling, http brings zero extra deps and bypasses Apache HC's chunked decoder. jdbc-v2 was dropped in favour of client-v2 -- see ClickHouseClientV2Transport for the rationale")
-    public Transport transport = Transport.CLIENT;
-
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;

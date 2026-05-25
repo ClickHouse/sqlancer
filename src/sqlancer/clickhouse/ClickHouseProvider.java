@@ -151,57 +151,31 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         globalState.setClickHouseOptions(clickHouseOptions);
         String databaseName = globalState.getDatabaseName();
 
-        if (clickHouseOptions.transport == ClickHouseOptions.Transport.HTTP) {
-            return createDatabaseHttp(globalState, host, port, databaseName, clickHouseOptions);
-        }
         return createDatabaseClient(globalState, host, port, databaseName, clickHouseOptions);
     }
 
-    private SQLConnection createDatabaseHttp(ClickHouseGlobalState globalState, String host, int port,
-            String databaseName, ClickHouseOptions clickHouseOptions) throws SQLException {
-        // HTTP path: every statement is a POST to /?database=... with the SQL as the body. Same
-        // settings the JDBC URL carried (max_execution_time=30, wait_end_of_query=1,
-        // http_response_buffer_size=100MB) ride as query-string parameters; analyser/LowCardinality
-        // flags ride alongside. No clickhouse-jdbc anywhere in the path -- avoids the chunked-decoder
-        // and UInt64-overflow failures we triaged.
-        java.util.LinkedHashMap<String, String> settings = new java.util.LinkedHashMap<>();
-        settings.put("max_execution_time", "30");
-        settings.put("wait_end_of_query", "1");
-        settings.put("http_response_buffer_size", "104857600");
-        // Universal result-row cap. Without it, any oracle path that funnels through
-        // ComparatorHelper.getResultSetFirstColumnAsString -- TLPBase variants, JoinAlgorithm,
-        // SchemaRoundtrip's sister-table reads -- materialises the full server result into Java
-        // strings and OOMs the JVM on cartesian / many-to-many shapes. 1M rows is comfortably
-        // above the cardinality any non-buggy oracle iteration needs (oracles operate on small
-        // seeded tables) and tripping the cap surfaces as a tolerated "Limit for result exceeded"
-        // error (TOO_MANY_ROWS_OR_BYTES). The matching tolerance lives in ClickHouseErrors.
-        settings.put("max_result_rows", "1000000");
-        settings.put("result_overflow_mode", "throw");
-        if (clickHouseOptions.enableAnalyzer) {
-            settings.put("allow_experimental_analyzer", "1");
+    // Per-database setup runs DROP/CREATE/USE through the same transport that subsequent oracle
+    // queries use. When CH is under memory pressure (e.g. sustained 8-thread fuzzing pushes RSS
+    // past max_server_memory_usage), even these trivial DDLs return Code 241 MEMORY_LIMIT_EXCEEDED.
+    // Without this tolerance the exception escapes through Main$DBMSExecutor.run as an
+    // AssertionError, writing a misleading "bug" reproducer per failed worker -- 2150 of the
+    // 2164 reproducers in the 2026-05-25 8h run came from this exact escape path. Tolerated
+    // errors here mean "iteration uninformative; skip", not "ClickHouse misbehaved".
+    private static void runSetupCommandsWithTolerance(sqlancer.clickhouse.transport.ClickHouseTransport transport,
+            String dropDatabaseCommand, String createDatabaseCommand, String useDatabaseCommand)
+            throws SQLException {
+        try {
+            transport.executeUpdate(dropDatabaseCommand);
+            transport.executeUpdate(createDatabaseCommand);
+            transport.executeUpdate(useDatabaseCommand);
+        } catch (SQLException e) {
+            sqlancer.common.query.ExpectedErrors tolerated = sqlancer.common.query.ExpectedErrors.newErrors()
+                    .with(ClickHouseErrors.getExpectedExpressionErrors()).build();
+            if (tolerated.errorIsExpected(e.getMessage())) {
+                throw new IgnoreMeException();
+            }
+            throw e;
         }
-        if (clickHouseOptions.enableLowCardinality) {
-            settings.put("allow_suspicious_low_cardinality_types", "1");
-        }
-        // First create against the `default` database, then switch the transport's database
-        // pointer so subsequent oracle queries land in the freshly-created schema.
-        sqlancer.clickhouse.transport.ClickHouseHttpTransport transport = new sqlancer.clickhouse.transport.ClickHouseHttpTransport(
-                host, port, globalState.getOptions().getUserName(), globalState.getOptions().getPassword(),
-                "default", settings, 5_000, 60_000);
-        String dropDatabaseCommand = "DROP DATABASE IF EXISTS " + databaseName + " SYNC";
-        String createDatabaseCommand = "CREATE DATABASE IF NOT EXISTS " + databaseName;
-        String useDatabaseCommand = "USE " + databaseName;
-        globalState.getState().logStatement(dropDatabaseCommand);
-        globalState.getState().logStatement(createDatabaseCommand);
-        globalState.getState().logStatement(useDatabaseCommand);
-        transport.executeUpdate(dropDatabaseCommand);
-        transport.executeUpdate(createDatabaseCommand);
-        transport.executeUpdate(useDatabaseCommand);
-        Connection con = new sqlancer.clickhouse.transport.ClickHouseTransportConnection(transport);
-        if (clickHouseOptions.randomSessionSettings) {
-            applyRandomSessionSettings(globalState, clickHouseOptions, con);
-        }
-        return new SQLConnection(con);
     }
 
     private SQLConnection createDatabaseClient(ClickHouseGlobalState globalState, String host, int port,
@@ -252,9 +226,7 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         globalState.getState().logStatement(dropDatabaseCommand);
         globalState.getState().logStatement(createDatabaseCommand);
         globalState.getState().logStatement(useDatabaseCommand);
-        transport.executeUpdate(dropDatabaseCommand);
-        transport.executeUpdate(createDatabaseCommand);
-        transport.executeUpdate(useDatabaseCommand);
+        runSetupCommandsWithTolerance(transport, dropDatabaseCommand, createDatabaseCommand, useDatabaseCommand);
         Connection con = new sqlancer.clickhouse.transport.ClickHouseTransportConnection(transport);
         if (clickHouseOptions.randomSessionSettings) {
             applyRandomSessionSettings(globalState, clickHouseOptions, con);

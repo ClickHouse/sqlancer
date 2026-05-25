@@ -1,6 +1,5 @@
 package sqlancer.clickhouse.transport;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -88,15 +87,4 @@ final class ClickHouseRowBinaryParser {
         return new ClickHouseTransport.ResultData(names, types, rows);
     }
 
-    // Used only by the error-stream path in ClickHouseHttpTransport -- error bodies are bounded by
-    // ClickHouse's exception serialiser (a few KB) so the in-memory buffer is safe there.
-    static byte[] readAllBytes(InputStream in) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream(8192);
-        byte[] buf = new byte[8192];
-        int n;
-        while ((n = in.read(buf)) > 0) {
-            out.write(buf, 0, n);
-        }
-        return out.toByteArray();
-    }
 }
