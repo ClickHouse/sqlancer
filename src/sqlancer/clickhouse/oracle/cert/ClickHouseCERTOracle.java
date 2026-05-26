@@ -87,7 +87,7 @@ import sqlancer.common.oracle.TestOracle;
 public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
         implements TestOracle<ClickHouseGlobalState> {
 
-    private static final long TARGET_ROWS = 50_000L;
+    private static final long TARGET_ROWS = 10_000L;
     private static final int PK_WEIGHT = 4;
 
     private ClickHouseExpressionGenerator gen;
@@ -313,37 +313,77 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
     }
 
     private static String generatorExprForPrimitive(Kind kind) {
+        // Each branch must produce a value that ClickHouse will accept for that exact column type.
+        // The pre-2026-05-26 implementation emitted `toInt32(number - 25000)` for every kind,
+        // which silently broke INSERTs into UInt*/Date/DateTime/UUID/IPv* columns: negatives went
+        // into unsigned, before-epoch ints went into DateTime, large ints went into UInt8, etc.
+        // The catch-and-ignore around the INSERT then hid the failure -- countRows() honestly
+        // reported 0 rows, ensureLargeEnough() refilled, and CERT looped forever, materialising
+        // a numbers(N)-sized result on the server each round and blowing CH's memory cap.
+        // See database8.log from the 2026-05-25 10h dev-VM run -- 1076 retries against a single
+        // unfillable t2 in one database iteration.
         switch (kind) {
         case String:
             return "toString(number)";
         case Float32:
+            return "toFloat32(number)";
         case Float64:
             return "toFloat64(number)";
         case Bool:
             return "toBool(number % 2)";
+        // Signed integers: route number through Int64 so the subtraction is signed and can go
+        // negative without underflowing UInt64 arithmetic. The result fits Int8 (-100..99),
+        // Int16 (-30000..29999), and is unconstrained for Int32+.
         case Int8:
+            return "toInt8(toInt32(number % 200) - 100)";
         case Int16:
+            return "toInt16(toInt32(number % 60000) - 30000)";
         case Int32:
+            return "toInt32(toInt64(number) - 25000)";
         case Int64:
+            return "toInt64(toInt64(number) - 25000)";
         case Int128:
+            return "toInt128(toInt64(number) - 25000)";
         case Int256:
+            return "toInt256(toInt64(number) - 25000)";
+        // Unsigned integers: stay non-negative. number is UInt64; just modulo into the type's range.
         case UInt8:
+            return "toUInt8(number % 256)";
         case UInt16:
+            return "toUInt16(number % 65536)";
         case UInt32:
+            return "toUInt32(number)";
         case UInt64:
+            return "toUInt64(number)";
         case UInt128:
+            return "toUInt128(number)";
         case UInt256:
-            return "toInt32(number - 25000)";
+            return "toUInt256(number)";
+        // Date is UInt16 days since 1970-01-01 (max ~2149-06-06). 50000 days ≈ 2107, safely inside.
         case Date:
+            return "toDate(toUInt32(number % 50000))";
+        // Date32 has a much wider range (1900..2299); number fits trivially.
         case Date32:
+            return "toDate32(toInt32(number))";
+        // DateTime is UInt32 seconds since epoch; number fits trivially.
+        case DateTime:
+            return "toDateTime(toUInt32(number))";
+        // UUID requires the canonical 8-4-4-4-12 hex layout. leftPad zero-pads the variable part;
+        // digits 0-9 are valid hex so the result parses regardless of N.
         case UUID:
+            return "toUUID(concat('00000000-0000-0000-0000-', leftPad(toString(number), 12, '0')))";
+        // IPv4/IPv6: constants are good enough -- CERT's invariant only needs rows to exist,
+        // not value diversity in IP columns. Use IANA documentation-reserved addresses so any
+        // future audit grepping for these in logs is unambiguous.
         case IPv4:
+            return "toIPv4('192.0.2.1')";
         case IPv6:
+            return "toIPv6('2001:db8::1')";
         default:
-            // v1 generator doesn't pick these kinds, but if a reused-table column has one, fall
-            // back to a benign Int32 generator -- ClickHouse will fail the INSERT and the iteration
-            // proceeds via the expected-errors filter rather than a hard AssertionError.
-            return "toInt32(number - 25000)";
+            // Exhaustive over Kind as of the 2026-05-26 audit. If a new kind lands here without
+            // a handler, skip the iteration loudly rather than falling back to a wrong-typed
+            // generator that recreates the pre-2026-05-26 bug.
+            throw new IgnoreMeException();
         }
     }
 
