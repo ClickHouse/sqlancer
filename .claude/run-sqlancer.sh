@@ -15,8 +15,8 @@ cd "$ROOT"
 NAME="clickhouse-server-perf"
 PORT="18124"
 CH_CPUS="6"
-CH_MEM="24g"
-HEAP="8g"
+CH_MEM="28g"
+HEAP="12g"
 THREADS="6"
 DURATION="1800"
 ORACLES="TLPWhere"
@@ -31,9 +31,9 @@ usage() {
 Usage: $(basename "$0") [options]
   --duration SEC      sqlancer total wall-clock cap (default $DURATION; -1 = no cap)
   --threads N         sqlancer worker threads (default $THREADS)
-  --heap SIZE         JVM heap, e.g. 8g, 24g (default $HEAP)
+  --heap SIZE         JVM heap, e.g. 8g, 12g (default $HEAP)
   --ch-cpus N         CH container CPU cap (default $CH_CPUS)
-  --ch-mem SIZE       CH container memory cap, e.g. 8g, 24g (default $CH_MEM)
+  --ch-mem SIZE       CH container memory cap, e.g. 8g, 28g (default $CH_MEM)
   --port PORT         CH HTTP port on host (default $PORT)
   --name NAME         CH container name (default $NAME)
   --oracles LIST      comma-separated oracle list (default $ORACLES); "all" = 25 oracles
