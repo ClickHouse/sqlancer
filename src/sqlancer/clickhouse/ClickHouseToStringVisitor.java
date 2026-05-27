@@ -63,6 +63,20 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
         if (inner) {
             sb.append("(");
         }
+        // WITH clause: alias-CTEs of the form `expr AS alias`. Each entry already carries the
+        // alias via ClickHouseAliasOperation; we just emit the comma-separated list and the
+        // SELECT that follows references the aliases by name through the standard column-
+        // reference path. Workstream 17.
+        if (!select.getWithClauses().isEmpty()) {
+            sb.append("WITH ");
+            for (int i = 0; i < select.getWithClauses().size(); i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                visit(select.getWithClauses().get(i));
+            }
+            sb.append(" ");
+        }
         sb.append("SELECT ");
         switch (select.getFromOptions()) {
         case DISTINCT:
@@ -248,6 +262,15 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
             visit(join.getRightTable());
         } else if (type == ClickHouseExpression.ClickHouseJoin.JoinType.RIGHT_SEMI) {
             sb.append(" RIGHT SEMI JOIN ");
+            visit(join.getRightTable());
+        } else if (type == ClickHouseExpression.ClickHouseJoin.JoinType.ASOF_INNER) {
+            sb.append(" ASOF JOIN ");
+            visit(join.getRightTable());
+        } else if (type == ClickHouseExpression.ClickHouseJoin.JoinType.ASOF_LEFT_OUTER) {
+            sb.append(" ASOF LEFT JOIN ");
+            visit(join.getRightTable());
+        } else if (type == ClickHouseExpression.ClickHouseJoin.JoinType.PASTE) {
+            sb.append(" PASTE JOIN ");
             visit(join.getRightTable());
         } else {
             throw new UnsupportedOperationException();

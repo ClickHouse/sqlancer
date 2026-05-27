@@ -38,6 +38,13 @@ public class ClickHouseSelect extends ClickHouseExpression implements
     private List<ClickHouseExpression> arrayJoinExprs = Collections.emptyList();
     private boolean arrayJoinLeft;
     /**
+     * Optional {@code WITH ...} CTE clause. Each entry is an alias-CTE of the form
+     * {@code expr AS alias}. Subquery-CTEs (the more common WITH form for analyzer-bound bug
+     * shapes) are out of scope for this minimal scaffolding -- they need FROM-target binding
+     * which would require restructuring the FROM list type. Workstream 17.
+     */
+    private List<ClickHouseExpression> withClauses = Collections.emptyList();
+    /**
      * If true, the rendered SELECT applies the {@code FINAL} modifier to the FROM table. Only valid for
      * MergeTree-family engines; the table generator only emits MergeTree-family tables so this is unconditionally safe
      * in the current generator. FINAL forces merge-on-read deduplication, which exercises a separate code path through
@@ -191,5 +198,13 @@ public class ClickHouseSelect extends ClickHouseExpression implements
 
     public void setFinal(boolean isFinal) {
         this.isFinal = isFinal;
+    }
+
+    public List<ClickHouseExpression> getWithClauses() {
+        return withClauses;
+    }
+
+    public void setWithClauses(List<ClickHouseExpression> withClauses) {
+        this.withClauses = withClauses == null ? Collections.emptyList() : withClauses;
     }
 }

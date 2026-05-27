@@ -76,7 +76,14 @@ public abstract class ClickHouseExpression implements Expression<ClickHouseColum
         // against an IN/EXISTS rewrite, not against another join shape.
         public enum JoinType {
             INNER, CROSS, LEFT_OUTER, RIGHT_OUTER, FULL_OUTER, LEFT_ANTI, RIGHT_ANTI, LEFT_ANY, RIGHT_ANY, ANY_INNER,
-            LEFT_SEMI, RIGHT_SEMI;
+            LEFT_SEMI, RIGHT_SEMI,
+            // ASOF JOIN: ordered-key inequality join. The ON clause requires a typed inequality
+            // predicate as its last condition; the generator emits a `>=` predicate against a
+            // matching numeric / Date / DateTime column on each side. Workstream 21.
+            ASOF_INNER, ASOF_LEFT_OUTER,
+            // PASTE JOIN: positional zip; no ON clause; both sides must have the same row count.
+            // The generator drives this via constrained numbers() table-function arguments.
+            PASTE
         }
 
         private final ClickHouseTableReference leftTable;

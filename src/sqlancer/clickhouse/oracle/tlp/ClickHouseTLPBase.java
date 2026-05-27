@@ -104,6 +104,19 @@ public class ClickHouseTLPBase extends TernaryLogicPartitioningOracleBase<ClickH
                 && Randomly.getBooleanWithRatherLowProbability()) {
             select.setFinal(true);
         }
+        // CTE (alias-form only). Emit 1-3 alias-CTEs with simple constant or column-ref bodies.
+        // Even unused, the WITH path exercises the analyzer's CTE normalisation -- and the
+        // analyzer/SEMR pair is one of the documented bug surfaces. Workstream 17.
+        if (Randomly.getBooleanWithRatherLowProbability()) {
+            int cteCount = 1 + (int) Randomly.getNotCachedInteger(0, 3);
+            java.util.List<ClickHouseExpression> withList = new java.util.ArrayList<>();
+            for (int i = 0; i < cteCount; i++) {
+                ClickHouseExpression body = gen.generateExpressionWithColumns(columns, 3);
+                String alias = "cte" + i;
+                withList.add(new sqlancer.clickhouse.ast.ClickHouseAliasOperation(body, alias));
+            }
+            select.setWithClauses(withList);
+        }
         initializeTernaryPredicateVariants();
         // Smoke check
         String query = ClickHouseVisitor.asString(select);
