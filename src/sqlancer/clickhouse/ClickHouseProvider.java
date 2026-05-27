@@ -19,6 +19,7 @@ import sqlancer.SQLGlobalState;
 import sqlancer.SQLProviderAdapter;
 import sqlancer.StatementExecutor;
 import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
+import sqlancer.clickhouse.gen.ClickHouseAlterGenerator;
 import sqlancer.clickhouse.gen.ClickHouseCommon;
 import sqlancer.clickhouse.gen.ClickHouseInsertGenerator;
 import sqlancer.clickhouse.gen.ClickHouseTableGenerator;
@@ -36,7 +37,12 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
 
     public enum Action implements AbstractAction<ClickHouseGlobalState> {
 
-        INSERT(ClickHouseInsertGenerator::getQuery);
+        INSERT(ClickHouseInsertGenerator::getQuery),
+        // Schema-mutating actions run during database setup (between CREATE TABLE and the oracle
+        // loop). Each emits a SQLQueryAdapter with couldAffectSchema=true so the in-memory schema
+        // is refreshed before oracle iteration. Probability is gated via mapActions returning a
+        // small count.
+        ALTER(ClickHouseAlterGenerator::getQuery);
 
         private final SQLQueryProvider<ClickHouseGlobalState> sqlQueryProvider;
 
@@ -55,6 +61,10 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         switch (a) {
         case INSERT:
             return r.getInteger(0, globalState.getOptions().getMaxNumberInserts());
+        case ALTER:
+            // 0 or 1 ALTER per database setup, biased toward zero so the schema changes
+            // occasionally without dominating the per-database statement budget.
+            return Randomly.fromOptions(0, 0, 0, 0, 1);
         default:
             throw new AssertionError(a);
         }

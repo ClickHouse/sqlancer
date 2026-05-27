@@ -253,4 +253,21 @@ public final class ClickHouseErrors {
         errors.addAll(getStatisticsErrors());
     }
 
+    // Substring patterns for ALTER TABLE failures the generator's ALTER COLUMN emission may
+    // legitimately produce: dropping the only column, dropping a primary-key column, narrowing
+    // MODIFY incompatible with existing data, RENAME collisions, COMMENT on non-existent columns,
+    // and mutation-side conflicts when the table has in-flight background work.
+    // Workstream 8 of the coverage expansion plan.
+    public static List<String> getAlterErrors() {
+        return List.of("BAD_ARGUMENTS", "Cannot drop column", "Cannot rename column", "Cannot remove column",
+                "Column with name", "is part of primary key", "Cannot alter column", "ALTER of key column",
+                "Algorithm not implemented", "CANNOT_DROP_INDEX", "ALTER_OF_COLUMN_IS_FORBIDDEN",
+                "DUPLICATE_COLUMN", "NO_SUCH_COLUMN_IN_TABLE", "UNFINISHED",
+                "Cannot convert column", "is currently locked for", "EMPTY_LIST_OF_COLUMNS_QUERIED");
+    }
+
+    public static void addAlterErrors(ExpectedErrors errors) {
+        errors.addAll(getAlterErrors());
+    }
+
 }
