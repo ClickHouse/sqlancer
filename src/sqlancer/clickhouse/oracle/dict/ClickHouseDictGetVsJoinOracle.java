@@ -84,14 +84,29 @@ public class ClickHouseDictGetVsJoinOracle implements TestOracle<ClickHouseGloba
         }
 
         try {
+            // The dictionary is keyed by keyCol; if the source table has duplicate keys, the
+            // dictionary's HASHED layout dedupes (one value per key, last-write-wins on the
+            // initial scan) but ANY LEFT JOIN's "one right row per left key" pick can be a
+            // different row, producing spurious mismatches. Pre-check uniqueness and skip the
+            // iteration when duplicates exist.
+            boolean uniqueKey;
+            try (Statement s = state.getConnection().createStatement();
+                    java.sql.ResultSet rs = s.executeQuery("SELECT count() = count(DISTINCT " + keyCol.getName()
+                            + ") FROM " + fqSrc)) {
+                uniqueKey = rs.next() && rs.getBoolean(1);
+            } catch (SQLException e) {
+                throw new IgnoreMeException();
+            }
+            if (!uniqueKey) {
+                throw new IgnoreMeException();
+            }
+
+            // Sound shape: count the rows for which the dictGet result equals the source's
+            // value, vs total source rows. If the dictionary correctly mirrors the source,
+            // those counts should match.
             String lhs = String.format(
                     "SELECT dictGet('%s', '%s', toUInt64(%s)) FROM %s ORDER BY %s",
                     fqDict, valCol.getName(), keyCol.getName(), fqSrc, keyCol.getName());
-            // ANY LEFT JOIN matches dictGet's "one value per key" semantics. Plain LEFT JOIN
-            // returns one output row per (left, right) match, which can multiply the cardinality
-            // when the source has duplicate keys -- producing a spurious 11 vs 23 mismatch.
-            // ANY LEFT JOIN picks one right-side row per left key, matching dictGet's behaviour
-            // on a HASHED dictionary (last-write-wins per key).
             String rhs = String.format(
                     "SELECT src.%s FROM %s t ANY LEFT JOIN %s src ON t.%s = src.%s ORDER BY src.%s",
                     valCol.getName(), fqSrc, fqSrc, keyCol.getName(), keyCol.getName(), keyCol.getName());

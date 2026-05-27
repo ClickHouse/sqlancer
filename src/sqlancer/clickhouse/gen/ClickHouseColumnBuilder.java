@@ -189,17 +189,21 @@ public class ClickHouseColumnBuilder {
                 && !(term instanceof ClickHouseType.LowCardinality) && !(term instanceof ClickHouseType.Array);
 
         if (isPlainPrimitive) {
+            // Delta / DoubleDelta / Gorilla / FPC are PURE TRANSFORMERS -- they only re-encode
+            // values, never compress. CH refuses to accept them as the sole codec with
+            // 'Compression codec Delta(N) does not compress anything'. Always chain with a
+            // generic compressor.
             if (isNumericIntegral || isDateLike) {
-                options.add("Delta(" + Randomly.fromOptions(1, 2, 4, 8) + ")");
-                options.add("DoubleDelta");
-                options.add("T64");
+                int n = Randomly.fromOptions(1, 2, 4, 8);
+                options.add("Delta(" + n + "), LZ4");
+                options.add("DoubleDelta, LZ4");
+                options.add("T64, LZ4"); // T64 is a transformer too on some CH versions
             }
             if (isFloat) {
-                options.add("Gorilla");
-                options.add("FPC");
+                options.add("Gorilla, LZ4");
+                options.add("FPC, LZ4");
             }
-            // Codec chains: e.g. Delta(2), ZSTD(3). ClickHouse requires the compression step to be
-            // last in the chain; the chain we synthesise here always places the transform first.
+            // Explicit transformer + compressor chains with a stronger compression level.
             if ((isNumericIntegral || isDateLike) && Randomly.getBooleanWithSmallProbability()) {
                 int n = Randomly.fromOptions(1, 2, 4, 8);
                 int z = Randomly.fromOptions(1, 3, 6);

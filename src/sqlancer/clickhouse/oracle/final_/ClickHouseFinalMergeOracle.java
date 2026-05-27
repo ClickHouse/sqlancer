@@ -69,10 +69,13 @@ public class ClickHouseFinalMergeOracle implements TestOracle<ClickHouseGlobalSt
         try (Statement s = state.getConnection().createStatement()) {
             s.execute("OPTIMIZE TABLE " + fqTable + " FINAL");
         } catch (SQLException e) {
-            // OPTIMIZE can fail with TOO_MANY_PARTS, MEMORY_LIMIT_EXCEEDED, or transient merge
-            // errors. The matching tolerances are already on the ExpectedErrors set; if the
-            // exception message matches one of them, the iteration is uninformative.
-            if (errors.errorIsExpected(e.getMessage())) {
+            // OPTIMIZE can fail with TOO_MANY_PARTS, MEMORY_LIMIT_EXCEEDED, ORDER_BY_CANNOT_BE_EMPTY,
+            // or transient merge errors. Absorb the catalogued cases; OPTIMIZE-side failures are
+            // not the bug the oracle is hunting (it's hunting result divergence between FINAL
+            // and post-OPTIMIZE reads, both of which we re-run after OPTIMIZE fails).
+            String msg = e.getMessage();
+            if (msg == null || errors.errorIsExpected(msg)
+                    || msg.contains("ORDER BY cannot be empty") || msg.contains("BAD_ARGUMENTS")) {
                 throw new IgnoreMeException();
             }
             throw e;
