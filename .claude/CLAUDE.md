@@ -163,6 +163,46 @@ single-column empty-string rows because of a misunderstanding of `BufferedReader
 trailing-newline semantics, manifesting as NoREC `(N-K vs N)` false positives whenever a
 column held K empty values. Going binary eliminates the hand-rolled escape parser entirely.
 
+## Engine pool (2026-05-27)
+
+Engine pool is schema-aware (per `ClickHouseTableGenerator.pickEngine(cols)`):
+- 80% plain MergeTree (always eligible)
+- 10% ReplacingMergeTree -- only when the column list has a viable ver-column
+  (UInt*/Date*/DateTime*); falls back to MergeTree otherwise
+- 10% SummingMergeTree -- only when the column list has a viable sum-column
+  (numeric); falls back to MergeTree otherwise
+
+Dedupe engines without an eligible ver/sum column collapse all rows into one
+"dedupe by ORDER BY key" shape, which produces non-deterministic visible
+cardinality across SELECTs (the 2026-05-20 false-positive cluster). The
+fallback-to-MergeTree avoids the degenerate case. Additionally:
+- For dedupe engines, ORDER BY must be a bare column reference, not a
+  function-of-numeric (NaN-producing functions collapse rows into one bucket).
+  Enforced via `isValidOrderByForDedupe`.
+
+With dedupe engines back in the pool, `ClickHouseTable.supportsFinal()` returns
+true ~10-20% of the time, and the `FinalMerge` oracle (workstream 10) has work
+to do.
+
+## TLPGroupBy oracle correctness
+
+TLPGroupBy is fundamentally hard to make sound when fetch columns are arbitrary
+expressions over the column set -- the projection's `any()`-per-group value can
+collide across distinct groups (NaN-on-float, identity-collisions), so LHS row
+count = distinct-group-tuple count while RHS DISTINCT row count = distinct-
+projection-value count.
+
+The fix that produces 0 false positives (committed `bbe5ed17`): project the
+group-by keys themselves, not arbitrary fetch columns. Then row identity =
+group identity, and the TLP partition invariant holds structurally. The
+`--tlp-groupby-strict` flag still routes back to UNION ALL with multiset
+semantics for periodic adversarial sweeps.
+
+TLPAggregate has a separate residual false-positive class (JOIN+WHERE+SUM with
+NaN-producing functions in the SUM argument) that the SUM-of-SUM-of-partitions
+identity doesn't hold under. Not addressed in this session; ~23 reproducers /
+5 min remain.
+
 ## Environment quirks
 
 - `JAVA_TOOL_OPTIONS` is poisoned in this user's shell: `-Djdk.attach.allowAttachSelf=trueASAN_OPTIONS=malloc_context_size=10 verbosity=1 ...`. **Every `java`/`mvn`/`jfr` invocation must start with `unset JAVA_TOOL_OPTIONS; unset ASAN_OPTIONS`** or the JVM refuses to start with `Unrecognized option: verbosity=1`.
