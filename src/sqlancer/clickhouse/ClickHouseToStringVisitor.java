@@ -299,6 +299,55 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
     }
 
     @Override
+    public void visit(sqlancer.clickhouse.ast.ClickHouseTupleAccess access) {
+        visit(access.getTuple());
+        sb.append(".").append(access.getIndex());
+    }
+
+    @Override
+    public void visit(sqlancer.clickhouse.ast.ClickHouseMapAccess access) {
+        visit(access.getMap());
+        sb.append("[");
+        visit(access.getKey());
+        sb.append("]");
+    }
+
+    @Override
+    public void visit(sqlancer.clickhouse.ast.ClickHouseJsonPath path) {
+        visit(path.getJson());
+        for (String seg : path.getPath()) {
+            sb.append(".").append(seg);
+        }
+        if (path.getTypeCast() != null) {
+            sb.append(".^").append(path.getTypeCast());
+        }
+    }
+
+    @Override
+    public void visit(sqlancer.clickhouse.ast.ClickHouseVariantElement element) {
+        if (element.isFunctionForm()) {
+            sb.append("variantElement(");
+            visit(element.getVariant());
+            sb.append(", '").append(element.getElementType()).append("')");
+        } else {
+            visit(element.getVariant());
+            sb.append(".").append(element.getElementType());
+        }
+    }
+
+    @Override
+    public void visit(sqlancer.clickhouse.ast.ClickHouseDynamicElement element) {
+        if (element.isFunctionForm()) {
+            sb.append("dynamicElement(");
+            visit(element.getDyn());
+            sb.append(", '").append(element.getElementType()).append("')");
+        } else {
+            visit(element.getDyn());
+            sb.append(".").append(element.getElementType());
+        }
+    }
+
+    @Override
     public void visit(sqlancer.clickhouse.ast.ClickHouseWindowFunction window) {
         sb.append(window.renderName()).append("(");
         if (window.getArgument() != null) {
