@@ -97,7 +97,16 @@ public final class ClickHouseSessionSettings {
             // opt-in exercises the rewrite path against the same SELECT. `allow_statistic_optimize`
             // is the historical typo alias (still accepted by CH HEAD) and is included so SEMR
             // covers both spellings.
-            "allow_statistics_optimize", "allow_statistic_optimize");
+            "allow_statistics_optimize", "allow_statistic_optimize",
+            // Mutations apply virtually on read when the merge thread hasn't drained them yet.
+            // The on-read-apply path is structurally different from the merged path; SEMR
+            // toggling this surfaces optimizer-path divergences. Workstream 9 of the plan.
+            "apply_mutations_on_fly",
+            // FINAL behaviour differs when do_not_merge_across_partitions_select_final is on --
+            // it skips merging across partitions, which can change the deduped row set. SEMR
+            // toggling this against the same SELECT FINAL surfaces the cross-partition merge
+            // path's invariants. Workstream 10 of the plan.
+            "do_not_merge_across_partitions_select_final");
 
     // Execution-mode settings the random-session-settings layer may apply via
     // SET k = v at connect time. Each entry has discrete candidate values picked

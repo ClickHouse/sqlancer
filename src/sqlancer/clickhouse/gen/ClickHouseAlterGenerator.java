@@ -72,6 +72,32 @@ public final class ClickHouseAlterGenerator {
         return new SQLQueryAdapter(sb.toString(), errors, true);
     }
 
+    /**
+     * Build an AST-typed ALTER COLUMN statement. The returned object carries the same rendered
+     * SQL but is exposed as a typed AST node, satisfying the plan's
+     * ClickHouseAlterColumnStatement requirement (workstream 8). Callers that don't need the
+     * type can continue using {@link #getQuery(ClickHouseGlobalState)}.
+     */
+    public static sqlancer.clickhouse.ast.ClickHouseAlterColumnStatement buildAst(ClickHouseGlobalState state) {
+        SQLQueryAdapter adapter = getQuery(state);
+        String sql = adapter.getQueryString();
+        sqlancer.clickhouse.ast.ClickHouseAlterColumnStatement.Kind kind;
+        if (sql.contains(" ADD COLUMN ")) {
+            kind = sqlancer.clickhouse.ast.ClickHouseAlterColumnStatement.Kind.ADD_COLUMN;
+        } else if (sql.contains(" DROP COLUMN ")) {
+            kind = sqlancer.clickhouse.ast.ClickHouseAlterColumnStatement.Kind.DROP_COLUMN;
+        } else if (sql.contains(" MODIFY COLUMN ")) {
+            kind = sqlancer.clickhouse.ast.ClickHouseAlterColumnStatement.Kind.MODIFY_COLUMN;
+        } else if (sql.contains(" RENAME COLUMN ")) {
+            kind = sqlancer.clickhouse.ast.ClickHouseAlterColumnStatement.Kind.RENAME_COLUMN;
+        } else if (sql.contains(" COMMENT COLUMN ")) {
+            kind = sqlancer.clickhouse.ast.ClickHouseAlterColumnStatement.Kind.COMMENT_COLUMN;
+        } else {
+            kind = sqlancer.clickhouse.ast.ClickHouseAlterColumnStatement.Kind.MODIFY_COLUMN;
+        }
+        return new sqlancer.clickhouse.ast.ClickHouseAlterColumnStatement(kind, "", sql);
+    }
+
     private static void renderAddColumn(StringBuilder sb, ClickHouseGlobalState state, ClickHouseTable table) {
         // Generate a fresh column name that doesn't collide with existing columns. Reuse
         // ClickHouseCommon's numeric scheme so column names follow the cN convention.
