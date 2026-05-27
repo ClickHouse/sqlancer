@@ -180,6 +180,10 @@ public final class ClickHouseErrors {
         // or run into kind/type rejections; pre-load the substrings so every oracle's expected-
         // errors set absorbs them. Same rationale as ARRAY JOIN / combinator entries above.
         errors.addAll(getStatisticsErrors());
+        // Enum8/Enum16 column emission lands at ~1% in pickScalarType. Cross-type expressions
+        // (enum_col + 1, enum_col * X) are emitted blindly by existing oracles and rejected by
+        // CH; absorb the failure family.
+        errors.addAll(getEnumErrors());
     }
 
     // Substring patterns for setting-validation errors raised either by SEMR's per-query
@@ -285,6 +289,19 @@ public final class ClickHouseErrors {
 
     public static void addMutationErrors(ExpectedErrors errors) {
         errors.addAll(getMutationErrors());
+    }
+
+    // Substring patterns for Enum8/Enum16 generator emission. The picker selects from the entry
+    // set so domain violations should be structurally impossible, but cross-type expressions
+    // (e.g. `enum_col + 1`, `cast(enum_col AS Int32)`) can fail. Workstream 2 of the plan.
+    public static List<String> getEnumErrors() {
+        return List.of("Unknown element", "UNKNOWN_ELEMENT_OF_ENUM", "Element of set in IN, VALUES or LIMIT",
+                "Cannot convert NULL to Enum", "Cannot convert string", "is not a valid Enum",
+                "Bad get: has Int", "Type mismatch in IN or VALUES section");
+    }
+
+    public static void addEnumErrors(ExpectedErrors errors) {
+        errors.addAll(getEnumErrors());
     }
 
 }

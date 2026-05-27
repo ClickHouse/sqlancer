@@ -17,7 +17,7 @@ import com.clickhouse.data.ClickHouseDataType;
  * defensive fallback for type strings outside the parsed v2 surface.
  * </p>
  */
-public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHouseType.FixedString, ClickHouseType.Decimal, ClickHouseType.DateTime64Type, ClickHouseType.Array, ClickHouseType.Nullable, ClickHouseType.LowCardinality, ClickHouseType.Unknown {
+public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHouseType.FixedString, ClickHouseType.Decimal, ClickHouseType.DateTime64Type, ClickHouseType.Array, ClickHouseType.Tuple, ClickHouseType.Enum, ClickHouseType.Nullable, ClickHouseType.LowCardinality, ClickHouseType.Unknown {
 
     // true for integer/float primitives + Decimal; recurses through Nullable/LowCardinality. Array is
     // not numeric (the array itself is a composite); inner-array element type does not propagate.
@@ -336,6 +336,113 @@ public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHo
         }
     }
 
+    // Tuple(T1, T2, ...) -- heterogeneous fixed-arity record. Field access is positional via
+    // tup.1, tup.2 in ClickHouse. Workstream 2 of the 2026-05-27 coverage expansion plan.
+    record Tuple(java.util.List<ClickHouseType> elements) implements ClickHouseType {
+
+        public Tuple {
+            Objects.requireNonNull(elements, "elements");
+            if (elements.isEmpty() || elements.size() > 8) {
+                throw new IllegalArgumentException("Tuple arity out of range: " + elements.size());
+            }
+        }
+
+        @Override
+        public boolean isNumeric() {
+            return false;
+        }
+
+        @Override
+        public boolean supportsLiteralEmission() {
+            for (ClickHouseType e : elements) {
+                if (!e.supportsLiteralEmission()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public boolean hasNullSemantics() {
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder("Tuple(");
+            for (int i = 0; i < elements.size(); i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                sb.append(elements.get(i));
+            }
+            sb.append(")");
+            return sb.toString();
+        }
+    }
+
+    // Enum8 / Enum16: named integer alias. Width is 8 or 16. Each entry pairs a string name with
+    // an integer value; the assignment values must be unique and within the [-128,127] (Enum8) or
+    // [-32768,32767] (Enum16) range. Constraints enforced at construction so misformed Enums
+    // never reach the DDL emitter.
+    record Enum(int width, java.util.List<EnumEntry> entries) implements ClickHouseType {
+
+        public Enum {
+            if (width != 8 && width != 16) {
+                throw new IllegalArgumentException("Enum width must be 8 or 16, got " + width);
+            }
+            Objects.requireNonNull(entries, "entries");
+            if (entries.isEmpty() || entries.size() > 16) {
+                throw new IllegalArgumentException("Enum entry count out of range: " + entries.size());
+            }
+        }
+
+        @Override
+        public boolean isNumeric() {
+            return false;
+        }
+
+        @Override
+        public boolean supportsLiteralEmission() {
+            return true;
+        }
+
+        @Override
+        public boolean hasNullSemantics() {
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder("Enum");
+            sb.append(width).append("(");
+            for (int i = 0; i < entries.size(); i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                EnumEntry e = entries.get(i);
+                sb.append("'").append(e.name()).append("' = ").append(e.value());
+            }
+            sb.append(")");
+            return sb.toString();
+        }
+    }
+
+    record EnumEntry(String name, int value) {
+        public EnumEntry {
+            Objects.requireNonNull(name, "name");
+            if (name.isEmpty() || name.length() > 32) {
+                throw new IllegalArgumentException("Enum entry name length out of range: " + name.length());
+            }
+            for (int i = 0; i < name.length(); i++) {
+                char c = name.charAt(i);
+                if (c == '\'' || c == '\\' || c < 0x20) {
+                    throw new IllegalArgumentException("Enum entry name contains forbidden character: " + name);
+                }
+            }
+        }
+    }
+
     // Nullable(inner) -- the value domain of `inner` extended with NULL.
     record Nullable(ClickHouseType inner) implements ClickHouseType {
 
@@ -364,12 +471,12 @@ public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHo
         }
 
         // Nullable can wrap any non-composite primitive-like value (Primitive, FixedString, Decimal,
-        // DateTime64). ClickHouse rejects Nullable(Array(...)), Nullable(Nullable(...)),
-        // Nullable(LowCardinality(...)) (LowCardinality must be the outer wrapper), and
-        // Nullable(Unknown).
+        // DateTime64, Enum). ClickHouse rejects Nullable(Array(...)), Nullable(Nullable(...)),
+        // Nullable(LowCardinality(...)) (LowCardinality must be the outer wrapper), Nullable(Tuple),
+        // and Nullable(Unknown). Nullable(Enum8/Enum16) is supported.
         public static boolean canWrap(ClickHouseType type) {
             return type instanceof Primitive || type instanceof FixedString || type instanceof Decimal
-                    || type instanceof DateTime64Type;
+                    || type instanceof DateTime64Type || type instanceof Enum;
         }
     }
 

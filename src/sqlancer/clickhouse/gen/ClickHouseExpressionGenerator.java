@@ -570,6 +570,13 @@ public class ClickHouseExpressionGenerator
         if (term instanceof Primitive p) {
             return generatePrimitiveConstant(p.kind());
         }
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Enum en) {
+            // Pick one of the enum entries and emit its quoted name. ClickHouse coerces the bare
+            // string literal into the enum's domain at INSERT time. Out-of-domain rejection is
+            // structurally impossible since we pick from the entry list.
+            sqlancer.clickhouse.ClickHouseType.EnumEntry entry = Randomly.fromList(en.entries());
+            return ClickHouseCreateConstant.createStringConstant(entry.name());
+        }
         throw new IgnoreMeException();
     }
 

@@ -83,6 +83,12 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
             if (inner instanceof Array) {
                 return ClickHouseDataType.Array;
             }
+            if (inner instanceof ClickHouseType.Tuple) {
+                return ClickHouseDataType.Tuple;
+            }
+            if (inner instanceof ClickHouseType.Enum e) {
+                return e.width() == 8 ? ClickHouseDataType.Enum8 : ClickHouseDataType.Enum16;
+            }
             return ClickHouseDataType.Nothing;
         }
 
@@ -179,8 +185,32 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
                 int s = (int) Randomly.getNotCachedInteger(0, p + 1);
                 return new Decimal(p, s);
             }
-            // Remaining 2% -- DateTime64 with random precision 0..6.
-            return new DateTime64Type((int) Randomly.getNotCachedInteger(0, 7));
+            if (roll < 99) {
+                // 1% -- DateTime64 with random precision 0..6.
+                return new DateTime64Type((int) Randomly.getNotCachedInteger(0, 7));
+            }
+            // Remaining 1% -- Enum8 / Enum16 with a small entry set. The value domain is constrained
+            // to the appropriate signed range; entry names are short identifiers so the DDL stays
+            // compact and the literal emission picks readable values. Tuple is intentionally NOT
+            // emitted here yet -- composite-column INSERT support needs more work in the constant
+            // generator and many oracles emit `col + 1` blindly which would fail on tuple columns.
+            int entryCount = 2 + (int) Randomly.getNotCachedInteger(0, 4);
+            java.util.List<ClickHouseType.EnumEntry> entries = new java.util.ArrayList<>();
+            java.util.Set<Integer> usedValues = new java.util.HashSet<>();
+            int width = Randomly.getBoolean() ? 8 : 16;
+            int valueBound = width == 8 ? 127 : 32767;
+            for (int i = 0; i < entryCount; i++) {
+                int v;
+                do {
+                    // Keep values in [0, valueBound] so the renderer doesn't need to handle the
+                    // sign. The full signed range is permitted by CH but our generator emits the
+                    // positive half only to simplify rollback / replay reading.
+                    v = (int) Randomly.getNotCachedInteger(0, valueBound + 1);
+                } while (!usedValues.add(v));
+                // Entry names are short ASCII identifiers prefixed with 'e' to keep them legal.
+                entries.add(new ClickHouseType.EnumEntry("e" + i, v));
+            }
+            return new ClickHouseType.Enum(width, entries);
         }
 
         public ClickHouseType getTypeTerm() {
