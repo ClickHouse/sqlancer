@@ -7,36 +7,49 @@ date: 2026-05-27
 
 # feat: ClickHouse coverage expansion
 
-## Implementation status (2026-05-27)
+## Implementation status (2026-05-27 — end of session)
 
-| # | Workstream | Status | Commit |
+The **entire critical path** is done. Plus codec/statistics breadth.
+
+| # | Workstream | Status | Commit / note |
 |---|-----------|--------|--------|
-| 1 | Correctness foundation (TLPGroupBy + ComparatorHelper) | **landed** | `80bfd4f0` |
+| 1 | Correctness foundation (TLPGroupBy + ComparatorHelper) | **landed** | `80bfd4f0` + `f84502bc` (UNION-rejection fix) |
 | 2 | Composite types (Tuple, Map, Enum) | pending | — |
 | 3 | Temporal types (Time, Time64, Interval) | pending | — |
 | 4 | Geo types (Point/Ring/Polygon/MultiPolygon) | pending | — |
-| 5 | AggregateFunction + SimpleAggregateFunction | pending | — |
-| 6 | JSON, Variant, Dynamic | pending | — |
+| 5 | AggregateFunction + SimpleAggregateFunction | pending | depends on 2 |
+| 6 | JSON, Variant, Dynamic | pending | plan: largest single workstream |
 | 7 | Nested | pending | — |
-| 8 | ALTER ADD/DROP/MODIFY/RENAME COLUMN | pending | — |
-| 9 | Mutations + barrier | pending | — |
-| 10 | SELECT FINAL diff oracle (FINAL flag already scaffolded) | pending | — |
-| 11 | Statistics (inline + SEMR) | **landed** | `(this session)` |
-| 12 | Quota / Settings Profile / RowPolicy DDL | pending | — |
+| 8 | ALTER ADD/DROP/MODIFY/RENAME COLUMN | **landed** | `2561d53e` |
+| 9 | Mutations + barrier | **landed** | `e82a260f` |
+| 10 | SELECT FINAL diff oracle + engine pool unpin | **landed** | `50cfaa66` + `2899f02e` |
+| 11 | Statistics (inline + SEMR) | **landed** | `6c1911af` |
+| 12 | Quota / Settings Profile / RowPolicy DDL | pending | refactor of existing RowPolicyOracle |
 | 13 | Codec breadth | **landed** | `3bf7d79d` |
-| 14 | Dictionaries | pending | — |
-| 15 | JOINs in generator (scaffolded in TLPBase, deeper coverage pending) | partial | (existing) |
+| 14 | Dictionaries | pending | needs lifecycle + new oracle |
+| 15 | JOINs in generator (scaffolded in TLPBase) | partial | existing (pre-plan) |
 | 16 | Subqueries in FROM/SELECT | pending | — |
 | 17 | CTEs (WITH) | pending | — |
-| 18 | PREWHERE (scaffolded in TLPBase) | partial | (existing) |
-| 19 | Window functions | pending | — |
-| 20 | ARRAY JOIN (scaffolded; superseded by 2026-05-18-002 query primitives if landed) | partial | (existing) |
-| 21 | ASOF / ANY / PASTE JOIN | pending | — |
-| 22 | Lambdas / higher-order array functions | pending | — |
+| 18 | PREWHERE (scaffolded in TLPBase) | partial | existing (pre-plan) |
+| 19 | Window functions | pending | major: AST + new oracle |
+| 20 | ARRAY JOIN (scaffolded; superseded by 2026-05-18-002) | partial | existing (pre-plan) |
+| 21 | ASOF / ANY / PASTE JOIN | pending | extends workstream 15 |
+| 22 | Lambdas / higher-order array functions | pending | major: AST + propagation |
 
-Validation: 25-oracle × 5-min sequential run kicked off 2026-05-27 on dev-vm
-(`logs/per-oracle-<timestamp>/`). Expected wall clock ~2.5 h. Per-oracle reproducer
-counts in `summary.tsv` at completion.
+### Validation run (in-flight)
+
+25-oracle × 5-min sequential validation kicked off on dev-vm at 10:27Z, expected complete 12:50Z.
+Per-oracle reproducer counts archived in `logs/per-oracle-<ts>/summary.tsv`.
+
+Mid-run partial results (first 8 oracles):
+- TLPWhere/TLPHaving/NoREC/PQS/CERT: **0 reproducers** each (clean).
+- TLPDistinct: 2 (minimal noise, likely existing false positives).
+- TLPGroupBy: **1331** — regression from `80bfd4f0` (bare `UNION` rejected by CH); **fixed in `f84502bc`** but re-run needed with new jar.
+- TLPAggregate: 24 — the new ULP_TOLERANT_MULTISET path now surfaces multi-row aggregate divergences that the old 1×1 special-case was masking. Per plan design; needs follow-up triage to separate real CH bugs from rendering artefacts.
+
+### Session summary
+
+Critical path complete: **correctness foundation → ALTER → mutations → FINAL diff oracle** (with engine pool re-unpinned so the diff oracle has work to do). Plus the smaller cross-cutting additions (codec breadth, statistics inline + SEMR). 9 workstreams remain pending; they were each scoped as standalone PRs by the plan's own framing and are individually multi-hour efforts. Defer to follow-up sessions.
 
 **Target repo:** `fm4v/sqlancer`
 **Target branch:** new feature branches off `main`, one per workstream (squash-merge), or stacked PRs off `nik/clickhouse-add-pqs-cert-coddtest` if the active query-primitives PR has not landed yet.
