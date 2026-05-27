@@ -191,6 +191,11 @@ public final class ClickHouseErrors {
         // (enum_col + 1, enum_col * X) are emitted blindly by existing oracles and rejected by
         // CH; absorb the failure family.
         errors.addAll(getEnumErrors());
+        // Type-system expansion (workstreams 2/3/4/5/6/7): composite types, geo types, nested,
+        // JSON/Variant/Dynamic, Interval, AggregateFunction. Each adds a column shape that
+        // existing oracles emit cross-type expressions over; the resulting rejections are
+        // absorbed here.
+        errors.addAll(getTypeExpansionErrors());
     }
 
     // Substring patterns for setting-validation errors raised either by SEMR's per-query
@@ -297,6 +302,37 @@ public final class ClickHouseErrors {
 
     public static void addMutationErrors(ExpectedErrors errors) {
         errors.addAll(getMutationErrors());
+    }
+
+    // Substring patterns for the type-system-expansion workstreams (2/3/4/5/6/7). Each family
+    // covers tolerated rejections from generator-emitted expressions over the new column shapes.
+    // Pre-loaded into addExpectedExpressionErrors below.
+    public static List<String> getTypeExpansionErrors() {
+        return List.of(
+                // Composite / geo / nested / JSON / Variant / Dynamic / AggregateFunction
+                "no overload", "is not supported for arguments of types",
+                "Argument at index", "TYPE_MISMATCH",
+                "NO_COMMON_TYPE", "is experimental, please set",
+                "Cannot read array",
+                "Map key cannot be Nullable", "Map keys must be",
+                "Variant types are different in",
+                "Dynamic types must be",
+                "Cannot convert to JSON",
+                // Tuple
+                "Tuple type cannot be passed directly",
+                "Wrong tuple",
+                // Geo functions
+                "Required cleanup", "geometry",
+                // Nested
+                "Nested type",
+                // AggregateFunction state
+                "Aggregate function", "aggregate function combinator",
+                // Interval
+                "Bad cast from type Interval", "Cannot determine type of literal");
+    }
+
+    public static void addTypeExpansionErrors(ExpectedErrors errors) {
+        errors.addAll(getTypeExpansionErrors());
     }
 
     // Substring patterns for Enum8/Enum16 generator emission. The picker selects from the entry

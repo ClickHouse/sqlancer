@@ -623,6 +623,117 @@ public class ClickHouseExpressionGenerator
             return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(sb.toString()),
                     new ClickHouseLancerDataType(term));
         }
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Map m) {
+            // map(k1, v1, k2, v2, ...) ClickHouse function form. Emit 0..3 pairs. Use the cast
+            // wrapper to pin the declared element types.
+            int pairs = (int) Randomly.getNotCachedInteger(0, 4);
+            StringBuilder sb = new StringBuilder("map(");
+            for (int i = 0; i < pairs; i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                sb.append(ClickHouseToStringVisitor.asString(generateConstantFromTerm(m.keyType())));
+                sb.append(", ");
+                sb.append(ClickHouseToStringVisitor.asString(generateConstantFromTerm(m.valueType())));
+            }
+            sb.append(")");
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(sb.toString()),
+                    new ClickHouseLancerDataType(term));
+        }
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Point) {
+            // (x, y)::Point. x and y in some bounded range so the geo functions don't blow up.
+            double x = (globalState.getRandomly().getInteger() % 1000) / 10.0;
+            double y = (globalState.getRandomly().getInteger() % 1000) / 10.0;
+            String literal = "(" + x + ", " + y + ")";
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(literal),
+                    new ClickHouseLancerDataType(term));
+        }
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Ring) {
+            // Array(Point). Emit 3-4 points so the ring is non-degenerate (CH treats <3 as
+            // invalid for area / containment).
+            StringBuilder sb = new StringBuilder("[");
+            int n = 3 + (int) Randomly.getNotCachedInteger(0, 2);
+            for (int i = 0; i < n; i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                double x = (globalState.getRandomly().getInteger() % 1000) / 10.0;
+                double y = (globalState.getRandomly().getInteger() % 1000) / 10.0;
+                sb.append("(").append(x).append(", ").append(y).append(")");
+            }
+            sb.append("]");
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(sb.toString()),
+                    new ClickHouseLancerDataType(term));
+        }
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Polygon) {
+            // Array(Ring). Emit 1 ring -- the outer boundary; inner-ring (holes) skipped.
+            StringBuilder sb = new StringBuilder("[[");
+            int n = 3 + (int) Randomly.getNotCachedInteger(0, 2);
+            for (int i = 0; i < n; i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                double x = (globalState.getRandomly().getInteger() % 1000) / 10.0;
+                double y = (globalState.getRandomly().getInteger() % 1000) / 10.0;
+                sb.append("(").append(x).append(", ").append(y).append(")");
+            }
+            sb.append("]]");
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(sb.toString()),
+                    new ClickHouseLancerDataType(term));
+        }
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.MultiPolygon) {
+            // Array(Polygon). Emit 1 polygon.
+            StringBuilder sb = new StringBuilder("[[[");
+            int n = 3 + (int) Randomly.getNotCachedInteger(0, 2);
+            for (int i = 0; i < n; i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                double x = (globalState.getRandomly().getInteger() % 1000) / 10.0;
+                double y = (globalState.getRandomly().getInteger() % 1000) / 10.0;
+                sb.append("(").append(x).append(", ").append(y).append(")");
+            }
+            sb.append("]]]");
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(sb.toString()),
+                    new ClickHouseLancerDataType(term));
+        }
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.JSON) {
+            // Simple JSON object literal cast to JSON. Two scalar fields with primitive values.
+            String literal = "{\\\"a\\\": " + (globalState.getRandomly().getInteger() % 1000) + ", \\\"b\\\": \\\"x"
+                    + (globalState.getRandomly().getInteger() % 10) + "\\\"}";
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(literal),
+                    new ClickHouseLancerDataType(term));
+        }
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Variant v) {
+            // Pick one alternative type and emit its literal directly; ClickHouse coerces the
+            // scalar into the variant. Without the cast we can't disambiguate alternatives.
+            ClickHouseType pickedAlt = Randomly.fromList(v.alternatives());
+            return new ClickHouseCastOperation(generateConstantFromTerm(pickedAlt),
+                    new ClickHouseLancerDataType(term));
+        }
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Dynamic) {
+            // Cast a primitive scalar to Dynamic. The runtime-typed wrapper preserves the scalar's
+            // type via type tags so the variant family can read it back.
+            ClickHouseType inner = new Primitive(Kind.Int32);
+            return new ClickHouseCastOperation(generateConstantFromTerm(inner),
+                    new ClickHouseLancerDataType(term));
+        }
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.IntervalType i) {
+            // INTERVAL N <unit>. Pick a small positive value.
+            int n = 1 + (int) Randomly.getNotCachedInteger(0, 100);
+            String unit = i.kind().name().toUpperCase();
+            // Render as a raw SQL fragment via the string-constant wrapper without the quoting
+            // -- INTERVAL is a SQL keyword and can't be wrapped in single quotes.
+            return ClickHouseCreateConstant.createStringConstant("INTERVAL " + n + " " + unit);
+        }
+        // Nested / AggregateFunction / SimpleAggregateFunction: structurally can't be emitted as
+        // a simple literal. INSERTs into these columns happen via separate parallel-array /
+        // -State combinator paths that aren't in this generator's scope.
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Nested
+                || term instanceof sqlancer.clickhouse.ClickHouseType.AggregateFunctionType
+                || term instanceof sqlancer.clickhouse.ClickHouseType.SimpleAggregateFunctionType) {
+            throw new IgnoreMeException();
+        }
         throw new IgnoreMeException();
     }
 

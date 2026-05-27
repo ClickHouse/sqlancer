@@ -180,67 +180,137 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
         // types poison PQS iterations with IgnoreMeException at the row-fetch step. They remain
         // reachable via schema reflection of pre-existing tables -- the parser still recognises
         // their type strings -- but the generator does not synthesise them.
+        // Pick a primitive Kind for use as a leaf in composite type construction (Tuple element,
+        // Map value, Nested field). Restricted to types that round-trip through the existing
+        // constant emitters so the composite's literal form is well-defined.
+        private static Kind pickPrimitiveKind() {
+            int r = (int) Randomly.getNotCachedInteger(0, 5);
+            switch (r) {
+            case 0: return Kind.Int32;
+            case 1: return Kind.String;
+            case 2: return Kind.UInt64;
+            case 3: return Kind.Float64;
+            default: return Kind.Date;
+            }
+        }
+
         private static ClickHouseType pickScalarType() {
             int roll = (int) Randomly.getNotCachedInteger(0, 100);
-            if (roll < 22) {
+            if (roll < 20) {
                 return new Primitive(Kind.Int32);
             }
-            if (roll < 38) {
+            if (roll < 35) {
                 return new Primitive(Kind.String);
             }
-            if (roll < 50) {
+            if (roll < 47) {
                 return new Primitive(Kind.UInt32);
             }
-            if (roll < 60) {
+            if (roll < 57) {
                 return new Primitive(Kind.UInt64);
             }
-            if (roll < 67) {
+            if (roll < 63) {
                 return new Primitive(Kind.Date);
             }
-            if (roll < 74) {
+            if (roll < 69) {
                 return new Primitive(Kind.DateTime);
             }
-            if (roll < 78) {
+            if (roll < 73) {
                 return new Primitive(Kind.Int64);
             }
-            if (roll < 82) {
+            if (roll < 77) {
                 return new Primitive(Kind.Int8);
             }
-            if (roll < 86) {
+            if (roll < 81) {
                 return new Primitive(Kind.UInt8);
             }
-            if (roll < 89) {
+            if (roll < 84) {
                 return new Primitive(Kind.Float32);
             }
-            if (roll < 92) {
+            if (roll < 87) {
                 return new Primitive(Kind.Float64);
             }
-            if (roll < 94) {
+            if (roll < 89) {
                 return new Primitive(Kind.Bool);
             }
-            if (roll < 96) {
+            if (roll < 91) {
                 return new FixedString(1 + (int) Randomly.getNotCachedInteger(0, 16));
             }
-            if (roll < 97) {
-                // Precision in [1,38], scale in [0,P]. Pin to Decimal64 territory most of the time
-                // (P<=18) so plain numeric arithmetic stays representable in a Java long-ish range,
-                // and only occasionally exceed it. Reduced from 2% to 1% to make room for Time /
-                // Enum at the tail.
+            if (roll < 92) {
+                // Decimal at 1% (compressed from 2% to make room for new composite types).
                 int p = 1 + (int) Randomly.getNotCachedInteger(0, Randomly.getBoolean() ? 18 : 38);
                 int s = (int) Randomly.getNotCachedInteger(0, p + 1);
                 return new Decimal(p, s);
             }
-            if (roll < 98) {
+            if (roll < 93) {
                 // 1% -- DateTime64 with random precision 0..6.
                 return new DateTime64Type((int) Randomly.getNotCachedInteger(0, 7));
             }
-            if (roll < 99) {
-                // Time / Time64 -- recent CH addition (>= 24.x). Time is second-resolution,
-                // Time64(prec) is sub-second. Workstream 3 of the 2026-05-27 coverage plan.
+            if (roll < 94) {
+                // Time / Time64 -- recent CH addition (>= 24.x).
                 if (Randomly.getBoolean()) {
                     return new ClickHouseType.Time();
                 }
                 return new ClickHouseType.Time64((int) Randomly.getNotCachedInteger(0, 7));
+            }
+            if (roll < 95) {
+                // Tuple(T1, T2) of 2-3 primitive elements -- workstream 2.
+                int arity = 2 + (int) Randomly.getNotCachedInteger(0, 2);
+                java.util.List<ClickHouseType> els = new java.util.ArrayList<>();
+                for (int i = 0; i < arity; i++) {
+                    // Inner types are restricted to scalar primitives to keep the literal
+                    // emission bounded; the inner picker recurses but we cap at depth 1.
+                    els.add(new Primitive(pickPrimitiveKind()));
+                }
+                return new ClickHouseType.Tuple(els);
+            }
+            if (roll < 96) {
+                // Map(K, V) -- K from the hashable-key set, V from a primitive.
+                ClickHouseType key;
+                int keyRoll = (int) Randomly.getNotCachedInteger(0, 4);
+                switch (keyRoll) {
+                case 0: key = new Primitive(Kind.String); break;
+                case 1: key = new Primitive(Kind.UInt32); break;
+                case 2: key = new Primitive(Kind.Int32); break;
+                default: key = new Primitive(Kind.Date); break;
+                }
+                return new ClickHouseType.Map(key, new Primitive(pickPrimitiveKind()));
+            }
+            if (roll < 97) {
+                // Geo: Point is the canonical case; Ring/Polygon/MultiPolygon are nested arrays
+                // of points and exercise more code paths than the picker should emit blindly --
+                // pick those at lower weight.
+                int geoRoll = (int) Randomly.getNotCachedInteger(0, 10);
+                if (geoRoll < 7) {
+                    return new ClickHouseType.Point();
+                } else if (geoRoll < 9) {
+                    return new ClickHouseType.Ring();
+                } else {
+                    return new ClickHouseType.Polygon();
+                }
+            }
+            if (roll < 98) {
+                // Nested -- DDL only; subfield access requires ARRAY JOIN which the expression
+                // generator doesn't synthesise yet, so most queries against nested columns will
+                // fail with tolerated errors.
+                int fieldCount = 2 + (int) Randomly.getNotCachedInteger(0, 2);
+                java.util.List<ClickHouseType.NestedField> fields = new java.util.ArrayList<>();
+                for (int i = 0; i < fieldCount; i++) {
+                    fields.add(new ClickHouseType.NestedField("nf" + i, new Primitive(pickPrimitiveKind())));
+                }
+                return new ClickHouseType.Nested(fields);
+            }
+            if (roll < 99) {
+                // JSON / Variant / Dynamic -- recent CH JSON v2 family.
+                int jvdRoll = (int) Randomly.getNotCachedInteger(0, 3);
+                if (jvdRoll == 0) {
+                    return new ClickHouseType.JSON();
+                }
+                if (jvdRoll == 1) {
+                    java.util.List<ClickHouseType> alts = java.util.List.of(new Primitive(Kind.Int32),
+                            new Primitive(Kind.String));
+                    return new ClickHouseType.Variant(alts);
+                }
+                return new ClickHouseType.Dynamic();
             }
             // Remaining 1% -- Enum8 / Enum16 with a small entry set. The value domain is constrained
             // to the appropriate signed range; entry names are short identifiers so the DDL stays
