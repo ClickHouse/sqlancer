@@ -183,10 +183,11 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
             if (roll < 96) {
                 return new FixedString(1 + (int) Randomly.getNotCachedInteger(0, 16));
             }
-            if (roll < 98) {
+            if (roll < 97) {
                 // Precision in [1,38], scale in [0,P]. Pin to Decimal64 territory most of the time
                 // (P<=18) so plain numeric arithmetic stays representable in a Java long-ish range,
-                // and only occasionally exceed it.
+                // and only occasionally exceed it. Reduced from 2% to 1% to make room for Time /
+                // Enum at the tail.
                 int p = 1 + (int) Randomly.getNotCachedInteger(0, Randomly.getBoolean() ? 18 : 38);
                 int s = (int) Randomly.getNotCachedInteger(0, p + 1);
                 return new Decimal(p, s);
