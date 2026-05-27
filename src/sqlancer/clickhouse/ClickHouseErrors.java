@@ -176,6 +176,10 @@ public final class ClickHouseErrors {
 
     public static void addExpectedExpressionErrors(ExpectedErrors errors) {
         errors.addAll(getExpectedExpressionErrors());
+        // Statistics generator emission may run against servers where the experimental flag is off
+        // or run into kind/type rejections; pre-load the substrings so every oracle's expected-
+        // errors set absorbs them. Same rationale as ARRAY JOIN / combinator entries above.
+        errors.addAll(getStatisticsErrors());
     }
 
     // Substring patterns for setting-validation errors raised either by SEMR's per-query
@@ -233,6 +237,20 @@ public final class ClickHouseErrors {
 
     public static void addArrayJoinErrors(ExpectedErrors errors) {
         errors.addAll(getArrayJoinErrors());
+    }
+
+    // Substring patterns for the statistics subsystem -- young (24.5+) and gated behind several
+    // experimental flags. The generator emits inline STATISTICS(...) on columns at low probability;
+    // if the server hasn't enabled `allow_experimental_statistics` or rejects the kind for the
+    // column type, these messages absorb the noise. Workstream 11 of the coverage expansion plan.
+    public static List<String> getStatisticsErrors() {
+        return List.of("Set `allow_experimental_statistics`", "allow_experimental_statistics is set to 0",
+                "Statistics is not supported", "Unknown statistic kind", "Statistics of kind",
+                "STATISTICS_NOT_IMPLEMENTED", "Cannot create statistics", "SUPPORT_IS_DISABLED");
+    }
+
+    public static void addStatisticsErrors(ExpectedErrors errors) {
+        errors.addAll(getStatisticsErrors());
     }
 
 }

@@ -91,7 +91,13 @@ public final class ClickHouseSessionSettings {
             "read_in_order_use_buffering",
             // JIT scalar sort path. Sister of compile_expressions / compile_aggregate_expressions
             // already in this list; folded in to extend JIT-pair coverage with no extra plumbing.
-            "compile_sort_description");
+            "compile_sort_description",
+            // Statistics-based query rewrites. The young CH statistics subsystem (24.5+) carries
+            // result-divergence risk under predicate selectivity estimation; toggling the optimizer
+            // opt-in exercises the rewrite path against the same SELECT. `allow_statistic_optimize`
+            // is the historical typo alias (still accepted by CH HEAD) and is included so SEMR
+            // covers both spellings.
+            "allow_statistics_optimize", "allow_statistic_optimize");
 
     // Execution-mode settings the random-session-settings layer may apply via
     // SET k = v at connect time. Each entry has discrete candidate values picked

@@ -23,8 +23,16 @@ public class ClickHouseColumnBuilder {
     private static boolean allowCodec = true;
 
     private enum Constraints {
-        DEFAULT, MATERIALIZED, CODEC, ALIAS // TTL
+        DEFAULT, MATERIALIZED, CODEC, STATISTICS, ALIAS // TTL
     }
+
+    // Statistics kinds accepted by ClickHouse on column declarations. tdigest works on numeric
+    // columns (precision histograms); uniq works on every type (HLL-based distinct count);
+    // count_min works on String/numeric (frequency sketches). The picker filters by column type
+    // so the emitted DDL is server-accepted.
+    private static final List<String> STATISTICS_KINDS_NUMERIC = List.of("tdigest", "uniq", "count_min");
+    private static final List<String> STATISTICS_KINDS_STRING = List.of("uniq", "count_min");
+    private static final List<String> STATISTICS_KINDS_OTHER = List.of("uniq");
 
     public String createColumn(String columnName, ClickHouseProvider.ClickHouseGlobalState globalState,
             List<ClickHouseSchema.ClickHouseColumn> columns) {
@@ -59,6 +67,8 @@ public class ClickHouseColumnBuilder {
             } else if (constraints.contains(Constraints.ALIAS)) {
                 constraints.remove(Constraints.DEFAULT);
                 constraints.remove(Constraints.CODEC);
+                // ALIAS columns have no physical storage; STATISTICS is rejected for them.
+                constraints.remove(Constraints.STATISTICS);
             }
         }
 
@@ -106,11 +116,46 @@ public class ClickHouseColumnBuilder {
                     sb.append(")");
                 }
                 break;
+            case STATISTICS:
+                // Inline STATISTICS(...) requires `set allow_experimental_statistics = 1` on the
+                // session or merged config. We emit at small probability (the constraints set
+                // already gates via getBooleanWithSmallProbability above) and trust the expected
+                // errors catalogue to absorb cases where the server hasn't enabled it. The kinds
+                // list is filtered by base type so legitimately-supported configs go through.
+                String kind = pickStatisticsKind(dataType);
+                if (kind != null) {
+                    sb.append(" STATISTICS(");
+                    sb.append(kind);
+                    sb.append(")");
+                }
+                break;
             default:
                 throw new AssertionError();
             }
         }
         return sb.toString();
+    }
+
+    private static String pickStatisticsKind(ClickHouseSchema.ClickHouseLancerDataType dataType) {
+        ClickHouseType term = dataType.getTypeTerm();
+        if (term instanceof ClickHouseType.Array || term instanceof ClickHouseType.Unknown
+                || term instanceof ClickHouseType.LowCardinality) {
+            return null;
+        }
+        ClickHouseDataType base = dataType.getType();
+        boolean isNumeric = base == ClickHouseDataType.Int8 || base == ClickHouseDataType.Int16
+                || base == ClickHouseDataType.Int32 || base == ClickHouseDataType.Int64
+                || base == ClickHouseDataType.UInt8 || base == ClickHouseDataType.UInt16
+                || base == ClickHouseDataType.UInt32 || base == ClickHouseDataType.UInt64
+                || base == ClickHouseDataType.Float32 || base == ClickHouseDataType.Float64;
+        boolean isString = base == ClickHouseDataType.String || base == ClickHouseDataType.FixedString;
+        if (isNumeric) {
+            return Randomly.fromList(STATISTICS_KINDS_NUMERIC);
+        }
+        if (isString) {
+            return Randomly.fromList(STATISTICS_KINDS_STRING);
+        }
+        return Randomly.fromList(STATISTICS_KINDS_OTHER);
     }
 
     // Type-aware codec selection. Each codec has constraints on which column types ClickHouse
