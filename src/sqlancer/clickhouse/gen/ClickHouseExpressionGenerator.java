@@ -552,6 +552,36 @@ public class ClickHouseExpressionGenerator
             return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(randomDateTimeLiteral()),
                     new ClickHouseLancerDataType(term));
         }
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Time) {
+            // 'HH:MM:SS' string literal cast to Time. Hour bounded to [0, 23], minute and second
+            // to [0, 59]. ClickHouse Time stores seconds-since-midnight; the cast accepts the
+            // canonical text form.
+            int h = (int) Randomly.getNotCachedInteger(0, 24);
+            int m = (int) Randomly.getNotCachedInteger(0, 60);
+            int s = (int) Randomly.getNotCachedInteger(0, 60);
+            String literal = String.format("%02d:%02d:%02d", h, m, s);
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(literal),
+                    new ClickHouseLancerDataType(term));
+        }
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Time64 t64) {
+            // Same as Time but with a fractional seconds suffix of width = precision. ClickHouse
+            // truncates / zero-pads silently if the precision differs from the column's declared
+            // value, but we render the canonical form for cleaner replays.
+            int h = (int) Randomly.getNotCachedInteger(0, 24);
+            int m = (int) Randomly.getNotCachedInteger(0, 60);
+            int s = (int) Randomly.getNotCachedInteger(0, 60);
+            String base = String.format("%02d:%02d:%02d", h, m, s);
+            String literal = base;
+            if (t64.precision() > 0) {
+                StringBuilder frac = new StringBuilder(".");
+                for (int i = 0; i < t64.precision(); i++) {
+                    frac.append((int) Randomly.getNotCachedInteger(0, 10));
+                }
+                literal = base + frac;
+            }
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(literal),
+                    new ClickHouseLancerDataType(term));
+        }
         if (term instanceof Array a) {
             // Emit a small literal array of inner-typed values via the bracket syntax. The inner
             // constants are themselves rendered through this method so wrappers nest correctly.

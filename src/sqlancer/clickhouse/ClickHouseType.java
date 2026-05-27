@@ -17,7 +17,7 @@ import com.clickhouse.data.ClickHouseDataType;
  * defensive fallback for type strings outside the parsed v2 surface.
  * </p>
  */
-public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHouseType.FixedString, ClickHouseType.Decimal, ClickHouseType.DateTime64Type, ClickHouseType.Array, ClickHouseType.Tuple, ClickHouseType.Enum, ClickHouseType.Nullable, ClickHouseType.LowCardinality, ClickHouseType.Unknown {
+public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHouseType.FixedString, ClickHouseType.Decimal, ClickHouseType.DateTime64Type, ClickHouseType.Array, ClickHouseType.Tuple, ClickHouseType.Enum, ClickHouseType.Time, ClickHouseType.Time64, ClickHouseType.Nullable, ClickHouseType.LowCardinality, ClickHouseType.Unknown {
 
     // true for integer/float primitives + Decimal; recurses through Nullable/LowCardinality. Array is
     // not numeric (the array itself is a composite); inner-array element type does not propagate.
@@ -428,6 +428,62 @@ public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHo
         }
     }
 
+    // Time -- second-resolution time of day (HH:MM:SS), recent CH addition (>= 24.x).
+    // Renders as 'Time'. Storage is Int64 seconds; the literal form is the same string shape
+    // as Date / DateTime. Workstream 3 of the 2026-05-27 coverage expansion plan.
+    record Time() implements ClickHouseType {
+
+        @Override
+        public boolean isNumeric() {
+            return false;
+        }
+
+        @Override
+        public boolean supportsLiteralEmission() {
+            return true;
+        }
+
+        @Override
+        public boolean hasNullSemantics() {
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return "Time";
+        }
+    }
+
+    // Time64(precision) -- sub-second-resolution time of day. precision in [0,9].
+    record Time64(int precision) implements ClickHouseType {
+
+        public Time64 {
+            if (precision < 0 || precision > 9) {
+                throw new IllegalArgumentException("Time64 precision out of range: " + precision);
+            }
+        }
+
+        @Override
+        public boolean isNumeric() {
+            return false;
+        }
+
+        @Override
+        public boolean supportsLiteralEmission() {
+            return true;
+        }
+
+        @Override
+        public boolean hasNullSemantics() {
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return "Time64(" + precision + ")";
+        }
+    }
+
     record EnumEntry(String name, int value) {
         public EnumEntry {
             Objects.requireNonNull(name, "name");
@@ -471,12 +527,13 @@ public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHo
         }
 
         // Nullable can wrap any non-composite primitive-like value (Primitive, FixedString, Decimal,
-        // DateTime64, Enum). ClickHouse rejects Nullable(Array(...)), Nullable(Nullable(...)),
-        // Nullable(LowCardinality(...)) (LowCardinality must be the outer wrapper), Nullable(Tuple),
-        // and Nullable(Unknown). Nullable(Enum8/Enum16) is supported.
+        // DateTime64, Enum, Time, Time64). ClickHouse rejects Nullable(Array(...)),
+        // Nullable(Nullable(...)), Nullable(LowCardinality(...)) (LowCardinality must be the outer
+        // wrapper), Nullable(Tuple), and Nullable(Unknown).
         public static boolean canWrap(ClickHouseType type) {
             return type instanceof Primitive || type instanceof FixedString || type instanceof Decimal
-                    || type instanceof DateTime64Type || type instanceof Enum;
+                    || type instanceof DateTime64Type || type instanceof Enum || type instanceof Time
+                    || type instanceof Time64;
         }
     }
 

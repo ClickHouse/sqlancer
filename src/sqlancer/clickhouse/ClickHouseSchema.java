@@ -89,6 +89,12 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
             if (inner instanceof ClickHouseType.Enum e) {
                 return e.width() == 8 ? ClickHouseDataType.Enum8 : ClickHouseDataType.Enum16;
             }
+            if (inner instanceof ClickHouseType.Time) {
+                return ClickHouseDataType.Time;
+            }
+            if (inner instanceof ClickHouseType.Time64) {
+                return ClickHouseDataType.Time64;
+            }
             return ClickHouseDataType.Nothing;
         }
 
@@ -185,9 +191,17 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
                 int s = (int) Randomly.getNotCachedInteger(0, p + 1);
                 return new Decimal(p, s);
             }
-            if (roll < 99) {
+            if (roll < 98) {
                 // 1% -- DateTime64 with random precision 0..6.
                 return new DateTime64Type((int) Randomly.getNotCachedInteger(0, 7));
+            }
+            if (roll < 99) {
+                // Time / Time64 -- recent CH addition (>= 24.x). Time is second-resolution,
+                // Time64(prec) is sub-second. Workstream 3 of the 2026-05-27 coverage plan.
+                if (Randomly.getBoolean()) {
+                    return new ClickHouseType.Time();
+                }
+                return new ClickHouseType.Time64((int) Randomly.getNotCachedInteger(0, 7));
             }
             // Remaining 1% -- Enum8 / Enum16 with a small entry set. The value domain is constrained
             // to the appropriate signed range; entry names are short identifiers so the DDL stays
