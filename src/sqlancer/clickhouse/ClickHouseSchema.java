@@ -252,41 +252,17 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
                 }
                 return new ClickHouseType.Time64((int) Randomly.getNotCachedInteger(0, 7));
             }
-            if (roll < 95) {
-                // Tuple(T1, T2) of 2-3 primitive elements -- workstream 2.
-                int arity = 2 + (int) Randomly.getNotCachedInteger(0, 2);
-                java.util.List<ClickHouseType> els = new java.util.ArrayList<>();
-                for (int i = 0; i < arity; i++) {
-                    // Inner types are restricted to scalar primitives to keep the literal
-                    // emission bounded; the inner picker recurses but we cap at depth 1.
-                    els.add(new Primitive(pickPrimitiveKind()));
-                }
-                return new ClickHouseType.Tuple(els);
-            }
-            if (roll < 96) {
-                // Map(K, V) -- K from the hashable-key set, V from a primitive.
-                ClickHouseType key;
-                int keyRoll = (int) Randomly.getNotCachedInteger(0, 4);
-                switch (keyRoll) {
-                case 0: key = new Primitive(Kind.String); break;
-                case 1: key = new Primitive(Kind.UInt32); break;
-                case 2: key = new Primitive(Kind.Int32); break;
-                default: key = new Primitive(Kind.Date); break;
-                }
-                return new ClickHouseType.Map(key, new Primitive(pickPrimitiveKind()));
-            }
+            // Tuple / Map / Geo emission removed from picker: the JDBC driver renders these
+            // as Java Object[] arrays when read via SELECT *, which TLPWhere's getString() path
+            // captures as `[Ljava.lang.Object;@HASH` literal addresses -- different between calls
+            // -> spurious result-set diffs. Keeping the type records for schema-read recognition
+            // but removing picker emission. Re-enable when the read path wraps these in
+            // toString(...) SQL functions OR oracle-side compares them via a structural form.
+            // Workstreams 2 and 4: scaffolded, not actively exercised.
+            //
+            // (Roll values 94-97 fall through; the tailRoll branches handle the remainder.)
             if (roll < 97) {
-                // Geo: Point is the canonical case; Ring/Polygon/MultiPolygon are nested arrays
-                // of points and exercise more code paths than the picker should emit blindly --
-                // pick those at lower weight.
-                int geoRoll = (int) Randomly.getNotCachedInteger(0, 10);
-                if (geoRoll < 7) {
-                    return new ClickHouseType.Point();
-                } else if (geoRoll < 9) {
-                    return new ClickHouseType.Ring();
-                } else {
-                    return new ClickHouseType.Polygon();
-                }
+                // Intentionally fall through. Was Tuple / Map / Geo. See note above.
             }
             if (roll < 98) {
                 // Nested was previously emitted here but the INSERT generator can't coordinate
@@ -300,34 +276,13 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
                 //
                 // Fall through to the JSON/Variant/Dynamic / AggregateFunction / Enum tail.
             }
-            // The remaining 2% of the roll range covers JSON-family, AggregateFunction, and Enum.
-            // Each gets sub-divided uniformly via a fresh roll so the picker stays sensitive to
-            // the same total weighting across the tail. Workstreams 2/5/6.
-            int tailRoll = (int) Randomly.getNotCachedInteger(0, 3);
-            if (tailRoll == 0) {
-                // JSON / Variant / Dynamic (workstream 6).
-                int jvdRoll = (int) Randomly.getNotCachedInteger(0, 3);
-                if (jvdRoll == 0) {
-                    return new ClickHouseType.JSON();
-                }
-                if (jvdRoll == 1) {
-                    java.util.List<ClickHouseType> alts = java.util.List.of(new Primitive(Kind.Int32),
-                            new Primitive(Kind.String));
-                    return new ClickHouseType.Variant(alts);
-                }
-                return new ClickHouseType.Dynamic();
-            }
-            if (tailRoll == 1) {
-                // AggregateFunction(name, ArgType) and SimpleAggregateFunction sister entry.
-                // Workstream 5 of the plan.
-                String aggName = Randomly.fromOptions("sum", "min", "max", "any", "anyLast", "count");
-                Kind argKind = Randomly.fromOptions(Kind.Int32, Kind.Int64, Kind.UInt32, Kind.UInt64, Kind.Float64);
-                if (Randomly.getBoolean()) {
-                    return new ClickHouseType.AggregateFunctionType(aggName,
-                            java.util.List.of(new Primitive(argKind)));
-                }
-                return new ClickHouseType.SimpleAggregateFunctionType(aggName, new Primitive(argKind));
-            }
+            // JSON / Variant / Dynamic / AggregateFunction picker emission removed: same
+            // Object[]-render issue as Tuple/Map/Geo -- the JDBC client returns opaque states
+            // or polymorphic values that the existing TLPWhere getString() path renders as
+            // [Ljava.lang.Object;@HASH literals which TLPWhere's set comparison treats as
+            // structurally distinct. Type records remain for schema-read recognition.
+            // Workstreams 5 (AggregateFunction) and 6 (JSON/Variant/Dynamic): scaffolded, not
+            // actively exercised.
             // Remaining 1% -- Enum8 / Enum16 with a small entry set. The value domain is constrained
             // to the appropriate signed range; entry names are short identifiers so the DDL stays
             // compact and the literal emission picks readable values. Tuple is intentionally NOT
