@@ -5,9 +5,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.clickhouse.data.ClickHouseDataType;
+
 import sqlancer.Randomly;
 import sqlancer.clickhouse.ClickHouseProvider;
 import sqlancer.clickhouse.ClickHouseSchema;
+import sqlancer.clickhouse.ClickHouseType;
 import sqlancer.clickhouse.ClickHouseVisitor;
 
 public class ClickHouseColumnBuilder {
@@ -99,7 +102,7 @@ public class ClickHouseColumnBuilder {
             case CODEC:
                 if (allowCodec) {
                     sb.append(" CODEC (");
-                    sb.append(Randomly.fromOptions("NONE", "ZSTD", "LZ4HC"));
+                    sb.append(pickCodec(dataType));
                     sb.append(")");
                 }
                 break;
@@ -108,6 +111,56 @@ public class ClickHouseColumnBuilder {
             }
         }
         return sb.toString();
+    }
+
+    // Type-aware codec selection. Each codec has constraints on which column types ClickHouse
+    // accepts it on; emitting an incompatible codec raises BAD_ARGUMENTS at CREATE time and turns
+    // every reproducer's CREATE TABLE into noise. The constraint matrix below mirrors the
+    // server's CompressionFactoryAdditions::validateCodec checks (DoubleDelta/Gorilla/FPC/Delta/T64
+    // are numeric-only; Gorilla/FPC are float-only). NONE/LZ4/LZ4HC/ZSTD are universal.
+    // ZSTD_QAT / DEFLATE_QPL require special hardware support on the server and are gated on a
+    // build flag; do not emit them from the generator (they'll bail with "compression method not
+    // supported" everywhere outside Intel-QAT-equipped servers).
+    private static String pickCodec(ClickHouseSchema.ClickHouseLancerDataType dataType) {
+        List<String> options = new ArrayList<>();
+        options.add("NONE");
+        options.add("LZ4");
+        options.add("LZ4HC(" + Randomly.fromOptions(0, 1, 6, 9, 12) + ")");
+        options.add("ZSTD(" + Randomly.fromOptions(1, 3, 6, 9, 19) + ")");
+
+        ClickHouseType term = dataType.getTypeTerm();
+        ClickHouseDataType base = dataType.getType();
+        boolean isFloat = base == ClickHouseDataType.Float32 || base == ClickHouseDataType.Float64;
+        boolean isNumericIntegral = base == ClickHouseDataType.Int8 || base == ClickHouseDataType.Int16
+                || base == ClickHouseDataType.Int32 || base == ClickHouseDataType.Int64
+                || base == ClickHouseDataType.Int128 || base == ClickHouseDataType.Int256
+                || base == ClickHouseDataType.UInt8 || base == ClickHouseDataType.UInt16
+                || base == ClickHouseDataType.UInt32 || base == ClickHouseDataType.UInt64
+                || base == ClickHouseDataType.UInt128 || base == ClickHouseDataType.UInt256;
+        boolean isDateLike = base == ClickHouseDataType.Date || base == ClickHouseDataType.Date32
+                || base == ClickHouseDataType.DateTime || base == ClickHouseDataType.DateTime64;
+        boolean isPlainPrimitive = !(term instanceof ClickHouseType.Nullable)
+                && !(term instanceof ClickHouseType.LowCardinality) && !(term instanceof ClickHouseType.Array);
+
+        if (isPlainPrimitive) {
+            if (isNumericIntegral || isDateLike) {
+                options.add("Delta(" + Randomly.fromOptions(1, 2, 4, 8) + ")");
+                options.add("DoubleDelta");
+                options.add("T64");
+            }
+            if (isFloat) {
+                options.add("Gorilla");
+                options.add("FPC");
+            }
+            // Codec chains: e.g. Delta(2), ZSTD(3). ClickHouse requires the compression step to be
+            // last in the chain; the chain we synthesise here always places the transform first.
+            if ((isNumericIntegral || isDateLike) && Randomly.getBooleanWithSmallProbability()) {
+                int n = Randomly.fromOptions(1, 2, 4, 8);
+                int z = Randomly.fromOptions(1, 3, 6);
+                options.add("Delta(" + n + "), ZSTD(" + z + ")");
+            }
+        }
+        return Randomly.fromList(options);
     }
 
 }
