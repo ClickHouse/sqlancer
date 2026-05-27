@@ -55,10 +55,25 @@ public class ClickHouseAggregateStateRoundtripOracle implements TestOracle<Click
         if (numericCols.isEmpty()) {
             throw new IgnoreMeException();
         }
+        // For sum/avg, restrict to INTEGER columns -- float-arithmetic is non-associative, so
+        // sum(unsorted_table) and sumState(groupArray(unsorted_table)) can return different
+        // floats depending on read order. min/max/count are order-independent and safe on any
+        // numeric type.
+        String aggName = Randomly.fromOptions("min", "max", "count", "sum");
+        if (aggName.equals("sum")) {
+            List<ClickHouseColumn> intCols = numericCols.stream().filter(c -> {
+                com.clickhouse.data.ClickHouseDataType t = c.getType().getType();
+                return t != com.clickhouse.data.ClickHouseDataType.Float32
+                        && t != com.clickhouse.data.ClickHouseDataType.Float64
+                        && t != com.clickhouse.data.ClickHouseDataType.Decimal;
+            }).collect(Collectors.toList());
+            if (intCols.isEmpty()) {
+                throw new IgnoreMeException();
+            }
+            numericCols = intCols;
+        }
         ClickHouseColumn col = Randomly.fromList(numericCols);
         String fqTable = state.getDatabaseName() + "." + table.getName();
-
-        String aggName = Randomly.fromOptions("sum", "min", "max", "count");
 
         String lhsQuery = "SELECT " + aggName + "(" + col.getName() + ") FROM " + fqTable;
         String rhsQuery = "SELECT finalizeAggregation(arrayReduce('" + aggName + "State', groupArray("

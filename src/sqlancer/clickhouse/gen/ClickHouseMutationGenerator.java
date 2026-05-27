@@ -53,7 +53,21 @@ public final class ClickHouseMutationGenerator {
         StringBuilder sb = new StringBuilder();
         switch (kind) {
         case ALTER_UPDATE:
-            ClickHouseColumn updateCol = Randomly.fromList(cols);
+            // Filter target columns to types where the existing expression generator produces
+            // well-typed values. Enum / composite / geo / JSON-family rejects arbitrary integer
+            // expressions with CANNOT_CONVERT_TYPE; aliased / materialised columns can't be
+            // updated. Restrict to plain primitives.
+            List<ClickHouseColumn> updatable = cols.stream().filter(c -> {
+                sqlancer.clickhouse.ClickHouseType term = c.getType().getTypeTerm().unwrap();
+                return term instanceof sqlancer.clickhouse.ClickHouseType.Primitive
+                        || term instanceof sqlancer.clickhouse.ClickHouseType.Decimal
+                        || term instanceof sqlancer.clickhouse.ClickHouseType.FixedString
+                        || term instanceof sqlancer.clickhouse.ClickHouseType.DateTime64Type;
+            }).collect(Collectors.toList());
+            if (updatable.isEmpty()) {
+                throw new IgnoreMeException();
+            }
+            ClickHouseColumn updateCol = Randomly.fromList(updatable);
             // Use an expression generator over the *other* columns so the assignment can't be a
             // pure recursive reference; this isn't strictly required by CH but keeps test variance
             // higher.
