@@ -166,11 +166,15 @@ public class SQLQueryAdapter extends Query<SQLConnection> implements Serializabl
         Throwable ex = e;
 
         while (ex != null) {
-            if (expectedErrors.errorIsExpected(ex.getMessage())) {
+            // ExpectedErrors.errorIsExpected throws IllegalArgumentException on null. Skip
+            // null-message frames in the cause chain rather than propagating that as an
+            // AssertionError -- a chained exception with no message is a no-op from the
+            // expected-error perspective and the next frame may have a useful message.
+            String msg = ex.getMessage();
+            if (msg != null && expectedErrors.errorIsExpected(msg)) {
                 return;
-            } else {
-                ex = ex.getCause();
             }
+            ex = ex.getCause();
         }
 
         throw new AssertionError(query, e);
