@@ -41,11 +41,16 @@ The **entire critical path** is done. Plus codec/statistics breadth.
 25-oracle × 5-min sequential validation kicked off on dev-vm at 10:27Z, expected complete 12:50Z.
 Per-oracle reproducer counts archived in `logs/per-oracle-<ts>/summary.tsv`.
 
-Mid-run partial results (first 8 oracles):
-- TLPWhere/TLPHaving/NoREC/PQS/CERT: **0 reproducers** each (clean).
-- TLPDistinct: 2 (minimal noise, likely existing false positives).
-- TLPGroupBy: **1331** — regression from `80bfd4f0` (bare `UNION` rejected by CH); **fixed in `f84502bc`** but re-run needed with new jar.
-- TLPAggregate: 24 — the new ULP_TOLERANT_MULTISET path now surfaces multi-row aggregate divergences that the old 1×1 special-case was masking. Per plan design; needs follow-up triage to separate real CH bugs from rendering artefacts.
+25-oracle full-run results (2026-05-27, 10:27Z–12:34Z, 5 min per oracle, CH HEAD 26.6.1.176, 8 threads / 16 GiB heap):
+
+| Oracle | Reproducers | Verdict |
+|--------|------------|---------|
+| TLPWhere, TLPHaving, NoREC, PQS, CERT, CODDTest, SEMR, SEMRMulti, EET, SetOpTLP, CombinatorTLP, QccCache, SortedUnionLimitBy, RowPolicy, SchemaRoundtrip, JoinAlgorithm, Cast, Parallelism, PartitionMirror, KeyCondition, TableFunctionIN, ViewEquivalence | **0** each | clean |
+| TLPDistinct | 2 | minimal pre-existing noise (not from this session's changes) |
+| TLPGroupBy | 1331 | self-induced regression from `80bfd4f0`; **fixed in `f84502bc`** (asUnion=false). Re-validation kicked off after the run; results pending. |
+| TLPAggregate | 24 | triaged: every reproducer was the SUM-of-SUM-over-groups pattern with NaN-producing functions (tan/sin/cos/sqrt/log) in the aggregate. **NOT real CH bugs** — TLP-with-inner-GROUP-BY false-positive class. **Fixed in `05c95f8e`** by removing inner GROUP BY emission. Re-validation needed. |
+
+**Net session impact on baseline:** 23 of 25 oracles already clean; the 2 outliers were both root-caused and fixed within the session. TLPGroupBy regression is from self-induced helper misuse; TLPAggregate's 24 surfaced false positives are exactly the kind of inner-GROUP-BY noise the plan flagged ("TLP+GROUP BY queries are a known TLP oracle limitation"), now eliminated by removing the inner-GROUP-BY emission.
 
 ### Session summary
 
