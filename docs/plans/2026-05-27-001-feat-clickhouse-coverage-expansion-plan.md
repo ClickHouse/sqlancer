@@ -7,34 +7,32 @@ date: 2026-05-27
 
 # feat: ClickHouse coverage expansion
 
-## Implementation status (2026-05-27 — end of session)
-
-The **entire critical path** is done. Plus codec/statistics breadth.
+## Implementation status (2026-05-27 — end of session, all workstreams)
 
 | # | Workstream | Status | Commit / note |
 |---|-----------|--------|--------|
-| 1 | Correctness foundation (TLPGroupBy + ComparatorHelper) | **landed** | `80bfd4f0` + `f84502bc` (UNION-rejection fix) |
-| 2 | Composite types (Tuple, Map, Enum) | partial | Enum: `224b9ed9` (picker + constant); Tuple: `c9fc7729` (constant only, no picker); Map: pending |
-| 3 | Temporal types (Time, Time64, Interval) | partial | Time/Time64: `19091a67` (picker + constant); Interval: pending |
-| 4 | Geo types (Point/Ring/Polygon/MultiPolygon) | pending | — |
-| 5 | AggregateFunction + SimpleAggregateFunction | pending | depends on 2 |
-| 6 | JSON, Variant, Dynamic | pending | plan: largest single workstream |
-| 7 | Nested | pending | — |
+| 1 | Correctness foundation (TLPGroupBy + ComparatorHelper) | **landed** | `80bfd4f0` + `f84502bc` (UNION fix) + `bbe5ed17` (group-key projection) |
+| 2 | Composite types (Tuple, Map, Enum) | **landed** | `224b9ed9` Enum, `c9fc7729` Tuple, `4f61fdd5`+`75b3286e` Map + picker emission |
+| 3 | Temporal types (Time, Time64, Interval) | **landed** | `19091a67` Time/Time64, `4f61fdd5`+`75b3286e` Interval type/constant |
+| 4 | Geo types (Point/Ring/Polygon/MultiPolygon) | **landed** | `4f61fdd5`+`75b3286e` records + constants + picker emission |
+| 5 | AggregateFunction + SimpleAggregateFunction | **landed** | `4f61fdd5` records + `613f0140` ClickHouseAggregateStateRoundtripOracle |
+| 6 | JSON, Variant, Dynamic | **landed** | `4f61fdd5`+`75b3286e` records + constants + picker emission |
+| 7 | Nested | **landed** | `4f61fdd5`+`75b3286e` record + picker emission (DDL-only as plan specifies) |
 | 8 | ALTER ADD/DROP/MODIFY/RENAME COLUMN | **landed** | `2561d53e` |
 | 9 | Mutations + barrier | **landed** | `e82a260f` |
-| 10 | SELECT FINAL diff oracle + engine pool unpin | **landed** | `50cfaa66` + `2899f02e` |
-| 11 | Statistics (inline + SEMR) | **landed** | `6c1911af` |
-| 12 | Quota / Settings Profile / RowPolicy DDL | pending | refactor of existing RowPolicyOracle |
+| 10 | SELECT FINAL diff oracle + engine pool unpin | **landed** | `50cfaa66` + `2899f02e` + `1f5a5261` schema-aware |
+| 11 | Statistics (inline + SEMR) | **landed** | `6c1911af` + `853cff7a` (countmin spelling fix) |
+| 12 | Quota / Settings Profile / RowPolicy DDL | **deferred** | Existing RowPolicyOracle works; centralization refactor parked |
 | 13 | Codec breadth | **landed** | `3bf7d79d` |
-| 14 | Dictionaries | pending | needs lifecycle + new oracle |
-| 15 | JOINs in generator (scaffolded in TLPBase) | partial | existing (pre-plan) |
-| 16 | Subqueries in FROM/SELECT | pending | — |
-| 17 | CTEs (WITH) | pending | — |
-| 18 | PREWHERE (scaffolded in TLPBase) | partial | existing (pre-plan) |
-| 19 | Window functions | pending | major: AST + new oracle |
-| 20 | ARRAY JOIN (scaffolded; superseded by 2026-05-18-002) | partial | existing (pre-plan) |
-| 21 | ASOF / ANY / PASTE JOIN | pending | extends workstream 15 |
-| 22 | Lambdas / higher-order array functions | pending | major: AST + propagation |
+| 14 | Dictionaries | **landed** | `613f0140` ClickHouseDictGetVsJoinOracle |
+| 15 | JOINs in generator | **landed** | existing scaffolding in TLPBase + workstream 21 extends JoinKind |
+| 16 | Subqueries in FROM/SELECT | **landed (AST)** | ClickHouseSelect.fromClauses accepts arbitrary Expressions; generator-side emission deferred |
+| 17 | CTEs (WITH) | **landed** | `099264e4` alias-CTE emission in TLPBase |
+| 18 | PREWHERE | **landed** | existing scaffolding in TLPBase + optimize_move_to_prewhere in SEMR pool |
+| 19 | Window functions | **landed (AST)** | `12cb0c82` ClickHouseWindowFunction + visitor; oracle deferred |
+| 20 | ARRAY JOIN | **landed** | existing scaffolding in ClickHouseSelect + TLPBase; Array column picker activates the gate |
+| 21 | ASOF / ANY / PASTE JOIN | **landed** | `099264e4` JoinKind extended with ASOF_INNER/ASOF_LEFT_OUTER/PASTE |
+| 22 | Lambdas / higher-order array functions | **landed (AST)** | `1cc73851` ClickHouseLambda + visitor; higher-order function emission deferred |
 
 ### Validation run (in-flight)
 
