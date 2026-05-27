@@ -1,7 +1,7 @@
 package sqlancer.clickhouse.oracle.tlp;
 
 import java.sql.SQLException;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -64,14 +64,10 @@ public class ClickHouseTLPHavingOracle extends ClickHouseTLPBase {
             state.getLogger().writeCurrent(originalQueryString);
             state.getLogger().writeCurrent(combinedString);
         }
-        if (new HashSet<>(resultSet).size() != new HashSet<>(secondResultSet).size()) {
-            HashSet<String> diffLeft = new HashSet<>(resultSet);
-            HashSet<String> tmpLeft = new HashSet<>(resultSet);
-            HashSet<String> diffRight = new HashSet<>(secondResultSet);
-            diffLeft.removeAll(diffRight);
-            diffRight.removeAll(tmpLeft);
-            throw new AssertionError(originalQueryString + ";\n" + combinedString + ";\n" + "Left: "
-                    + diffLeft.toString() + "\nRight: " + diffRight.toString());
-        }
+        // Multiset semantics: HAVING-filtered aggregate rows can repeat structurally identical
+        // group entries when the HAVING predicate is NULL across branches, and the count of
+        // those entries must match between LHS and RHS for the TLP invariant to hold.
+        ComparatorHelper.assumeResultSetsAreEqual(resultSet, secondResultSet, originalQueryString,
+                Collections.singletonList(combinedString), state, ComparatorHelper.ComparisonMode.MULTISET);
     }
 }

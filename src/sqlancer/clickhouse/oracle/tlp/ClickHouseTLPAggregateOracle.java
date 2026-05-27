@@ -2,6 +2,7 @@ package sqlancer.clickhouse.oracle.tlp;
 
 import java.sql.SQLException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -69,19 +70,13 @@ public class ClickHouseTLPAggregateOracle extends ClickHouseTLPBase {
                 .log("--" + originalQuery + "\n--" + metamorphicText + "\n-- " + firstResult + "\n-- " + secondResult
                         + "\n--first size " + firstResult.size() + "\n--second size " + secondResult.size());
 
-        if (firstResult.size() != secondResult.size()) {
-            throw new AssertionError();
-        } else if (firstResult.isEmpty() || firstResult.equals(secondResult)) {
-            return;
-        } else if (firstResult.size() == 1 && secondResult.size() == 1) {
-            if (firstResult.get(0).equals(secondResult.get(0))) {
-                return;
-            } else if (!ComparatorHelper.isEqualDouble(firstResult.get(0), secondResult.get(0))) {
-                throw new AssertionError();
-            }
-        } else {
-            throw new AssertionError();
-        }
+        // Route every comparison through ComparatorHelper with ULP-tolerant multiset semantics.
+        // Aggregate outputs are float-heavy and rendering differs by ULP between equivalent CH
+        // aggregate paths (e.g. avgOrNull vs sum/count). The historical 1x1 special-case here
+        // skipped multi-row aggregate-with-GROUP BY shapes and silently passed bugs in that
+        // surface; using the full comparator catches them while preserving the float tolerance.
+        ComparatorHelper.assumeResultSetsAreEqual(firstResult, secondResult, originalQuery,
+                Collections.singletonList(metamorphicText), state, ComparatorHelper.ComparisonMode.ULP_TOLERANT_MULTISET);
     }
 
 }

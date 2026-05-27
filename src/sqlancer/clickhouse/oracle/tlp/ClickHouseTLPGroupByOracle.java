@@ -37,9 +37,24 @@ public class ClickHouseTLPGroupByOracle extends ClickHouseTLPBase {
         select.setWhereClause(isNullPredicate);
         String thirdQueryString = ClickHouseVisitor.asString(select);
         List<String> combinedString = new ArrayList<>();
-        List<String> secondResultSet = ComparatorHelper.getCombinedResultSet(firstQueryString, secondQueryString,
-                thirdQueryString, combinedString, true, state, errors);
+
+        // TLPGroupBy partitioning splits rows across {p, NOT p, p IS NULL} branches; each branch
+        // re-applies GROUP BY independently. A group key that lands in more than one branch shows
+        // up multiple times in the UNION ALL, with per-branch (not global) aggregate values --
+        // diverging from the original GROUP BY's per-key single row. UNION DISTINCT collapses the
+        // per-branch duplicates so the comparison is set-shaped on the surviving key projection.
+        // The plan acknowledges this loses some adversarial coverage; --tlp-groupby-strict opts
+        // back into UNION ALL for periodic strict sweeps.
+        boolean strict = state.getClickHouseOptions().tlpGroupByStrict;
+        List<String> secondResultSet;
+        if (strict) {
+            secondResultSet = ComparatorHelper.getCombinedResultSet(firstQueryString, secondQueryString,
+                    thirdQueryString, combinedString, true, state, errors);
+        } else {
+            secondResultSet = ComparatorHelper.getCombinedResultSetNoDuplicates(firstQueryString, secondQueryString,
+                    thirdQueryString, combinedString, true, state, errors);
+        }
         ComparatorHelper.assumeResultSetsAreEqual(resultSet, secondResultSet, originalQueryString, combinedString,
-                state);
+                state, strict ? ComparatorHelper.ComparisonMode.MULTISET : ComparatorHelper.ComparisonMode.SET);
     }
 }

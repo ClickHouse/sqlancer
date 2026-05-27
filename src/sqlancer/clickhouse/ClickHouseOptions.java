@@ -50,6 +50,9 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--semr-arity", description = "Number of SEMR settings to toggle together per query for the SEMRMulti oracle (>= 2)")
     public int semrArity = 2;
 
+    @Parameter(names = "--tlp-groupby-strict", description = "Use UNION ALL (no outer canonicalisation) for TLPGroupBy. Surfaces partition-multiplicity false positives by design; default (off) collapses them via UNION DISTINCT.", arity = 1)
+    public boolean tlpGroupByStrict = false;
+
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;

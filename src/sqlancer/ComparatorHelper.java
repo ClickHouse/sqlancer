@@ -3,8 +3,10 @@ package sqlancer;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -14,6 +16,25 @@ import sqlancer.common.query.SQLQueryAdapter;
 import sqlancer.common.query.SQLancerResultSet;
 
 public final class ComparatorHelper {
+
+    /**
+     * Comparison semantics for {@link #assumeResultSetsAreEqual}.
+     *
+     * <p>Set-vs-multiset matters because TLP-style oracles compare a single original query against
+     * a UNION ALL of partition branches. With set semantics, a row produced K times by one side and
+     * once by the other looks equal. Multiset semantics catches the difference. SQL-result-set
+     * equality is structurally a multiset comparison; the historical {@link #SET} default exists to
+     * stay backwards-compatible with oracles whose underlying invariant is set-shaped (e.g. SELECT
+     * DISTINCT). Per-cell float normalisation handles aggregate-rendering differences in ULP modes.
+     */
+    public enum ComparisonMode {
+        /** HashSet equality with float-canonicalization fallback. Historical default. */
+        SET,
+        /** Multiset equality on raw strings with float-canonicalization fallback. */
+        MULTISET,
+        /** Multiset equality after per-cell float canonicalization. Use for aggregate outputs. */
+        ULP_TOLERANT_MULTISET
+    }
 
     private ComparatorHelper() {
     }
@@ -110,6 +131,12 @@ public final class ComparatorHelper {
 
     public static void assumeResultSetsAreEqual(List<String> resultSet, List<String> secondResultSet,
             String originalQueryString, List<String> combinedString, SQLGlobalState<?, ?> state) {
+        assumeResultSetsAreEqual(resultSet, secondResultSet, originalQueryString, combinedString, state,
+                ComparisonMode.SET);
+    }
+
+    public static void assumeResultSetsAreEqual(List<String> resultSet, List<String> secondResultSet,
+            String originalQueryString, List<String> combinedString, SQLGlobalState<?, ?> state, ComparisonMode mode) {
         if (resultSet.size() != secondResultSet.size()) {
             String queryFormatString = "-- %s;" + System.lineSeparator() + "-- cardinality: %d"
                     + System.lineSeparator();
@@ -127,32 +154,39 @@ public final class ComparatorHelper {
             throw new AssertionError(assertionMessage);
         }
 
-        Set<String> firstHashSet = new HashSet<>(resultSet);
-        Set<String> secondHashSet = new HashSet<>(secondResultSet);
+        if (state.getOptions().validateResultSizeOnly()) {
+            return;
+        }
 
-        boolean validateResultSizeOnly = state.getOptions().validateResultSizeOnly();
-        if (!validateResultSizeOnly && !firstHashSet.equals(secondHashSet)) {
-            // ULP-different float representations are not a content mismatch: the same double
-            // can be rendered as both "-9908.828420722071" (17 digits) and "-9908.82842072207"
-            // (16 digits) by equivalent CH aggregates (e.g. avgOrNull vs sum/count). Round-trip
-            // each numeric-looking entry through Double.parseDouble + Double.toString to
-            // collapse equivalent forms before deciding the sets really differ. Conservative:
-            // non-numeric strings pass through untouched, so non-float bugs are still caught.
-            Set<String> firstFloatNorm = canonicalizeFloats(resultSet);
-            Set<String> secondFloatNorm = canonicalizeFloats(secondResultSet);
-            if (firstFloatNorm.equals(secondFloatNorm)) {
-                return;
-            }
-            Set<String> firstResultSetMisses = new HashSet<>(firstHashSet);
-            firstResultSetMisses.removeAll(secondHashSet);
-            Set<String> secondResultSetMisses = new HashSet<>(secondHashSet);
-            secondResultSetMisses.removeAll(firstHashSet);
+        boolean contentMatches;
+        switch (mode) {
+        case MULTISET:
+            contentMatches = multisetsEqual(resultSet, secondResultSet)
+                    || multisetsEqual(canonicalizeFloatsList(resultSet), canonicalizeFloatsList(secondResultSet));
+            break;
+        case ULP_TOLERANT_MULTISET:
+            contentMatches = multisetsEqual(canonicalizeFloatsList(resultSet),
+                    canonicalizeFloatsList(secondResultSet));
+            break;
+        case SET:
+        default:
+            Set<String> firstHashSet = new HashSet<>(resultSet);
+            Set<String> secondHashSet = new HashSet<>(secondResultSet);
+            contentMatches = firstHashSet.equals(secondHashSet)
+                    || canonicalizeFloats(resultSet).equals(canonicalizeFloats(secondResultSet));
+            break;
+        }
+
+        if (!contentMatches) {
+            Set<String> firstResultSetMisses = new HashSet<>(resultSet);
+            firstResultSetMisses.removeAll(secondResultSet);
+            Set<String> secondResultSetMisses = new HashSet<>(secondResultSet);
+            secondResultSetMisses.removeAll(resultSet);
 
             String queryFormatString = "-- Query: \"%s\"; It misses: \"%s\"";
             String firstQueryString = String.format(queryFormatString, originalQueryString, firstResultSetMisses);
             String secondQueryString = String.format(queryFormatString, String.join(";", combinedString),
                     secondResultSetMisses);
-            // update the SELECT queries to be logged at the bottom of the error log file
             state.getState().getLocalState()
                     .log(String.format("%s" + System.lineSeparator() + "%s", firstQueryString, secondQueryString));
             String assertionMessage = String.format("The content of the result sets mismatch!" + System.lineSeparator()
@@ -160,6 +194,36 @@ public final class ComparatorHelper {
                     secondQueryString);
             throw new AssertionError(assertionMessage);
         }
+    }
+
+    private static boolean multisetsEqual(List<String> a, List<String> b) {
+        if (a.size() != b.size()) {
+            return false;
+        }
+        Map<String, Integer> counts = new HashMap<>(a.size() * 2);
+        for (String v : a) {
+            counts.merge(v, 1, Integer::sum);
+        }
+        for (String v : b) {
+            Integer c = counts.get(v);
+            if (c == null) {
+                return false;
+            }
+            if (c == 1) {
+                counts.remove(v);
+            } else {
+                counts.put(v, c - 1);
+            }
+        }
+        return counts.isEmpty();
+    }
+
+    private static List<String> canonicalizeFloatsList(List<String> values) {
+        List<String> out = new ArrayList<>(values.size());
+        for (String v : values) {
+            out.add(normalizeFloatString(v));
+        }
+        return out;
     }
 
     public static void assumeResultSetsAreEqual(List<String> resultSet, List<String> secondResultSet,
