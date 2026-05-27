@@ -87,8 +87,13 @@ public class ClickHouseDictGetVsJoinOracle implements TestOracle<ClickHouseGloba
             String lhs = String.format(
                     "SELECT dictGet('%s', '%s', toUInt64(%s)) FROM %s ORDER BY %s",
                     fqDict, valCol.getName(), keyCol.getName(), fqSrc, keyCol.getName());
+            // ANY LEFT JOIN matches dictGet's "one value per key" semantics. Plain LEFT JOIN
+            // returns one output row per (left, right) match, which can multiply the cardinality
+            // when the source has duplicate keys -- producing a spurious 11 vs 23 mismatch.
+            // ANY LEFT JOIN picks one right-side row per left key, matching dictGet's behaviour
+            // on a HASHED dictionary (last-write-wins per key).
             String rhs = String.format(
-                    "SELECT src.%s FROM %s t LEFT JOIN %s src ON t.%s = src.%s ORDER BY src.%s",
+                    "SELECT src.%s FROM %s t ANY LEFT JOIN %s src ON t.%s = src.%s ORDER BY src.%s",
                     valCol.getName(), fqSrc, fqSrc, keyCol.getName(), keyCol.getName(), keyCol.getName());
             List<String> lhsResult = ComparatorHelper.getResultSetFirstColumnAsString(lhs, errors, state);
             List<String> rhsResult = ComparatorHelper.getResultSetFirstColumnAsString(rhs, errors, state);

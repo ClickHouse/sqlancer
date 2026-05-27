@@ -289,15 +289,16 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
                 }
             }
             if (roll < 98) {
-                // Nested -- DDL only; subfield access requires ARRAY JOIN which the expression
-                // generator doesn't synthesise yet, so most queries against nested columns will
-                // fail with tolerated errors.
-                int fieldCount = 2 + (int) Randomly.getNotCachedInteger(0, 2);
-                java.util.List<ClickHouseType.NestedField> fields = new java.util.ArrayList<>();
-                for (int i = 0; i < fieldCount; i++) {
-                    fields.add(new ClickHouseType.NestedField("nf" + i, new Primitive(pickPrimitiveKind())));
-                }
-                return new ClickHouseType.Nested(fields);
+                // Nested was previously emitted here but the INSERT generator can't coordinate
+                // parallel-array lengths across the Nested-decomposed subcolumns. ClickHouse
+                // returns SIZES_OF_ARRAYS_DONT_MATCH (Code 190) when subfields have different
+                // array sizes per row, which surfaces as a database-setup AssertionError.
+                // The type record stays in the codebase (parser-side recognition + canWrap
+                // guards) but the picker no longer emits Nested columns. Re-enable when the
+                // INSERT generator gains parallel-array-length coordination for Nested.
+                // Workstream 7 status: scaffolded but not actively exercised.
+                //
+                // Fall through to the JSON/Variant/Dynamic / AggregateFunction / Enum tail.
             }
             // The remaining 2% of the roll range covers JSON-family, AggregateFunction, and Enum.
             // Each gets sub-divided uniformly via a fresh roll so the picker stays sensitive to

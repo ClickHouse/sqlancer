@@ -872,8 +872,10 @@ public class ClickHouseExpressionGenerator
                     new ClickHouseLancerDataType(term));
         }
         if (term instanceof sqlancer.clickhouse.ClickHouseType.Map m) {
-            // map(k1, v1, k2, v2, ...) ClickHouse function form. Emit 0..3 pairs. Use the cast
-            // wrapper to pin the declared element types.
+            // map(k1, v1, k2, v2, ...) ClickHouse function form. Emit as a raw SQL fragment;
+            // wrapping in CAST('map(...)' AS Map(...)) is rejected by CH with "Unsupported
+            // types to CAST AS Map" because Map can't be constructed from a string literal --
+            // the map() function returns the right type natively.
             int pairs = (int) Randomly.getNotCachedInteger(0, 4);
             StringBuilder sb = new StringBuilder("map(");
             for (int i = 0; i < pairs; i++) {
@@ -885,8 +887,7 @@ public class ClickHouseExpressionGenerator
                 sb.append(ClickHouseToStringVisitor.asString(generateConstantFromTerm(m.valueType())));
             }
             sb.append(")");
-            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(sb.toString()),
-                    new ClickHouseLancerDataType(term));
+            return new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, sb.toString(), null);
         }
         if (term instanceof sqlancer.clickhouse.ClickHouseType.Point) {
             // (x, y)::Point. x and y in some bounded range so the geo functions don't blow up.
@@ -946,9 +947,13 @@ public class ClickHouseExpressionGenerator
                     new ClickHouseLancerDataType(term));
         }
         if (term instanceof sqlancer.clickhouse.ClickHouseType.JSON) {
-            // Simple JSON object literal cast to JSON. Two scalar fields with primitive values.
-            String literal = "{\\\"a\\\": " + (globalState.getRandomly().getInteger() % 1000) + ", \\\"b\\\": \\\"x"
-                    + (globalState.getRandomly().getInteger() % 10) + "\\\"}";
+            // Simple JSON object literal cast to JSON. The string passes through SQL's single-
+            // quoted-string escape -- double-quotes inside single-quoted strings don't need
+            // escaping at the SQL level, so we render the JSON with bare `"` characters and let
+            // the constant wrapper add the surrounding `'...'`. Two scalar fields, primitive
+            // values.
+            String literal = "{\"a\": " + (globalState.getRandomly().getInteger() % 1000) + ", \"b\": \"x"
+                    + (globalState.getRandomly().getInteger() % 10) + "\"}";
             return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(literal),
                     new ClickHouseLancerDataType(term));
         }
