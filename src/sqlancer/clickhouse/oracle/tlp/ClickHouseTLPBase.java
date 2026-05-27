@@ -76,6 +76,23 @@ public class ClickHouseTLPBase extends TernaryLogicPartitioningOracleBase<ClickH
         int small = Randomly.smallNumber();
         List<ClickHouseExpression> from = range(0, 1 + small)
                 .mapToObj(i -> gen.generateExpressionWithColumns(columns, 5)).collect(Collectors.toList());
+        // Sprinkle composite-access / geo-call expressions when the schema has the matching
+        // column shapes. Each is best-effort: if no candidate columns exist, the helper returns
+        // null and we skip. Workstreams 2, 4, 6 of the 2026-05-27 coverage expansion plan.
+        if (Randomly.getBooleanWithRatherLowProbability()) {
+            ClickHouseExpression composite = gen.generateCompositeAccess(columns);
+            if (composite != null) {
+                from = new java.util.ArrayList<>(from);
+                from.add(composite);
+            }
+        }
+        if (Randomly.getBooleanWithRatherLowProbability()) {
+            ClickHouseExpression geo = gen.generateGeoCall(columns);
+            if (geo != null) {
+                from = new java.util.ArrayList<>(from);
+                from.add(geo);
+            }
+        }
         select.setFetchColumns(from);
         select.setWhereClause(null);
         // ClickHouse-specific: emit a PREWHERE clause on the base SELECT with a small probability,

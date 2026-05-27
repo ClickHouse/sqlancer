@@ -299,6 +299,16 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
     }
 
     @Override
+    public void visit(ClickHouseExpression.ClickHousePostfixText op) {
+        // Render as `expr text` when expr is present, otherwise just the text. Used by the geo
+        // function emitter to ship a pre-rendered SQL fragment without re-wrapping it.
+        if (op.getExpression() != null) {
+            visit(op.getExpression());
+        }
+        sb.append(op.getText());
+    }
+
+    @Override
     public void visit(sqlancer.clickhouse.ast.ClickHouseTupleAccess access) {
         visit(access.getTuple());
         sb.append(".").append(access.getIndex());

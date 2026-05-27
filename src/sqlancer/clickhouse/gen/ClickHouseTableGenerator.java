@@ -396,9 +396,43 @@ public class ClickHouseTableGenerator {
         return null;
     }
 
-    // ORDER BY must reference at least one column -- "Sorting key cannot contain constants".
+    // ORDER BY must reference at least one column -- "Sorting key cannot contain constants" --
+    // and reject column references to composite / geo / nested / JSON-family / AggregateFunction
+    // types. CH rejects these as ORDER BY keys (Map/Tuple/Nested by error, JSON/Variant/Dynamic
+    // by missing comparator, AggregateFunction because the state has no total order). Workstreams
+    // 2/4/5/6/7.
     static boolean isValidOrderBy(ClickHouseExpression expr) {
-        return hasColumnReference(expr);
+        return hasColumnReference(expr) && !referencesUnorderableComposite(expr);
+    }
+
+    private static boolean referencesUnorderableComposite(ClickHouseExpression expr) {
+        if (expr instanceof ClickHouseColumnReference cr) {
+            sqlancer.clickhouse.ClickHouseType t = cr.getColumn().getType().getTypeTerm().unwrap();
+            return t instanceof sqlancer.clickhouse.ClickHouseType.Tuple
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.Map
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.Enum
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.Nested
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.JSON
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.Variant
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.Dynamic
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.Point
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.Ring
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.Polygon
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.MultiPolygon
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.AggregateFunctionType
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.SimpleAggregateFunctionType
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.IntervalType
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.Time
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.Time64;
+        }
+        if (expr instanceof BinaryOperation<?> bo) {
+            return referencesUnorderableComposite((ClickHouseExpression) bo.getLeft())
+                    || referencesUnorderableComposite((ClickHouseExpression) bo.getRight());
+        }
+        if (expr instanceof UnaryOperation<?> uo) {
+            return referencesUnorderableComposite((ClickHouseExpression) uo.getExpression());
+        }
+        return false;
     }
 
     // ORDER BY for dedupe engines must be a column reference, not a function-of-column. NaN-
@@ -410,14 +444,15 @@ public class ClickHouseTableGenerator {
     }
 
     // PARTITION BY rejects float keys ("Floating point partition key is not supported") and
-    // all-constant expressions ("Partition key cannot contain constants").
+    // all-constant expressions ("Partition key cannot contain constants"). Also reject the
+    // unorderable composite types.
     static boolean isValidPartitionBy(ClickHouseExpression expr) {
-        return hasColumnReference(expr) && !referencesFloatColumn(expr);
+        return hasColumnReference(expr) && !referencesFloatColumn(expr) && !referencesUnorderableComposite(expr);
     }
 
     // SAMPLE BY must reference a column (the actual primary-key check is server-side).
     static boolean isValidSampleBy(ClickHouseExpression expr) {
-        return hasColumnReference(expr);
+        return hasColumnReference(expr) && !referencesUnorderableComposite(expr);
     }
 
     private static boolean hasColumnReference(ClickHouseExpression expr) {

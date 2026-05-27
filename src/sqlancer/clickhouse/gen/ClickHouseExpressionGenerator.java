@@ -149,6 +149,96 @@ public class ClickHouseExpressionGenerator
         }
     }
 
+    /**
+     * Generate one access expression over a composite-typed column from {@code columns}:
+     * tuple positional access (tup.1), map key access (m['k']), JSON path (j.a or j.a.^Int64),
+     * Variant element (variantElement(v, 'Int32')), Dynamic element (dynamicElement(d, 'Int32')).
+     * Returns null if no composite columns are in scope.
+     *
+     * <p>Workstreams 2 / 6 of the 2026-05-27 coverage expansion plan.
+     */
+    public ClickHouseExpression generateCompositeAccess(List<ClickHouseColumnReference> columns) {
+        List<ClickHouseColumnReference> candidates = new java.util.ArrayList<>();
+        for (ClickHouseColumnReference c : columns) {
+            sqlancer.clickhouse.ClickHouseType t = c.getColumn().getType().getTypeTerm().unwrap();
+            if (t instanceof sqlancer.clickhouse.ClickHouseType.Tuple
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.Map
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.JSON
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.Variant
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.Dynamic) {
+                candidates.add(c);
+            }
+        }
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        ClickHouseColumnReference col = Randomly.fromList(candidates);
+        sqlancer.clickhouse.ClickHouseType t = col.getColumn().getType().getTypeTerm().unwrap();
+        if (t instanceof sqlancer.clickhouse.ClickHouseType.Tuple tup) {
+            int idx = 1 + (int) Randomly.getNotCachedInteger(0, tup.elements().size());
+            return new sqlancer.clickhouse.ast.ClickHouseTupleAccess(col, idx);
+        }
+        if (t instanceof sqlancer.clickhouse.ClickHouseType.Map m) {
+            ClickHouseExpression keyExpr = generateConstantFromTerm(m.keyType());
+            return new sqlancer.clickhouse.ast.ClickHouseMapAccess(col, keyExpr);
+        }
+        if (t instanceof sqlancer.clickhouse.ClickHouseType.JSON) {
+            // Pick 1-2 path segments; the inserted JSON literal uses keys 'a' and 'b' so emit
+            // those names. Optional type cast suffix selected at random.
+            java.util.List<String> path = Randomly.fromOptions(
+                    java.util.List.of("a"),
+                    java.util.List.of("b"));
+            String typeCast = Randomly.getBoolean() ? null : Randomly.fromOptions("Int64", "String");
+            return new sqlancer.clickhouse.ast.ClickHouseJsonPath(col, path, typeCast);
+        }
+        if (t instanceof sqlancer.clickhouse.ClickHouseType.Variant v) {
+            sqlancer.clickhouse.ClickHouseType alt = Randomly.fromList(v.alternatives());
+            String typeName = alt.toString();
+            return new sqlancer.clickhouse.ast.ClickHouseVariantElement(col, typeName, Randomly.getBoolean());
+        }
+        if (t instanceof sqlancer.clickhouse.ClickHouseType.Dynamic) {
+            String typeName = Randomly.fromOptions("Int32", "String", "Int64", "Float64");
+            return new sqlancer.clickhouse.ast.ClickHouseDynamicElement(col, typeName, Randomly.getBoolean());
+        }
+        return null;
+    }
+
+    /**
+     * Generate a geo function call over a Point or Polygon column. Returns null if no geo column
+     * is in scope. Workstream 4.
+     */
+    public ClickHouseExpression generateGeoCall(List<ClickHouseColumnReference> columns) {
+        List<ClickHouseColumnReference> candidates = new java.util.ArrayList<>();
+        for (ClickHouseColumnReference c : columns) {
+            sqlancer.clickhouse.ClickHouseType t = c.getColumn().getType().getTypeTerm().unwrap();
+            if (t instanceof sqlancer.clickhouse.ClickHouseType.Point
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.Polygon
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.Ring
+                    || t instanceof sqlancer.clickhouse.ClickHouseType.MultiPolygon) {
+                candidates.add(c);
+            }
+        }
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        ClickHouseColumnReference col = Randomly.fromList(candidates);
+        sqlancer.clickhouse.ClickHouseType t = col.getColumn().getType().getTypeTerm().unwrap();
+        ClickHouseGeoFunction fn = ClickHouseGeoFunction.pickFor(t, globalState.getRandomly());
+        if (fn == null) {
+            return null;
+        }
+        // Synthesise a second argument when needed.
+        StringBuilder sb = new StringBuilder(fn.getName()).append("(").append(ClickHouseToStringVisitor.asString(col));
+        if (fn.getShape() == ClickHouseGeoFunction.ArgShape.POINT_POLYGON) {
+            // pointInPolygon(point, polygon). The polygon literal is a constant.
+            sb.append(", ").append("[[(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)]]");
+        } else if (fn.getShape() == ClickHouseGeoFunction.ArgShape.POLYGON_POLYGON) {
+            sb.append(", ").append("[[(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)]]");
+        }
+        sb.append(")");
+        return new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, sb.toString(), null);
+    }
+
     public ClickHouseExpression generateAggregateExpressionWithColumns(List<ClickHouseColumnReference> columns,
             int remainingDepth) {
         List<ClickHouseColumnReference> numeric = numericColumns(columns);
