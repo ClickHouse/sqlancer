@@ -17,7 +17,7 @@ import com.clickhouse.data.ClickHouseDataType;
  * defensive fallback for type strings outside the parsed v2 surface.
  * </p>
  */
-public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHouseType.FixedString, ClickHouseType.Decimal, ClickHouseType.DateTime64Type, ClickHouseType.Array, ClickHouseType.Tuple, ClickHouseType.Enum, ClickHouseType.Time, ClickHouseType.Time64, ClickHouseType.Nullable, ClickHouseType.LowCardinality, ClickHouseType.Unknown {
+public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHouseType.FixedString, ClickHouseType.Decimal, ClickHouseType.DateTime64Type, ClickHouseType.Array, ClickHouseType.Tuple, ClickHouseType.Map, ClickHouseType.Enum, ClickHouseType.Time, ClickHouseType.Time64, ClickHouseType.Point, ClickHouseType.Ring, ClickHouseType.Polygon, ClickHouseType.MultiPolygon, ClickHouseType.Nested, ClickHouseType.JSON, ClickHouseType.Variant, ClickHouseType.Dynamic, ClickHouseType.IntervalType, ClickHouseType.AggregateFunctionType, ClickHouseType.SimpleAggregateFunctionType, ClickHouseType.Nullable, ClickHouseType.LowCardinality, ClickHouseType.Unknown {
 
     // true for integer/float primitives + Decimal; recurses through Nullable/LowCardinality. Array is
     // not numeric (the array itself is a composite); inner-array element type does not propagate.
@@ -481,6 +481,261 @@ public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHo
         @Override
         public String toString() {
             return "Time64(" + precision + ")";
+        }
+    }
+
+    // Map(K, V). Key must be a hashable type (String/FixedString/integer/UUID/Date/DateTime).
+    // Renders as Map(K, V). Workstream 2 of the 2026-05-27 coverage expansion plan.
+    record Map(ClickHouseType keyType, ClickHouseType valueType) implements ClickHouseType {
+
+        public Map {
+            Objects.requireNonNull(keyType, "keyType");
+            Objects.requireNonNull(valueType, "valueType");
+        }
+
+        @Override
+        public boolean isNumeric() {
+            return false;
+        }
+
+        @Override
+        public boolean supportsLiteralEmission() {
+            return keyType.supportsLiteralEmission() && valueType.supportsLiteralEmission();
+        }
+
+        @Override
+        public boolean hasNullSemantics() {
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return "Map(" + keyType + ", " + valueType + ")";
+        }
+
+        public static boolean isValidKey(ClickHouseType t) {
+            ClickHouseType u = t.unwrap();
+            if (u instanceof Primitive p) {
+                switch (p.kind()) {
+                case Int8: case Int16: case Int32: case Int64:
+                case UInt8: case UInt16: case UInt32: case UInt64:
+                case String: case UUID: case Date: case DateTime:
+                    return true;
+                default:
+                    return false;
+                }
+            }
+            return u instanceof FixedString;
+        }
+    }
+
+    // Geo: Point = Tuple(Float64, Float64); Ring = Array(Point); Polygon = Array(Ring);
+    // MultiPolygon = Array(Polygon). Represented as distinct records so DDL renders as the
+    // semantic name rather than the structural Tuple/Array form. Workstream 4.
+    record Point() implements ClickHouseType {
+
+        @Override
+        public boolean isNumeric() {
+            return false;
+        }
+
+        @Override
+        public boolean supportsLiteralEmission() {
+            return true;
+        }
+
+        @Override
+        public boolean hasNullSemantics() {
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return "Point";
+        }
+    }
+
+    record Ring() implements ClickHouseType {
+
+        @Override
+        public boolean isNumeric() { return false; }
+
+        @Override
+        public boolean supportsLiteralEmission() { return true; }
+
+        @Override
+        public boolean hasNullSemantics() { return false; }
+
+        @Override
+        public String toString() { return "Ring"; }
+    }
+
+    record Polygon() implements ClickHouseType {
+
+        @Override
+        public boolean isNumeric() { return false; }
+
+        @Override
+        public boolean supportsLiteralEmission() { return true; }
+
+        @Override
+        public boolean hasNullSemantics() { return false; }
+
+        @Override
+        public String toString() { return "Polygon"; }
+    }
+
+    record MultiPolygon() implements ClickHouseType {
+
+        @Override
+        public boolean isNumeric() { return false; }
+
+        @Override
+        public boolean supportsLiteralEmission() { return true; }
+
+        @Override
+        public boolean hasNullSemantics() { return false; }
+
+        @Override
+        public String toString() { return "MultiPolygon"; }
+    }
+
+    // Nested(name1 T1, name2 T2, ...). At the storage level this is parallel arrays per subfield;
+    // accessing the subfields in SELECT requires ARRAY JOIN. Workstream 7. DDL-only -- no scalar
+    // expression context until ARRAY JOIN lands in the expression generator.
+    record Nested(java.util.List<NestedField> fields) implements ClickHouseType {
+
+        public Nested {
+            Objects.requireNonNull(fields, "fields");
+            if (fields.isEmpty() || fields.size() > 6) {
+                throw new IllegalArgumentException("Nested field count out of range: " + fields.size());
+            }
+        }
+
+        @Override
+        public boolean isNumeric() { return false; }
+
+        @Override
+        public boolean supportsLiteralEmission() { return false; }
+
+        @Override
+        public boolean hasNullSemantics() { return false; }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder("Nested(");
+            for (int i = 0; i < fields.size(); i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                NestedField f = fields.get(i);
+                sb.append(f.name()).append(" ").append(f.type());
+            }
+            sb.append(")");
+            return sb.toString();
+        }
+    }
+
+    record NestedField(String name, ClickHouseType type) {
+        public NestedField {
+            Objects.requireNonNull(name, "name");
+            Objects.requireNonNull(type, "type");
+        }
+    }
+
+    // JSON v2 (CH 24.10+). Renders as 'JSON'. Subcolumn access j.a, j.b.^Int64 is part of the
+    // expression-generator surface, not the type. Workstream 6.
+    record JSON() implements ClickHouseType {
+        @Override public boolean isNumeric() { return false; }
+        @Override public boolean supportsLiteralEmission() { return true; }
+        @Override public boolean hasNullSemantics() { return false; }
+        @Override public String toString() { return "JSON"; }
+    }
+
+    // Variant(T1, T2, ...) -- tagged union of up to N alternatives. Workstream 6.
+    record Variant(java.util.List<ClickHouseType> alternatives) implements ClickHouseType {
+        public Variant {
+            Objects.requireNonNull(alternatives, "alternatives");
+            if (alternatives.isEmpty() || alternatives.size() > 6) {
+                throw new IllegalArgumentException("Variant alternative count out of range: " + alternatives.size());
+            }
+        }
+        @Override public boolean isNumeric() { return false; }
+        @Override public boolean supportsLiteralEmission() { return true; }
+        @Override public boolean hasNullSemantics() { return false; }
+        @Override public String toString() {
+            StringBuilder sb = new StringBuilder("Variant(");
+            for (int i = 0; i < alternatives.size(); i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                sb.append(alternatives.get(i));
+            }
+            sb.append(")");
+            return sb.toString();
+        }
+    }
+
+    // Dynamic -- runtime-typed value (CH 24.x+). Renders as 'Dynamic'. Workstream 6.
+    record Dynamic() implements ClickHouseType {
+        @Override public boolean isNumeric() { return false; }
+        @Override public boolean supportsLiteralEmission() { return true; }
+        @Override public boolean hasNullSemantics() { return false; }
+        @Override public String toString() { return "Dynamic"; }
+    }
+
+    // Interval(kind) -- used only in Date/DateTime arithmetic (not as a column type per se in CH).
+    // We represent it here as a type so the constant emitter can produce INTERVAL N <unit> literals.
+    // Workstream 3.
+    enum IntervalKind {
+        Nanosecond, Microsecond, Millisecond, Second, Minute, Hour, Day, Week, Month, Quarter, Year
+    }
+
+    record IntervalType(IntervalKind kind) implements ClickHouseType {
+        public IntervalType {
+            Objects.requireNonNull(kind, "kind");
+        }
+        @Override public boolean isNumeric() { return false; }
+        @Override public boolean supportsLiteralEmission() { return true; }
+        @Override public boolean hasNullSemantics() { return false; }
+        @Override public String toString() { return "Interval" + kind.name(); }
+    }
+
+    // AggregateFunction(name, T1, T2, ...) -- materialised intermediate state of an aggregate
+    // function. Reading the column requires finalizeAggregation(col) or the -Merge combinator.
+    // Workstream 5.
+    record AggregateFunctionType(String functionName, java.util.List<ClickHouseType> args)
+            implements ClickHouseType {
+        public AggregateFunctionType {
+            Objects.requireNonNull(functionName, "functionName");
+            Objects.requireNonNull(args, "args");
+        }
+        @Override public boolean isNumeric() { return false; }
+        @Override public boolean supportsLiteralEmission() { return false; }
+        @Override public boolean hasNullSemantics() { return false; }
+        @Override public String toString() {
+            StringBuilder sb = new StringBuilder("AggregateFunction(");
+            sb.append(functionName);
+            for (ClickHouseType a : args) {
+                sb.append(", ").append(a);
+            }
+            sb.append(")");
+            return sb.toString();
+        }
+    }
+
+    // SimpleAggregateFunction(name, T) -- restricted to associative-commutative aggregates that
+    // can store the running result inline rather than as opaque state. Workstream 5.
+    record SimpleAggregateFunctionType(String functionName, ClickHouseType arg) implements ClickHouseType {
+        public SimpleAggregateFunctionType {
+            Objects.requireNonNull(functionName, "functionName");
+            Objects.requireNonNull(arg, "arg");
+        }
+        @Override public boolean isNumeric() { return arg.isNumeric(); }
+        @Override public boolean supportsLiteralEmission() { return arg.supportsLiteralEmission(); }
+        @Override public boolean hasNullSemantics() { return false; }
+        @Override public String toString() {
+            return "SimpleAggregateFunction(" + functionName + ", " + arg + ")";
         }
     }
 

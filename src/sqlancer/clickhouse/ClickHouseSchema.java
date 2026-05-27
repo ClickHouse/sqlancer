@@ -95,6 +95,44 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
             if (inner instanceof ClickHouseType.Time64) {
                 return ClickHouseDataType.Time64;
             }
+            if (inner instanceof ClickHouseType.Map) {
+                return ClickHouseDataType.Map;
+            }
+            if (inner instanceof ClickHouseType.Point) {
+                return ClickHouseDataType.Point;
+            }
+            if (inner instanceof ClickHouseType.Ring) {
+                return ClickHouseDataType.Ring;
+            }
+            if (inner instanceof ClickHouseType.Polygon) {
+                return ClickHouseDataType.Polygon;
+            }
+            if (inner instanceof ClickHouseType.MultiPolygon) {
+                return ClickHouseDataType.MultiPolygon;
+            }
+            if (inner instanceof ClickHouseType.Nested) {
+                return ClickHouseDataType.Nested;
+            }
+            if (inner instanceof ClickHouseType.JSON) {
+                return ClickHouseDataType.JSON;
+            }
+            if (inner instanceof ClickHouseType.Variant) {
+                return ClickHouseDataType.Variant;
+            }
+            if (inner instanceof ClickHouseType.Dynamic) {
+                return ClickHouseDataType.Dynamic;
+            }
+            if (inner instanceof ClickHouseType.AggregateFunctionType) {
+                return ClickHouseDataType.AggregateFunction;
+            }
+            if (inner instanceof ClickHouseType.SimpleAggregateFunctionType) {
+                return ClickHouseDataType.SimpleAggregateFunction;
+            }
+            // Interval* maps to the IntervalSecond representative; CH's JDBC enum doesn't have a
+            // generic Interval, so we collapse to one entry.
+            if (inner instanceof ClickHouseType.IntervalType) {
+                return ClickHouseDataType.IntervalSecond;
+            }
             return ClickHouseDataType.Nothing;
         }
 
