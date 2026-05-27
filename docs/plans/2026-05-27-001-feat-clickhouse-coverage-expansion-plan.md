@@ -50,7 +50,16 @@ Per-oracle reproducer counts archived in `logs/per-oracle-<ts>/summary.tsv`.
 | TLPGroupBy | 1331 | self-induced regression from `80bfd4f0`; **fixed in `f84502bc`** (asUnion=false). Re-validation kicked off after the run; results pending. |
 | TLPAggregate | 24 | triaged: every reproducer was the SUM-of-SUM-over-groups pattern with NaN-producing functions (tan/sin/cos/sqrt/log) in the aggregate. **NOT real CH bugs** — TLP-with-inner-GROUP-BY false-positive class. **Fixed in `05c95f8e`** by removing inner GROUP BY emission. Re-validation needed. |
 
-**Net session impact on baseline:** 23 of 25 oracles already clean; the 2 outliers were both root-caused and fixed within the session. TLPGroupBy regression is from self-induced helper misuse; TLPAggregate's 24 surfaced false positives are exactly the kind of inner-GROUP-BY noise the plan flagged ("TLP+GROUP BY queries are a known TLP oracle limitation"), now eliminated by removing the inner-GROUP-BY emission.
+**Net session impact on baseline:** 23 of 25 oracles already clean; the 2 outliers were both root-caused and (mostly) fixed within the session.
+
+Final per-oracle reproducer counts after two rounds of fixes (jar built 2026-05-27 12:48Z):
+
+| Oracle | Initial | After UNION fix | After group-key-projection / inner-GROUP-BY fixes |
+|--------|---------|----------------|-------------------------------------------------|
+| TLPGroupBy | 1331 | 19 | **0** ✅ |
+| TLPAggregate | 24 | 24 | 23 — residual JOIN+WHERE+SUM+NaN family; same float-rendering class as the others, needs deeper triage |
+
+TLPGroupBy is now perfectly clean. TLPAggregate's residual is a separate false-positive class (NaN-producing functions in the SUM argument under JOIN+WHERE partition) that would need its own fix beyond this session.
 
 ### Session summary
 
