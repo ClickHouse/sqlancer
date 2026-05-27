@@ -11,7 +11,9 @@ import sqlancer.clickhouse.oracle.cast.ClickHouseCastOracle;
 import sqlancer.clickhouse.oracle.eet.ClickHouseEETOracle;
 import sqlancer.clickhouse.oracle.aggstate.ClickHouseAggregateStateRoundtripOracle;
 import sqlancer.clickhouse.oracle.dict.ClickHouseDictGetVsJoinOracle;
+import sqlancer.clickhouse.oracle.dynamicsub.ClickHouseDynamicSubcolumnOracle;
 import sqlancer.clickhouse.oracle.final_.ClickHouseFinalMergeOracle;
+import sqlancer.clickhouse.oracle.window.ClickHouseWindowEquivalenceOracle;
 import sqlancer.clickhouse.oracle.join.ClickHouseJoinAlgorithmOracle;
 import sqlancer.clickhouse.oracle.keycond.ClickHouseKeyConditionOracle;
 import sqlancer.clickhouse.oracle.parallelism.ClickHouseParallelismOracle;
@@ -260,6 +262,22 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseDictGetVsJoinOracle(globalState);
+        }
+    },
+    WindowEquivalence {
+        // Asserts well-known window-function vs non-window identities (count() OVER () == count(),
+        // sum(x) OVER cumulative at last-row == sum(x), etc.). Workstream 19.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseWindowEquivalenceOracle(globalState);
+        }
+    },
+    DynamicSubcolumn {
+        // Asserts dynamicElement(d, T) == CAST(d AS Nullable(T)). Short-circuits when no Dynamic
+        // column exists. Workstream 6.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseDynamicSubcolumnOracle(globalState);
         }
     }
 }
