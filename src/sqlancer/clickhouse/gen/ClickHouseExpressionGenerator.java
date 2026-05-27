@@ -344,15 +344,26 @@ public class ClickHouseExpressionGenerator
         if (columns.isEmpty()) {
             return null;
         }
+        // Exclude NTH_VALUE / LAG / LEAD: they require a 2nd argument (position / offset) which
+        // the single-argument AST shape doesn't carry. nth_value(col) without the 2nd arg is
+        // rejected by CH with NUMBER_OF_ARGUMENTS_DOESNT_MATCH (the smoke #7 51-of-53 family).
         sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind kind = Randomly.fromOptions(
-                sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind.values());
+                sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind.ROW_NUMBER,
+                sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind.RANK,
+                sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind.DENSE_RANK,
+                sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind.PERCENT_RANK,
+                sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind.CUME_DIST,
+                sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind.FIRST_VALUE,
+                sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind.LAST_VALUE,
+                sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind.SUM,
+                sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind.COUNT,
+                sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind.MIN,
+                sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind.MAX,
+                sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind.AVG);
         ClickHouseExpression argument = null;
-        // The aggregate-ish kinds take one argument over a numeric column; the rank/row-number
-        // family take none. LAG/LEAD take a column reference; FIRST_VALUE/LAST_VALUE take an
-        // expression over the row.
         switch (kind) {
         case SUM: case COUNT: case MIN: case MAX: case AVG:
-        case LAG: case LEAD: case FIRST_VALUE: case LAST_VALUE: case NTH_VALUE: {
+        case FIRST_VALUE: case LAST_VALUE: {
             List<ClickHouseColumnReference> numeric = numericColumns(columns);
             if (numeric.isEmpty()) {
                 return null;

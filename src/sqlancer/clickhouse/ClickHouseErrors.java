@@ -369,7 +369,15 @@ public final class ClickHouseErrors {
                 // accurateCastOrNull, etc., reject Enum->DateTime / Enum->FixedString. The
                 // Cast oracle emits these blindly over every column type.
                 "Unsupported data type in conversion function", "CANNOT_CONVERT_TYPE",
-                "Conversion from string with leading or trailing");
+                "Conversion from string with leading or trailing",
+                // MATERIALIZED column auto-cast to Enum from DateTime / Date / numeric source --
+                // rejected with 'Conversion from DateTime to Enum16(...) is not supported'.
+                "Conversion from DateTime to Enum", "Conversion from Date to Enum",
+                "Conversion from Int", "Conversion from UInt", "Conversion from Float",
+                "Conversion from String to Enum",
+                // Sister error from the CAST-OR-DEFAULT family when a MATERIALIZED expression
+                // doesn't have a viable cast to the declared column type.
+                "is not supported: In scope _CAST");
     }
 
     public static void addEnumErrors(ExpectedErrors errors) {
