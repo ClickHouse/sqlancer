@@ -577,6 +577,22 @@ public class ClickHouseExpressionGenerator
             sqlancer.clickhouse.ClickHouseType.EnumEntry entry = Randomly.fromList(en.entries());
             return ClickHouseCreateConstant.createStringConstant(entry.name());
         }
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Tuple t) {
+            // Emit a parenthesised, comma-separated list of element constants. Wrap in a CAST so
+            // the resulting expression is unambiguously a Tuple of the declared shape -- without
+            // the cast, ClickHouse infers a fresh anonymous tuple type whose element types may
+            // not match the column's declared element types (mismatch then rejected at INSERT).
+            StringBuilder sb = new StringBuilder("(");
+            for (int i = 0; i < t.elements().size(); i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                sb.append(ClickHouseToStringVisitor.asString(generateConstantFromTerm(t.elements().get(i))));
+            }
+            sb.append(")");
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(sb.toString()),
+                    new ClickHouseLancerDataType(term));
+        }
         throw new IgnoreMeException();
     }
 
