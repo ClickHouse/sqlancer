@@ -171,7 +171,14 @@ public final class ClickHouseErrors {
                 // and CH's float parser dies mid-token with CANNOT_PARSE_INPUT_ASSERTION_FAILED.
                 // Generator-side gap, not a CH bug. Observed 3 of 43 times in the same run.
                 "Cannot parse infinity", "Cannot parse NaN",
-                "CANNOT_PARSE_INPUT_ASSERTION_FAILED");
+                "CANNOT_PARSE_INPUT_ASSERTION_FAILED",
+                // MATERIALIZED expression type-mismatch with declared column type. The expression
+                // generator emits expressions over other columns without checking the target
+                // column's type, so e.g. `c1 FixedString(1) MATERIALIZED (c2)` where c2 is UInt32
+                // is syntactically valid but rejected because CAST AS FixedString only accepts
+                // String/FixedString sources. Pre-existing generator gap.
+                "CAST AS FixedString is only implemented", "default expression and column type are incompatible",
+                "NOT_IMPLEMENTED");
     }
 
     public static void addExpectedExpressionErrors(ExpectedErrors errors) {
@@ -250,6 +257,7 @@ public final class ClickHouseErrors {
     public static List<String> getStatisticsErrors() {
         return List.of("Set `allow_experimental_statistics`", "allow_experimental_statistics is set to 0",
                 "Statistics is not supported", "Unknown statistic kind", "Statistics of kind",
+                "Unknown statistics type", // CH HEAD form for unknown kind (note 'statistics' plural)
                 "STATISTICS_NOT_IMPLEMENTED", "Cannot create statistics", "SUPPORT_IS_DISABLED");
     }
 
@@ -297,7 +305,12 @@ public final class ClickHouseErrors {
     public static List<String> getEnumErrors() {
         return List.of("Unknown element", "UNKNOWN_ELEMENT_OF_ENUM", "Element of set in IN, VALUES or LIMIT",
                 "Cannot convert NULL to Enum", "Cannot convert string", "is not a valid Enum",
-                "Bad get: has Int", "Type mismatch in IN or VALUES section");
+                "Bad get: has Int", "Type mismatch in IN or VALUES section",
+                // Cast targets that don't accept Enum8/Enum16 as a source -- accurateCast,
+                // accurateCastOrNull, etc., reject Enum->DateTime / Enum->FixedString. The
+                // Cast oracle emits these blindly over every column type.
+                "Unsupported data type in conversion function", "CANNOT_CONVERT_TYPE",
+                "Conversion from string with leading or trailing");
     }
 
     public static void addEnumErrors(ExpectedErrors errors) {

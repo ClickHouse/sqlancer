@@ -28,10 +28,11 @@ public class ClickHouseColumnBuilder {
 
     // Statistics kinds accepted by ClickHouse on column declarations. tdigest works on numeric
     // columns (precision histograms); uniq works on every type (HLL-based distinct count);
-    // count_min works on String/numeric (frequency sketches). The picker filters by column type
-    // so the emitted DDL is server-accepted.
-    private static final List<String> STATISTICS_KINDS_NUMERIC = List.of("tdigest", "uniq", "count_min");
-    private static final List<String> STATISTICS_KINDS_STRING = List.of("uniq", "count_min");
+    // countmin works on String/numeric (frequency sketches). minmax works on ordered numerics.
+    // Note the spelling: CH HEAD accepts 'countmin' (no underscore); 'count_min' is rejected with
+    // INCORRECT_QUERY. The plan's spelling was wrong; this is the corrected form.
+    private static final List<String> STATISTICS_KINDS_NUMERIC = List.of("tdigest", "uniq", "countmin", "minmax");
+    private static final List<String> STATISTICS_KINDS_STRING = List.of("uniq", "countmin");
     private static final List<String> STATISTICS_KINDS_OTHER = List.of("uniq");
 
     public String createColumn(String columnName, ClickHouseProvider.ClickHouseGlobalState globalState,
