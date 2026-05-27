@@ -24,6 +24,14 @@ public class ClickHouseTLPGroupByOracle extends ClickHouseTLPBase {
         List<ClickHouseExpression> groupByColumns = IntStream.range(0, 1 + Randomly.smallNumber())
                 .mapToObj(i -> gen.generateExpressionWithColumns(columns, 5)).collect(Collectors.toList());
 
+        // Project ONLY the group-by keys (not the arbitrary fetch columns super.check() set).
+        // TLPBase populates fetchColumns with arbitrary expressions, which CH evaluates with
+        // implicit any() per group. Two different groups can collide on any() projection value
+        // (especially with NaN-producing functions over float keys), yielding LHS rows that
+        // differ in group identity but match on projection -- the outer DISTINCT * on the RHS
+        // collapses what LHS preserves. Projecting the group keys directly makes the row
+        // identity = the group identity, so the TLP partition invariant holds structurally.
+        select.setFetchColumns(groupByColumns);
         select.setGroupByClause(groupByColumns);
         select.setWhereClause(null);
         String originalQueryString = ClickHouseVisitor.asString(select);
