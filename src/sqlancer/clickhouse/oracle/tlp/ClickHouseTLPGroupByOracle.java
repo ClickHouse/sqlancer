@@ -41,10 +41,15 @@ public class ClickHouseTLPGroupByOracle extends ClickHouseTLPBase {
         // TLPGroupBy partitioning splits rows across {p, NOT p, p IS NULL} branches; each branch
         // re-applies GROUP BY independently. A group key that lands in more than one branch shows
         // up multiple times in the UNION ALL, with per-branch (not global) aggregate values --
-        // diverging from the original GROUP BY's per-key single row. UNION DISTINCT collapses the
-        // per-branch duplicates so the comparison is set-shaped on the surviving key projection.
-        // The plan acknowledges this loses some adversarial coverage; --tlp-groupby-strict opts
-        // back into UNION ALL for periodic strict sweeps.
+        // diverging from the original GROUP BY's per-key single row. Wrapping the UNION ALL in
+        // SELECT DISTINCT * (asUnion=false on the helper) collapses the per-branch duplicates so
+        // the comparison is set-shaped on the surviving projection. The plan acknowledges this
+        // loses some adversarial coverage; --tlp-groupby-strict opts back into UNION ALL for
+        // periodic strict sweeps.
+        //
+        // Note on the helper's asUnion flag: passing true emits a bare `UNION` which ClickHouse
+        // rejects with EXPECTED_ALL_OR_DISTINCT unless `union_default_mode` is set. asUnion=false
+        // uses the `SELECT DISTINCT * FROM (... UNION ALL ...)` shape which is portable.
         boolean strict = state.getClickHouseOptions().tlpGroupByStrict;
         List<String> secondResultSet;
         if (strict) {
@@ -52,7 +57,7 @@ public class ClickHouseTLPGroupByOracle extends ClickHouseTLPBase {
                     thirdQueryString, combinedString, true, state, errors);
         } else {
             secondResultSet = ComparatorHelper.getCombinedResultSetNoDuplicates(firstQueryString, secondQueryString,
-                    thirdQueryString, combinedString, true, state, errors);
+                    thirdQueryString, combinedString, false, state, errors);
         }
         ComparatorHelper.assumeResultSetsAreEqual(resultSet, secondResultSet, originalQueryString, combinedString,
                 state, strict ? ComparatorHelper.ComparisonMode.MULTISET : ComparatorHelper.ComparisonMode.SET);
