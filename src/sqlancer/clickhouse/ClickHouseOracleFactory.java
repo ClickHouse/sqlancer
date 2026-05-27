@@ -9,6 +9,7 @@ import sqlancer.clickhouse.oracle.cert.ClickHouseCERTOracle;
 import sqlancer.clickhouse.oracle.coddtest.ClickHouseCODDTestOracle;
 import sqlancer.clickhouse.oracle.cast.ClickHouseCastOracle;
 import sqlancer.clickhouse.oracle.eet.ClickHouseEETOracle;
+import sqlancer.clickhouse.oracle.final_.ClickHouseFinalMergeOracle;
 import sqlancer.clickhouse.oracle.join.ClickHouseJoinAlgorithmOracle;
 import sqlancer.clickhouse.oracle.keycond.ClickHouseKeyConditionOracle;
 import sqlancer.clickhouse.oracle.parallelism.ClickHouseParallelismOracle;
@@ -230,6 +231,15 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseViewEquivalenceOracle(globalState);
+        }
+    },
+    FinalMerge {
+        // Asserts that SELECT count() FROM t FINAL equals SELECT count() FROM t after an explicit
+        // synchronous OPTIMIZE TABLE t FINAL. Targets the merge/FINAL/dedupe-engine surface --
+        // the database10 LEFT-ANTI-JOIN bug class lives here. Workstream 10 of the coverage plan.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseFinalMergeOracle(globalState);
         }
     }
 }
