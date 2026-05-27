@@ -61,6 +61,23 @@ Final per-oracle reproducer counts after two rounds of fixes (jar built 2026-05-
 
 TLPGroupBy is now perfectly clean. TLPAggregate's residual is a separate false-positive class (NaN-producing functions in the SUM argument under JOIN+WHERE partition) that would need its own fix beyond this session.
 
+### Post-Enum/Time/Time64 smoke validation (3 iterations)
+
+After adding Enum + Time/Time64 (workstreams 2/3 partial) and the engine-pool unpin, ran 4-oracle (TLPWhere/JoinAlgorithm/Cast/NoREC) × 5-min smokes to catch fast regressions:
+
+| Smoke | Result | Fixes |
+|-------|--------|-------|
+| #1 (after Enum + engine unpin) | TLPWhere 1 (SummingMergeTree+String dedupe) | engine pool made schema-aware (`1f5a5261`) |
+| #2 (after schema-aware engine) | TLPWhere 1 + JoinAlgorithm 1 + Cast 1 | three orthogonal generator gaps surfaced |
+| #3 (after 3 triage fixes) | **all 0** ✅ | smoke loop closed |
+
+The 3 orthogonal fixes from smoke #2:
+- `count_min` → `countmin` (statistics kind spelling on CH HEAD)
+- Enum→non-Enum CAST rejections absorbed in `addEnumErrors()`
+- MATERIALIZED expression / column-type mismatch absorbed in `addExpectedExpressionErrors()`
+
+The session's empirical-validation loop caught and fixed every issue it introduced — exactly the operating mode the plan's "correctness foundation" was designed to enable.
+
 ### Session summary
 
 Critical path complete: **correctness foundation → ALTER → mutations → FINAL diff oracle** (with engine pool re-unpinned so the diff oracle has work to do). Plus the smaller cross-cutting additions (codec breadth, statistics inline + SEMR). 9 workstreams remain pending; they were each scoped as standalone PRs by the plan's own framing and are individually multi-hour efforts. Defer to follow-up sessions.
