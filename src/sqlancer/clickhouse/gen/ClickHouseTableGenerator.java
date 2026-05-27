@@ -65,7 +65,6 @@ public class ClickHouseTableGenerator {
     // via isValidOrderByForDedupeEngine, which refuses function-of-numeric ORDER BY when the
     // engine is Replacing or Summing -- column-only ORDER BY is still accepted.
     public void start() {
-        ClickHouseEngine engine = pickEngine();
         ClickHouseExpressionGenerator gen = new ClickHouseExpressionGenerator(globalState).allowAggregates(false);
         sb.append("CREATE ");
         sb.append("TABLE ");
@@ -84,6 +83,12 @@ public class ClickHouseTableGenerator {
             columns.add(ClickHouseSchema.ClickHouseColumn.createDummy(ClickHouseCommon.createColumnName(i), null,
                     globalState));
         }
+        // Engine selection is schema-aware: dedupe engines (Replacing/Summing) require columns
+        // with appropriate type semantics, otherwise they degenerate into a "dedupe by ORDER BY
+        // key" engine that produces non-deterministic visible cardinality across SELECTs (the
+        // 2026-05-20 false-positive cluster). pickEngine() falls back to plain MergeTree when
+        // the column shape can't support the dedupe semantics.
+        ClickHouseEngine engine = pickEngine(columns);
         for (int i = 0; i < nrColumns; i++) {
             if (i != 0) {
                 sb.append(", ");
@@ -212,18 +217,27 @@ public class ClickHouseTableGenerator {
     }
 
     // Weighted engine pick: plain MergeTree dominates so historical coverage is preserved;
-    // Replacing/Summing variants land at ~10% each so the FINAL diff oracle, the OPTIMIZE+post-
-    // merge surface, and the merge-on-read dedupe code paths see traffic without dominating
-    // false-positive count.
-    private static ClickHouseEngine pickEngine() {
+    // Replacing/Summing variants are eligible when the column shape supports them. The schema-
+    // awareness check looks for a viable ver/sum column; otherwise the dedupe engine collapses
+    // every row into one (no version differentiator, nothing to sum) and visible cardinality
+    // drifts across SELECTs as the merge thread runs.
+    private ClickHouseEngine pickEngine(List<ClickHouseSchema.ClickHouseColumn> cols) {
         int roll = (int) Randomly.getNotCachedInteger(0, 100);
         if (roll < 80) {
             return ClickHouseEngine.MergeTree;
         }
         if (roll < 90) {
-            return ClickHouseEngine.ReplacingMergeTree;
+            // ReplacingMergeTree needs a version-column candidate (UInt*/Date*/DateTime*).
+            // Without one, the engine has no tiebreaker between same-PK rows and just keeps the
+            // last-merged. Fall back to plain MergeTree.
+            boolean hasVerCandidate = cols.stream().anyMatch(this::isValidReplacingVer);
+            return hasVerCandidate ? ClickHouseEngine.ReplacingMergeTree : ClickHouseEngine.MergeTree;
         }
-        return ClickHouseEngine.SummingMergeTree;
+        // SummingMergeTree needs at least one numeric column to sum. Without one the engine just
+        // dedupes by ORDER BY key, which is the same non-deterministic-cardinality shape the
+        // 2026-05-20 false-positive cluster surfaced.
+        boolean hasSumCandidate = cols.stream().anyMatch(this::isValidSummingCol);
+        return hasSumCandidate ? ClickHouseEngine.SummingMergeTree : ClickHouseEngine.MergeTree;
     }
 
     // ReplacingMergeTree(ver) requires UInt*/Date/DateTime; SummingMergeTree(col[, ...]) requires
