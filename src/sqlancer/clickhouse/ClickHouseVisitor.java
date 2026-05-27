@@ -68,6 +68,8 @@ public interface ClickHouseVisitor {
 
     void visit(sqlancer.clickhouse.ast.ClickHouseLambda lambda);
 
+    void visit(sqlancer.clickhouse.ast.ClickHouseWindowFunction window);
+
     default void visit(ClickHouseExpression expr) {
         if (expr instanceof ClickHouseBinaryFunctionOperation) {
             visit((ClickHouseBinaryFunctionOperation) expr);
@@ -99,6 +101,8 @@ public interface ClickHouseVisitor {
             visit((ClickHouseAliasOperation) expr);
         } else if (expr instanceof sqlancer.clickhouse.ast.ClickHouseLambda) {
             visit((sqlancer.clickhouse.ast.ClickHouseLambda) expr);
+        } else if (expr instanceof sqlancer.clickhouse.ast.ClickHouseWindowFunction) {
+            visit((sqlancer.clickhouse.ast.ClickHouseWindowFunction) expr);
         } else if (expr instanceof ClickHouseExpression.ClickHouseJoinOnClause) {
             visit((ClickHouseExpression.ClickHouseJoinOnClause) expr);
         } else {

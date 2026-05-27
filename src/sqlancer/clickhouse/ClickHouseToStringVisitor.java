@@ -299,6 +299,40 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
     }
 
     @Override
+    public void visit(sqlancer.clickhouse.ast.ClickHouseWindowFunction window) {
+        sb.append(window.renderName()).append("(");
+        if (window.getArgument() != null) {
+            visit(window.getArgument());
+        }
+        sb.append(")");
+        sb.append(" OVER (");
+        boolean spaceNeeded = false;
+        if (!window.getPartitionBy().isEmpty()) {
+            sb.append("PARTITION BY ");
+            for (int i = 0; i < window.getPartitionBy().size(); i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                visit(window.getPartitionBy().get(i));
+            }
+            spaceNeeded = true;
+        }
+        if (!window.getOrderBy().isEmpty()) {
+            if (spaceNeeded) {
+                sb.append(" ");
+            }
+            sb.append("ORDER BY ");
+            for (int i = 0; i < window.getOrderBy().size(); i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                visit(window.getOrderBy().get(i));
+            }
+        }
+        sb.append(")");
+    }
+
+    @Override
     public void visit(sqlancer.clickhouse.ast.ClickHouseLambda lambda) {
         // Render as `(p1, p2) -> body`. Single-param form `p -> body` is also valid in CH but we
         // always parenthesise for unambiguity.
