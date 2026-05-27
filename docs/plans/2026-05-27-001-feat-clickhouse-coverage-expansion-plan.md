@@ -14,8 +14,8 @@ The **entire critical path** is done. Plus codec/statistics breadth.
 | # | Workstream | Status | Commit / note |
 |---|-----------|--------|--------|
 | 1 | Correctness foundation (TLPGroupBy + ComparatorHelper) | **landed** | `80bfd4f0` + `f84502bc` (UNION-rejection fix) |
-| 2 | Composite types (Tuple, Map, Enum) | pending | — |
-| 3 | Temporal types (Time, Time64, Interval) | pending | — |
+| 2 | Composite types (Tuple, Map, Enum) | partial | Enum: `224b9ed9` (picker + constant); Tuple: `c9fc7729` (constant only, no picker); Map: pending |
+| 3 | Temporal types (Time, Time64, Interval) | partial | Time/Time64: `19091a67` (picker + constant); Interval: pending |
 | 4 | Geo types (Point/Ring/Polygon/MultiPolygon) | pending | — |
 | 5 | AggregateFunction + SimpleAggregateFunction | pending | depends on 2 |
 | 6 | JSON, Variant, Dynamic | pending | plan: largest single workstream |
