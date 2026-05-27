@@ -83,7 +83,13 @@ public abstract class ClickHouseExpression implements Expression<ClickHouseColum
             ASOF_INNER, ASOF_LEFT_OUTER,
             // PASTE JOIN: positional zip; no ON clause; both sides must have the same row count.
             // The generator drives this via constrained numbers() table-function arguments.
-            PASTE
+            PASTE,
+            // Strictness layer (workstream 15 plan spec). DISTINCT/ALL strictness modifiers
+            // distinguish multiset vs set join output. CH's analyzer treats `ANY INNER` already
+            // as the strictness=ANY case; pure ALL/DISTINCT variants exist for completeness but
+            // most reads on MergeTree-family ALREADY default to ALL. Tag them here so the
+            // generator can pick the explicit-strictness shapes when validating analyzer parity.
+            INNER_ALL, INNER_DISTINCT
         }
 
         private final ClickHouseTableReference leftTable;

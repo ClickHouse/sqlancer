@@ -272,6 +272,12 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
         } else if (type == ClickHouseExpression.ClickHouseJoin.JoinType.PASTE) {
             sb.append(" PASTE JOIN ");
             visit(join.getRightTable());
+        } else if (type == ClickHouseExpression.ClickHouseJoin.JoinType.INNER_ALL) {
+            sb.append(" ALL INNER JOIN ");
+            visit(join.getRightTable());
+        } else if (type == ClickHouseExpression.ClickHouseJoin.JoinType.INNER_DISTINCT) {
+            sb.append(" DISTINCT INNER JOIN ");
+            visit(join.getRightTable());
         } else {
             throw new UnsupportedOperationException();
         }
