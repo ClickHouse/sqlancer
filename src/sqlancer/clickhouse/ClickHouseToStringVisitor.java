@@ -299,6 +299,22 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
     }
 
     @Override
+    public void visit(sqlancer.clickhouse.ast.ClickHouseLambda lambda) {
+        // Render as `(p1, p2) -> body`. Single-param form `p -> body` is also valid in CH but we
+        // always parenthesise for unambiguity.
+        sb.append("(");
+        java.util.List<String> params = lambda.getParams();
+        for (int i = 0; i < params.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(params.get(i));
+        }
+        sb.append(") -> ");
+        visit(lambda.getBody());
+    }
+
+    @Override
     public void visit(ClickHouseBinaryFunctionOperation func) {
         sb.append(func.getOperatorRepresentation());
         sb.append("(");
