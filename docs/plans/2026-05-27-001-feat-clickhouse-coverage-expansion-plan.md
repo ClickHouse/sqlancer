@@ -48,6 +48,56 @@ Per-oracle reproducer counts archived in `logs/per-oracle-<ts>/summary.tsv`.
 | TLPGroupBy | 1331 | self-induced regression from `80bfd4f0`; **fixed in `f84502bc`** (asUnion=false). Re-validation kicked off after the run; results pending. |
 | TLPAggregate | 24 | triaged: every reproducer was the SUM-of-SUM-over-groups pattern with NaN-producing functions (tan/sin/cos/sqrt/log) in the aggregate. **NOT real CH bugs** — TLP-with-inner-GROUP-BY false-positive class. **Fixed in `05c95f8e`** by removing inner GROUP BY emission. Re-validation needed. |
 
+### Plan-fill pass (end of session)
+
+After the initial structural completion, a second pass added the deeper items the plan called for that the first pass had left as scaffolding:
+
+| Plan item | Status |
+|-----------|--------|
+| ComparatorHelper unit tests (multiset / ULP / NaN / mode enum) | **landed** — 10 new tests in `test/sqlancer/TestComparatorHelper.java`, all passing |
+| Tuple positional access (`tup.1`) AST | **landed** — `ClickHouseTupleAccess` |
+| Map key access (`m['k']`) AST | **landed** — `ClickHouseMapAccess` |
+| JSON path access (`j.a.^Int64`) AST | **landed** — `ClickHouseJsonPath` |
+| Variant element access | **landed** — `ClickHouseVariantElement` (function + subcolumn forms) |
+| Dynamic element access | **landed** — `ClickHouseDynamicElement` |
+| ORDER BY exclusion of composite / geo / nested / JSON-family / AggregateFunction / Time / Interval | **landed** — `isValidOrderByForDedupe` + `referencesUnorderableComposite` |
+| `ClickHouseGeoFunction` enum + arity-aware emission | **landed** — `pointInPolygon`, `polygonAreaCartesian/Spherical`, `polygonsDistanceCartesian/Spherical`, `polygonsWithinCartesian` |
+| Higher-order array functions (arrayMap/arrayFilter/etc.) | **landed** — `generateHigherOrderArrayCall` |
+| Window function emission (no frame yet) | **landed** — `generateWindowCall` |
+| `ClickHouseWindowEquivalenceOracle` | **landed** — 3 built-in equivalences (count OVER, max row_number == count, cumulative-sum-at-last-row == sum) |
+| `ClickHouseDynamicSubcolumnOracle` | **landed** — `dynamicElement(d, T) == CAST(d AS Nullable(T))` |
+| `ClickHouseAlterColumnStatement` AST | **landed** — `ClickHouseDdlStatement` hierarchy |
+| `ClickHouseMutationStatement` AST | **landed** |
+| `ClickHouseAlterStatistics` AST + `ClickHouseStatisticsGenerator` (MODIFY/MATERIALIZE/DROP STATISTICS) | **landed** |
+| `ClickHouseAccessDdlStatement` + `ClickHouseAccessDdlGenerator` (Quota/Profile/RowPolicy) | **landed** |
+| `ClickHouseDictionaryDdlStatement` + `ClickHouseDictionaryGenerator` | **landed** |
+| `dictGet` in expression generator | **landed** — `generateDictGet` |
+| `requiresSubcolumnAccess(type)` type filter | **landed** |
+| AggregateFunction picker emission | **landed** — sum/min/max/any/anyLast/count with primitive arg |
+| Date + Interval arithmetic | **landed** — `(date + INTERVAL N UNIT)` + `dateAdd/dateSub` forms |
+| Scalar subquery in SELECT | **landed** — `generateScalarSubquery` |
+| Alias-CTE emission | **landed** in TLPBase |
+| ASOF / PASTE JoinType + INNER_ALL / INNER_DISTINCT strictness | **landed** in `JoinType` enum + visitor |
+| `apply_mutations_on_fly` + `do_not_merge_across_partitions_select_final` in SEMR | **landed** |
+| `ClickHouseErrors.java` top-of-file workstream index | **landed** |
+
+### Still deferred (explicit non-landings)
+
+| Plan item | Reason |
+|-----------|--------|
+| ASOF/PASTE generator emission in `getRandomJoinClauses` | ASOF needs an inequality-predicate ON-clause generator; PASTE needs matched-cardinality via `numbers()` table function. AST + visitor are in place; generator-side picking deferred |
+| Window frame clauses (ROWS/RANGE/GROUPS + UNBOUNDED/CURRENT_ROW/n_PRECEDING/n_FOLLOWING + EXCLUDE) | Plan called for full frame coverage; current emission uses default frame |
+| `NTILE` in window function Kind enum | Skipped — the plan listed it but it's edge-case |
+| Subquery-CTE form (`WITH name AS (SELECT ...)`) with FROM-target binding | Alias-CTE form landed; subquery-CTE needs FROM-target restructuring |
+| `FromTarget` sealed type (TableRef/Subquery/JoinTree) | Existing `fromClauses: List<Expression>` already accepts arbitrary expressions including SELECTs; sealed-type refactor not done |
+| `RowPolicyOracle` centralization refactor (workstream 12 plan body) | Existing `ClickHouseRowPolicyOracle` works as-is; the new `AccessDdlGenerator` is a parallel emission path rather than a replacement |
+| Mutation barrier auto-invocation in Provider after MUTATION action | Helper `waitForMutations` exists; not auto-called after each emit |
+| AggregateFunction finalize-aggregation auto-wrap at SELECT | Picker emits AggregateFunction columns but their constants throw `IgnoreMeException` so the columns stay empty — no read-side wrap actually needed in current emission |
+| `lambdaParamType` propagation through Nullable arrays | Lambda body always uses bare `x`; no Nullable propagation pass |
+| JSON normalisation hook in ComparatorHelper | Plan's recommendation was to refuse comparison; `requiresSubcolumnAccess` filter is the equivalent gate |
+| Cross-version sanity vs `clickhouse-server:24.10` LTS | Not run; HEAD only |
+| Per-workstream PRs | All landed on `nik/clickhouse-add-pqs-cert-coddtest` |
+
 **Net session impact on baseline:** 23 of 25 oracles already clean; the 2 outliers were both root-caused and (mostly) fixed within the session.
 
 Final per-oracle reproducer counts after two rounds of fixes (jar built 2026-05-27 12:48Z):
