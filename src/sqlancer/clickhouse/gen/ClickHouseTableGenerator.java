@@ -58,14 +58,14 @@ public class ClickHouseTableGenerator {
         return new SQLQueryAdapter(chTableGenerator.sb.toString(), errors, true);
     }
 
+    // Engine pool widening (workstream 10 of the 2026-05-27 coverage expansion plan): plain
+    // MergeTree dominates the picker but Replacing/Summing variants are now eligible at low
+    // probability. The 2026-05-20 false-positive cluster (NoREC visible-cardinality drift on
+    // dedupe engines whose ORDER BY contained NaN-producing function calls) is mitigated below
+    // via isValidOrderByForDedupeEngine, which refuses function-of-numeric ORDER BY when the
+    // engine is Replacing or Summing -- column-only ORDER BY is still accepted.
     public void start() {
-        // Dedupe-engine variants (Replacing/Summing) generate too many false-positive oracle trips:
-        // their visible cardinality drifts non-deterministically when ORDER BY expressions return
-        // NaN (log/sqrt of negative, etc.) or when many same-key rows collapse mid-test. The
-        // 2026-05-20 25-oracle smoke had 4 of 4 NoREC reproducers attributable to this class. Pin
-        // to plain MergeTree until the engine-specific issues are addressed at the generator level
-        // (e.g. refuse function-of-numeric ORDER BY for dedupe engines).
-        ClickHouseEngine engine = ClickHouseEngine.MergeTree;
+        ClickHouseEngine engine = pickEngine();
         ClickHouseExpressionGenerator gen = new ClickHouseExpressionGenerator(globalState).allowAggregates(false);
         sb.append("CREATE ");
         sb.append("TABLE ");
@@ -151,7 +151,15 @@ public class ClickHouseTableGenerator {
                     : " ORDER BY tuple() ";
 
             if (Randomly.getBoolean()) {
-                ClickHouseExpression expr = generateValidated(exprFactory, ClickHouseTableGenerator::isValidOrderBy);
+                // For dedupe engines (Replacing/Summing), function-of-numeric ORDER BY produces
+                // NaN under common float arithmetic (log/sqrt of negative, division by zero)
+                // which the dedupe key bucketer treats as a hash collision, collapsing rows
+                // non-deterministically. Refuse those shapes here -- column-only ORDER BY is
+                // still permitted via isValidOrderByForDedupe.
+                java.util.function.Predicate<ClickHouseExpression> orderByValidator = isDedupeEngine(engine)
+                        ? ClickHouseTableGenerator::isValidOrderByForDedupe
+                        : ClickHouseTableGenerator::isValidOrderBy;
+                ClickHouseExpression expr = generateValidated(exprFactory, orderByValidator);
                 if (expr != null) {
                     sb.append(" ORDER BY ");
                     sb.append(ClickHouseToStringVisitor.asString(expr));
@@ -197,6 +205,25 @@ public class ClickHouseTableGenerator {
     private static boolean isMergeTreeFamily(ClickHouseEngine engine) {
         return engine == ClickHouseEngine.MergeTree || engine == ClickHouseEngine.ReplacingMergeTree
                 || engine == ClickHouseEngine.SummingMergeTree;
+    }
+
+    private static boolean isDedupeEngine(ClickHouseEngine engine) {
+        return engine == ClickHouseEngine.ReplacingMergeTree || engine == ClickHouseEngine.SummingMergeTree;
+    }
+
+    // Weighted engine pick: plain MergeTree dominates so historical coverage is preserved;
+    // Replacing/Summing variants land at ~10% each so the FINAL diff oracle, the OPTIMIZE+post-
+    // merge surface, and the merge-on-read dedupe code paths see traffic without dominating
+    // false-positive count.
+    private static ClickHouseEngine pickEngine() {
+        int roll = (int) Randomly.getNotCachedInteger(0, 100);
+        if (roll < 80) {
+            return ClickHouseEngine.MergeTree;
+        }
+        if (roll < 90) {
+            return ClickHouseEngine.ReplacingMergeTree;
+        }
+        return ClickHouseEngine.SummingMergeTree;
     }
 
     // ReplacingMergeTree(ver) requires UInt*/Date/DateTime; SummingMergeTree(col[, ...]) requires
@@ -358,6 +385,14 @@ public class ClickHouseTableGenerator {
     // ORDER BY must reference at least one column -- "Sorting key cannot contain constants".
     static boolean isValidOrderBy(ClickHouseExpression expr) {
         return hasColumnReference(expr);
+    }
+
+    // ORDER BY for dedupe engines must be a column reference, not a function-of-column. NaN-
+    // producing functions (log/sqrt of negative, divide-by-zero) on the ORDER BY key collapse
+    // distinct rows into the same dedupe bucket non-deterministically, which presents to oracles
+    // as visible-cardinality drift between two SELECTs against the same table.
+    static boolean isValidOrderByForDedupe(ClickHouseExpression expr) {
+        return expr instanceof ClickHouseColumnReference;
     }
 
     // PARTITION BY rejects float keys ("Floating point partition key is not supported") and
