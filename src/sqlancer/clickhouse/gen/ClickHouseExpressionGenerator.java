@@ -240,6 +240,61 @@ public class ClickHouseExpressionGenerator
     }
 
     /**
+     * Date / DateTime + Interval arithmetic. Workstream 3 of the 2026-05-27 plan.
+     *
+     * <p>Returns one of:
+     * <ul>
+     *   <li>{@code dateCol + INTERVAL N DAY}
+     *   <li>{@code dateCol - INTERVAL N HOUR}
+     *   <li>{@code dateAdd(YEAR, N, dateCol)} / {@code dateSub(...)} -- the function-form alias
+     * </ul>
+     * or null when no Date / DateTime column is in scope.
+     */
+    public ClickHouseExpression generateDateIntervalArith(List<ClickHouseColumnReference> columns) {
+        List<ClickHouseColumnReference> dateCols = new java.util.ArrayList<>();
+        for (ClickHouseColumnReference c : columns) {
+            com.clickhouse.data.ClickHouseDataType t = c.getColumn().getType().getType();
+            if (t == com.clickhouse.data.ClickHouseDataType.Date || t == com.clickhouse.data.ClickHouseDataType.Date32
+                    || t == com.clickhouse.data.ClickHouseDataType.DateTime
+                    || t == com.clickhouse.data.ClickHouseDataType.DateTime64) {
+                dateCols.add(c);
+            }
+        }
+        if (dateCols.isEmpty()) {
+            return null;
+        }
+        ClickHouseColumnReference col = Randomly.fromList(dateCols);
+        String unit = Randomly.fromOptions("SECOND", "MINUTE", "HOUR", "DAY", "WEEK", "MONTH", "QUARTER", "YEAR");
+        int n = 1 + (int) Randomly.getNotCachedInteger(0, 365);
+        String sign = Randomly.getBoolean() ? "+" : "-";
+        boolean functionForm = Randomly.getBoolean();
+        String sql;
+        if (functionForm) {
+            String fn = sign.equals("+") ? "dateAdd" : "dateSub";
+            sql = fn + "(" + unit + ", " + n + ", " + ClickHouseToStringVisitor.asString(col) + ")";
+        } else {
+            sql = "(" + ClickHouseToStringVisitor.asString(col) + " " + sign + " INTERVAL " + n + " " + unit + ")";
+        }
+        return new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, sql, null);
+    }
+
+    /**
+     * Scalar subquery: {@code (SELECT count() FROM other_table)} renderable as an expression.
+     * Workstream 16. Returns null if there are no other tables to read from.
+     */
+    public ClickHouseExpression generateScalarSubquery() {
+        java.util.List<sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable> tables = globalState.getSchema()
+                .getDatabaseTables();
+        if (tables.isEmpty()) {
+            return null;
+        }
+        sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable t = Randomly.fromList(tables);
+        String agg = Randomly.fromOptions("count()", "min(1)", "max(1)");
+        String sql = "(SELECT " + agg + " FROM " + globalState.getDatabaseName() + "." + t.getName() + ")";
+        return new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, sql, null);
+    }
+
+    /**
      * Higher-order function call over an Array column with a synthesised lambda body.
      * arrayMap / arrayFilter / arrayCount / arrayExists / arrayAll / arraySort / arrayFirst /
      * arrayLast / arrayFold / arrayMin / arrayMax / arraySum / arrayAvg. Workstream 22.

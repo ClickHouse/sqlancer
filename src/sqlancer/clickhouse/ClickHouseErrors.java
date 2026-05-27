@@ -4,6 +4,29 @@ import java.util.List;
 
 import sqlancer.common.query.ExpectedErrors;
 
+/**
+ * Expected-error catalogue index (per-workstream blocks, plan-aligned).
+ *
+ * <pre>
+ *   getExpectedExpressionErrors  -- always-on baseline (parser-side gaps, numeric-domain rejections,
+ *                                   MATERIALIZED type-mismatch, CANNOT_PARSE_INPUT)
+ *   getSessionSettingsErrors     -- SET / SETTINGS clause unknown-name and bad-value rejections
+ *   getSetOpErrors               -- INTERSECT / EXCEPT column-count + type mismatches
+ *   getCombinatorErrors          -- aggregate-combinator chain rejections (-If, -OrNull, etc.)
+ *   getArrayJoinErrors           -- ARRAY JOIN argument-type rejections
+ *   getStatisticsErrors          -- ALTER STATISTICS unknown-kind and experimental-flag-off
+ *   getAlterErrors               -- ALTER TABLE column-level rejections (workstream 8)
+ *   getMutationErrors            -- ALTER UPDATE/DELETE + lightweight DELETE failure modes (W9)
+ *   getEnumErrors                -- Enum cross-type CAST rejections (workstream 2)
+ *   getTypeExpansionErrors       -- composite / geo / nested / JSON-family / AggregateFunction
+ *                                   cross-type rejections (workstreams 2/3/4/5/6/7)
+ * </pre>
+ *
+ * <p>Workstream-1 risk note: globally tolerating a substring can mask a real bug for an
+ * unrelated oracle. Per-oracle scoped allowlists are tracked separately in the triage-automation
+ * plan; until that lands, additions to this catalogue should err on the side of multi-word
+ * patterns so they don't absorb unrelated messages.
+ */
 public final class ClickHouseErrors {
 
     private ClickHouseErrors() {

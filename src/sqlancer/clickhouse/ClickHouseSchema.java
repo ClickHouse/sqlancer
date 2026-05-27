@@ -299,8 +299,12 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
                 }
                 return new ClickHouseType.Nested(fields);
             }
-            if (roll < 99) {
-                // JSON / Variant / Dynamic -- recent CH JSON v2 family.
+            // The remaining 2% of the roll range covers JSON-family, AggregateFunction, and Enum.
+            // Each gets sub-divided uniformly via a fresh roll so the picker stays sensitive to
+            // the same total weighting across the tail. Workstreams 2/5/6.
+            int tailRoll = (int) Randomly.getNotCachedInteger(0, 3);
+            if (tailRoll == 0) {
+                // JSON / Variant / Dynamic (workstream 6).
                 int jvdRoll = (int) Randomly.getNotCachedInteger(0, 3);
                 if (jvdRoll == 0) {
                     return new ClickHouseType.JSON();
@@ -311,6 +315,17 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
                     return new ClickHouseType.Variant(alts);
                 }
                 return new ClickHouseType.Dynamic();
+            }
+            if (tailRoll == 1) {
+                // AggregateFunction(name, ArgType) and SimpleAggregateFunction sister entry.
+                // Workstream 5 of the plan.
+                String aggName = Randomly.fromOptions("sum", "min", "max", "any", "anyLast", "count");
+                Kind argKind = Randomly.fromOptions(Kind.Int32, Kind.Int64, Kind.UInt32, Kind.UInt64, Kind.Float64);
+                if (Randomly.getBoolean()) {
+                    return new ClickHouseType.AggregateFunctionType(aggName,
+                            java.util.List.of(new Primitive(argKind)));
+                }
+                return new ClickHouseType.SimpleAggregateFunctionType(aggName, new Primitive(argKind));
             }
             // Remaining 1% -- Enum8 / Enum16 with a small entry set. The value domain is constrained
             // to the appropriate signed range; entry names are short identifiers so the DDL stays

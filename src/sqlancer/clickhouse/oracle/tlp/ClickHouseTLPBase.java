@@ -111,6 +111,24 @@ public class ClickHouseTLPBase extends TernaryLogicPartitioningOracleBase<ClickH
                 from.add(win);
             }
         }
+        // Date + Interval arithmetic (workstream 3). Fires only when a Date / DateTime column
+        // is in scope. Adds (date_col + INTERVAL N UNIT) / dateAdd(UNIT, N, date_col).
+        if (Randomly.getBooleanWithRatherLowProbability()) {
+            ClickHouseExpression dt = gen.generateDateIntervalArith(columns);
+            if (dt != null) {
+                from = new java.util.ArrayList<>(from);
+                from.add(dt);
+            }
+        }
+        // Scalar subquery in SELECT (workstream 16). Emits (SELECT count() FROM other_table) as
+        // an additional fetch column. Bounded at one per SELECT per the plan spec.
+        if (Randomly.getBooleanWithRatherLowProbability()) {
+            ClickHouseExpression sq = gen.generateScalarSubquery();
+            if (sq != null) {
+                from = new java.util.ArrayList<>(from);
+                from.add(sq);
+            }
+        }
         select.setFetchColumns(from);
         select.setWhereClause(null);
         // ClickHouse-specific: emit a PREWHERE clause on the base SELECT with a small probability,
