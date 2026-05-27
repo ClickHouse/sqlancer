@@ -270,4 +270,21 @@ public final class ClickHouseErrors {
         errors.addAll(getAlterErrors());
     }
 
+    // Substring patterns for the mutation subsystem. Background ALTER UPDATE/DELETE entries can
+    // pile up in system.mutations; a slow merge thread surfaces as TIMEOUT_EXCEEDED on the
+    // barrier or as half-applied snapshots in subsequent SELECTs. Lightweight DELETE FROM is
+    // synchronous but rejects empty-table operations on some CH builds with
+    // ATTEMPT_TO_READ_AFTER_EOF.
+    // Workstream 9 of the coverage expansion plan.
+    public static List<String> getMutationErrors() {
+        return List.of("TIMEOUT_EXCEEDED", "Cannot UPDATE key column", "Cannot DELETE",
+                "Mutation cannot be executed", "Mutations are not supported by", "UNFINISHED_MUTATION",
+                "Cannot read from", "Lightweight DELETE", "_row_exists", "Background mutation",
+                "ATTEMPT_TO_READ_AFTER_EOF", "Cannot find column");
+    }
+
+    public static void addMutationErrors(ExpectedErrors errors) {
+        errors.addAll(getMutationErrors());
+    }
+
 }

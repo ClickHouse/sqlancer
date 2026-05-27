@@ -22,6 +22,7 @@ import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
 import sqlancer.clickhouse.gen.ClickHouseAlterGenerator;
 import sqlancer.clickhouse.gen.ClickHouseCommon;
 import sqlancer.clickhouse.gen.ClickHouseInsertGenerator;
+import sqlancer.clickhouse.gen.ClickHouseMutationGenerator;
 import sqlancer.clickhouse.gen.ClickHouseTableGenerator;
 import sqlancer.clickhouse.oracle.ClickHouseOptimizingOracle;
 import sqlancer.common.oracle.TestOracle;
@@ -42,7 +43,12 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         // loop). Each emits a SQLQueryAdapter with couldAffectSchema=true so the in-memory schema
         // is refreshed before oracle iteration. Probability is gated via mapActions returning a
         // small count.
-        ALTER(ClickHouseAlterGenerator::getQuery);
+        ALTER(ClickHouseAlterGenerator::getQuery),
+        // Row-mutating actions: ALTER UPDATE/DELETE (background, async) + lightweight DELETE
+        // FROM (synchronous, mark-only). Mutation × projection × MV × lightweight-delete is the
+        // single highest historical bug density in CH; gate at very low probability so each run
+        // exercises the surface without dominating the statement pool.
+        MUTATION(ClickHouseMutationGenerator::getQuery);
 
         private final SQLQueryProvider<ClickHouseGlobalState> sqlQueryProvider;
 
@@ -65,6 +71,10 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
             // 0 or 1 ALTER per database setup, biased toward zero so the schema changes
             // occasionally without dominating the per-database statement budget.
             return Randomly.fromOptions(0, 0, 0, 0, 1);
+        case MUTATION:
+            // 0 or 1 mutation per database setup. Mutations have a non-trivial barrier cost
+            // (poll system.mutations until is_done=1) and over-emission inflates wall clock.
+            return Randomly.fromOptions(0, 0, 0, 0, 0, 1);
         default:
             throw new AssertionError(a);
         }
