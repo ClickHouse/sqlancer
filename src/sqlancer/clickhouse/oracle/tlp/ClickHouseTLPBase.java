@@ -93,6 +93,24 @@ public class ClickHouseTLPBase extends TernaryLogicPartitioningOracleBase<ClickH
                 from.add(geo);
             }
         }
+        // Higher-order array function emission (workstream 22). 20% probability per the plan;
+        // fires only when an Array(T) column is in scope.
+        if (Randomly.getBoolean() && Randomly.getBooleanWithRatherLowProbability()) {
+            ClickHouseExpression hof = gen.generateHigherOrderArrayCall(columns);
+            if (hof != null) {
+                from = new java.util.ArrayList<>(from);
+                from.add(hof);
+            }
+        }
+        // Window function emission (workstream 19). Lower probability because window-function
+        // SELECTs hit a separate analyzer path and produce longer queries.
+        if (Randomly.getBooleanWithRatherLowProbability()) {
+            ClickHouseExpression win = gen.generateWindowCall(columns);
+            if (win != null) {
+                from = new java.util.ArrayList<>(from);
+                from.add(win);
+            }
+        }
         select.setFetchColumns(from);
         select.setWhereClause(null);
         // ClickHouse-specific: emit a PREWHERE clause on the base SELECT with a small probability,

@@ -239,6 +239,109 @@ public class ClickHouseExpressionGenerator
         return new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, sb.toString(), null);
     }
 
+    /**
+     * Higher-order function call over an Array column with a synthesised lambda body.
+     * arrayMap / arrayFilter / arrayCount / arrayExists / arrayAll / arraySort / arrayFirst /
+     * arrayLast / arrayFold / arrayMin / arrayMax / arraySum / arrayAvg. Workstream 22.
+     *
+     * <p>Returns null if no Array(T) column is in scope.
+     */
+    public ClickHouseExpression generateHigherOrderArrayCall(List<ClickHouseColumnReference> columns) {
+        List<ClickHouseColumnReference> arrayCols = new java.util.ArrayList<>();
+        for (ClickHouseColumnReference c : columns) {
+            sqlancer.clickhouse.ClickHouseType t = c.getColumn().getType().getTypeTerm().unwrap();
+            if (t instanceof sqlancer.clickhouse.ClickHouseType.Array) {
+                arrayCols.add(c);
+            }
+        }
+        if (arrayCols.isEmpty()) {
+            return null;
+        }
+        ClickHouseColumnReference arrCol = Randomly.fromList(arrayCols);
+        // Synthesise a depth-1 lambda body over the lambda parameter `x`. The body is a numeric
+        // op for arithmetic higher-orders (arrayMap, arrayFilter, etc.) -- in practice CH
+        // accepts any well-typed body, so the bare-x identity body works for arrayMap and
+        // arrayFilter alike. lambdaParamType propagation through Nullable is deferred.
+        String fnName = Randomly.fromOptions("arrayMap", "arrayFilter", "arrayCount", "arrayExists",
+                "arrayAll", "arrayFirst", "arrayLast", "arraySort", "arrayMin", "arrayMax", "arraySum");
+        // Body: half the time bare x, half the time x + 1 (arithmetic for numeric inner types).
+        sqlancer.clickhouse.ast.ClickHouseExpression body;
+        if (Randomly.getBoolean()) {
+            body = new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, "x", null);
+        } else {
+            body = new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, "x + 1", null);
+        }
+        sqlancer.clickhouse.ast.ClickHouseLambda lambda = new sqlancer.clickhouse.ast.ClickHouseLambda(
+                List.of("x"), body);
+        StringBuilder sb = new StringBuilder(fnName).append("(");
+        sb.append(ClickHouseToStringVisitor.asString(lambda));
+        sb.append(", ");
+        sb.append(ClickHouseToStringVisitor.asString(arrCol));
+        sb.append(")");
+        return new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, sb.toString(), null);
+    }
+
+    /**
+     * Emit a window-function expression of the form {@code func() OVER (PARTITION BY ... ORDER BY ...)}
+     * over the in-scope columns. Workstream 19.
+     */
+    public ClickHouseExpression generateWindowCall(List<ClickHouseColumnReference> columns) {
+        if (columns.isEmpty()) {
+            return null;
+        }
+        sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind kind = Randomly.fromOptions(
+                sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind.values());
+        ClickHouseExpression argument = null;
+        // The aggregate-ish kinds take one argument over a numeric column; the rank/row-number
+        // family take none. LAG/LEAD take a column reference; FIRST_VALUE/LAST_VALUE take an
+        // expression over the row.
+        switch (kind) {
+        case SUM: case COUNT: case MIN: case MAX: case AVG:
+        case LAG: case LEAD: case FIRST_VALUE: case LAST_VALUE: case NTH_VALUE: {
+            List<ClickHouseColumnReference> numeric = numericColumns(columns);
+            if (numeric.isEmpty()) {
+                return null;
+            }
+            argument = numeric.get((int) Randomly.getNotCachedInteger(0, numeric.size()));
+            break;
+        }
+        default:
+            break;
+        }
+        // Partition/order keys: at most 1 each, drawn from the column set.
+        List<ClickHouseExpression> partitionBy = new java.util.ArrayList<>();
+        if (Randomly.getBoolean()) {
+            partitionBy.add(columns.get((int) Randomly.getNotCachedInteger(0, columns.size())));
+        }
+        List<ClickHouseExpression> orderBy = new java.util.ArrayList<>();
+        orderBy.add(columns.get((int) Randomly.getNotCachedInteger(0, columns.size())));
+        return new sqlancer.clickhouse.ast.ClickHouseWindowFunction(kind, argument, partitionBy, orderBy);
+    }
+
+    /**
+     * dictGet over a dictionary name and key column. Workstream 14. The dictionary's column
+     * shape isn't visible to the generator, so the emitted dictGet uses a generic 'col' value
+     * field name -- the oracle paths that need a specific shape construct dictGet inline.
+     */
+    public ClickHouseExpression generateDictGet(String dictName, ClickHouseColumnReference keyCol) {
+        String sql = "dictGet('" + dictName + "', 'col', toUInt64(" + ClickHouseToStringVisitor.asString(keyCol)
+                + "))";
+        return new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, sql, null);
+    }
+
+    /**
+     * True iff `type` cannot appear in a scalar context without a subcolumn-access wrapper.
+     * JSON/Variant/Dynamic columns must be projected via a path/element accessor before being
+     * compared, arithmetised, or aggregated. Workstream 6.
+     */
+    public static boolean requiresSubcolumnAccess(sqlancer.clickhouse.ClickHouseType type) {
+        sqlancer.clickhouse.ClickHouseType u = type.unwrap();
+        return u instanceof sqlancer.clickhouse.ClickHouseType.JSON
+                || u instanceof sqlancer.clickhouse.ClickHouseType.Variant
+                || u instanceof sqlancer.clickhouse.ClickHouseType.Dynamic
+                || u instanceof sqlancer.clickhouse.ClickHouseType.Nested;
+    }
+
     public ClickHouseExpression generateAggregateExpressionWithColumns(List<ClickHouseColumnReference> columns,
             int remainingDepth) {
         List<ClickHouseColumnReference> numeric = numericColumns(columns);
