@@ -236,7 +236,7 @@ public class ClickHouseExpressionGenerator
             sb.append(", ").append("[[(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)]]");
         }
         sb.append(")");
-        return new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, sb.toString(), null);
+        return new sqlancer.clickhouse.ast.ClickHouseRawText(sb.toString());
     }
 
     /**
@@ -275,7 +275,7 @@ public class ClickHouseExpressionGenerator
         } else {
             sql = "(" + ClickHouseToStringVisitor.asString(col) + " " + sign + " INTERVAL " + n + " " + unit + ")";
         }
-        return new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, sql, null);
+        return new sqlancer.clickhouse.ast.ClickHouseRawText(sql);
     }
 
     /**
@@ -291,7 +291,7 @@ public class ClickHouseExpressionGenerator
         sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable t = Randomly.fromList(tables);
         String agg = Randomly.fromOptions("count()", "min(1)", "max(1)");
         String sql = "(SELECT " + agg + " FROM " + globalState.getDatabaseName() + "." + t.getName() + ")";
-        return new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, sql, null);
+        return new sqlancer.clickhouse.ast.ClickHouseRawText(sql);
     }
 
     /**
@@ -322,9 +322,9 @@ public class ClickHouseExpressionGenerator
         // Body: half the time bare x, half the time x + 1 (arithmetic for numeric inner types).
         sqlancer.clickhouse.ast.ClickHouseExpression body;
         if (Randomly.getBoolean()) {
-            body = new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, "x", null);
+            body = new sqlancer.clickhouse.ast.ClickHouseRawText("x");
         } else {
-            body = new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, "x + 1", null);
+            body = new sqlancer.clickhouse.ast.ClickHouseRawText("x + 1");
         }
         sqlancer.clickhouse.ast.ClickHouseLambda lambda = new sqlancer.clickhouse.ast.ClickHouseLambda(
                 List.of("x"), body);
@@ -333,7 +333,7 @@ public class ClickHouseExpressionGenerator
         sb.append(", ");
         sb.append(ClickHouseToStringVisitor.asString(arrCol));
         sb.append(")");
-        return new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, sb.toString(), null);
+        return new sqlancer.clickhouse.ast.ClickHouseRawText(sb.toString());
     }
 
     /**
@@ -381,7 +381,7 @@ public class ClickHouseExpressionGenerator
     public ClickHouseExpression generateDictGet(String dictName, ClickHouseColumnReference keyCol) {
         String sql = "dictGet('" + dictName + "', 'col', toUInt64(" + ClickHouseToStringVisitor.asString(keyCol)
                 + "))";
-        return new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, sql, null);
+        return new sqlancer.clickhouse.ast.ClickHouseRawText(sql);
     }
 
     /**
@@ -887,7 +887,7 @@ public class ClickHouseExpressionGenerator
                 sb.append(ClickHouseToStringVisitor.asString(generateConstantFromTerm(m.valueType())));
             }
             sb.append(")");
-            return new sqlancer.clickhouse.ast.ClickHouseExpression.ClickHousePostfixText(null, sb.toString(), null);
+            return new sqlancer.clickhouse.ast.ClickHouseRawText(sb.toString());
         }
         if (term instanceof sqlancer.clickhouse.ClickHouseType.Point) {
             // (x, y)::Point. x and y in some bounded range so the geo functions don't blow up.

@@ -80,6 +80,8 @@ public interface ClickHouseVisitor {
 
     void visit(sqlancer.clickhouse.ast.ClickHouseDynamicElement element);
 
+    void visit(sqlancer.clickhouse.ast.ClickHouseRawText raw);
+
     default void visit(ClickHouseExpression expr) {
         if (expr instanceof ClickHouseBinaryFunctionOperation) {
             visit((ClickHouseBinaryFunctionOperation) expr);
@@ -123,6 +125,8 @@ public interface ClickHouseVisitor {
             visit((sqlancer.clickhouse.ast.ClickHouseVariantElement) expr);
         } else if (expr instanceof sqlancer.clickhouse.ast.ClickHouseDynamicElement) {
             visit((sqlancer.clickhouse.ast.ClickHouseDynamicElement) expr);
+        } else if (expr instanceof sqlancer.clickhouse.ast.ClickHouseRawText) {
+            visit((sqlancer.clickhouse.ast.ClickHouseRawText) expr);
         } else if (expr instanceof ClickHouseExpression.ClickHouseJoinOnClause) {
             visit((ClickHouseExpression.ClickHouseJoinOnClause) expr);
         } else {
