@@ -9,6 +9,8 @@ import sqlancer.clickhouse.oracle.cert.ClickHouseCERTOracle;
 import sqlancer.clickhouse.oracle.coddtest.ClickHouseCODDTestOracle;
 import sqlancer.clickhouse.oracle.cast.ClickHouseCastOracle;
 import sqlancer.clickhouse.oracle.eet.ClickHouseEETOracle;
+import sqlancer.clickhouse.oracle.aggstate.ClickHouseAggregateStateRoundtripOracle;
+import sqlancer.clickhouse.oracle.dict.ClickHouseDictGetVsJoinOracle;
 import sqlancer.clickhouse.oracle.final_.ClickHouseFinalMergeOracle;
 import sqlancer.clickhouse.oracle.join.ClickHouseJoinAlgorithmOracle;
 import sqlancer.clickhouse.oracle.keycond.ClickHouseKeyConditionOracle;
@@ -240,6 +242,24 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseFinalMergeOracle(globalState);
+        }
+    },
+    AggregateStateRoundtrip {
+        // Asserts the AggregateFunction round-trip identity:
+        //   finalizeAggregation(arrayReduce('sumState', groupArray(c))) == sum(c)
+        // Workstream 5 of the coverage expansion plan. Most iterations short-circuit until
+        // AggregateFunction columns are emitted by the type picker.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseAggregateStateRoundtripOracle(globalState);
+        }
+    },
+    DictGetVsJoin {
+        // Asserts dictGet via a transient CLICKHOUSE-sourced dictionary equals a LEFT JOIN against
+        // the same source table. Workstream 14 of the coverage expansion plan.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseDictGetVsJoinOracle(globalState);
         }
     }
 }
