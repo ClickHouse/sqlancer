@@ -49,6 +49,22 @@ public class ClickHouseWindowEquivalenceOracle implements TestOracle<ClickHouseG
         ClickHouseTable table = Randomly.fromList(tables);
         String fq = state.getDatabaseName() + "." + table.getName();
 
+        // Empty tables break the cumulative-window-vs-aggregate invariants below:
+        // sum(x) OVER (...) returns 0 rows when the input is empty, but sum(x) without OVER
+        // returns 1 row (with NULL). Skip empty tables -- the invariants only hold over a
+        // non-empty input.
+        try (java.sql.Statement s = state.getConnection().createStatement();
+                java.sql.ResultSet rs = s.executeQuery("SELECT count() FROM " + fq)) {
+            if (rs.next() && rs.getLong(1) == 0) {
+                throw new IgnoreMeException();
+            }
+        } catch (SQLException e) {
+            if (sqlancer.clickhouse.ClickHouseErrors.isToleratedException(e)) {
+                throw new IgnoreMeException();
+            }
+            throw e;
+        }
+
         int identity = (int) Randomly.getNotCachedInteger(0, 3);
         String lhs;
         String rhs;
