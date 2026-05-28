@@ -102,15 +102,12 @@ public class ClickHouseTLPBase extends TernaryLogicPartitioningOracleBase<ClickH
                 from.add(hof);
             }
         }
-        // Window function emission (workstream 19). Lower probability because window-function
-        // SELECTs hit a separate analyzer path and produce longer queries.
-        if (Randomly.getBooleanWithRatherLowProbability()) {
-            ClickHouseExpression win = gen.generateWindowCall(columns);
-            if (win != null) {
-                from = new java.util.ArrayList<>(from);
-                from.add(win);
-            }
-        }
+        // Window function emission removed from TLPBase: TLP partition theorem doesn't commute
+        // with window functions over partition-shifted row sets. cume_dist() / row_number() /
+        // running aggregates depend on the full window scope, which differs between LHS (full t)
+        // and RHS branches (WHERE-filtered t). The 1h-run TLPDistinct surfaced 5 reproducers
+        // exactly here. WindowEquivalenceOracle exercises window functions directly via its own
+        // hardcoded SQL; the generator emission isn't needed for window coverage.
         // Date + Interval arithmetic (workstream 3). Fires only when a Date / DateTime column
         // is in scope. Adds (date_col + INTERVAL N UNIT) / dateAdd(UNIT, N, date_col).
         if (Randomly.getBooleanWithRatherLowProbability()) {

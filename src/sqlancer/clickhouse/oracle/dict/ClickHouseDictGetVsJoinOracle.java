@@ -61,8 +61,17 @@ public class ClickHouseDictGetVsJoinOracle implements TestOracle<ClickHouseGloba
             throw new IgnoreMeException();
         }
         ClickHouseColumn keyCol = Randomly.fromList(intCols);
-        ClickHouseColumn valCol = Randomly.fromList(srcTable.getColumns().stream()
-                .filter(c -> c != keyCol).collect(Collectors.toList()));
+        // Value column must be String -- the dict declares the value column as String, so any
+        // non-String source column forces a CAST whose rendering may differ from the JOIN's
+        // direct read (the 1h-run DictGetVsJoin failure was Float64 source rendering as
+        // '-4.3236323E8' on one path and '-432363230' on the other).
+        List<ClickHouseColumn> stringCols = srcTable.getColumns().stream()
+                .filter(c -> c != keyCol && c.getType().getType() == com.clickhouse.data.ClickHouseDataType.String)
+                .collect(Collectors.toList());
+        if (stringCols.isEmpty()) {
+            throw new IgnoreMeException();
+        }
+        ClickHouseColumn valCol = Randomly.fromList(stringCols);
         String dictName = "d" + DICT_COUNTER.incrementAndGet();
         String fqSrc = state.getDatabaseName() + "." + srcTable.getName();
         String fqDict = state.getDatabaseName() + "." + dictName;

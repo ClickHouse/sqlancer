@@ -60,8 +60,12 @@ public class ClickHouseFinalMergeOracle implements TestOracle<ClickHouseGlobalSt
         // against either of the other two.
         List<String> resultBefore = ComparatorHelper.getResultSetFirstColumnAsString(baseSelect, errors, state);
 
-        List<String> resultFinal = ComparatorHelper.getResultSetFirstColumnAsString(baseSelect + " FINAL", errors,
-                state);
+        // Use do_not_merge_across_partitions_select_final=1 on the FINAL read too, so it
+        // returns the same within-partition-deduped row set that OPTIMIZE TABLE FINAL produces.
+        // Without the setting, FINAL does cross-partition dedupe, but OPTIMIZE doesn't -- the
+        // two diverge on multi-partition tables (smoke #N debug, FinalMergeOracle).
+        List<String> resultFinal = ComparatorHelper.getResultSetFirstColumnAsString(
+                baseSelect + " FINAL SETTINGS do_not_merge_across_partitions_select_final=1", errors, state);
 
         // OPTIMIZE TABLE t FINAL forces a synchronous merge of every active part on the table. The
         // server returns when the merge is done, so the subsequent SELECT sees the post-merge
@@ -81,11 +85,18 @@ public class ClickHouseFinalMergeOracle implements TestOracle<ClickHouseGlobalSt
             throw e;
         }
 
-        List<String> resultAfter = ComparatorHelper.getResultSetFirstColumnAsString(baseSelect, errors, state);
+        // Read with do_not_merge_across_partitions_select_final=1 so the read matches OPTIMIZE's
+        // within-partition-only dedupe semantics. The default FINAL setting does cross-partition
+        // dedupe (visible row count = distinct ORDER BY values across all partitions); OPTIMIZE
+        // only merges within partitions, so plain FINAL vs post-OPTIMIZE diverges on multi-
+        // partition tables. With the setting on, both views converge to the within-partition
+        // deduped count.
+        String afterSelect = baseSelect + " FINAL SETTINGS do_not_merge_across_partitions_select_final=1";
+        List<String> resultAfter = ComparatorHelper.getResultSetFirstColumnAsString(afterSelect, errors, state);
 
         ComparatorHelper.assumeResultSetsAreEqual(resultFinal, resultAfter,
                 baseSelect + " FINAL  -- vs OPTIMIZE+post-merge\n-- result_before=" + resultBefore,
-                java.util.Collections.singletonList(baseSelect + " (after OPTIMIZE FINAL)"), state,
+                java.util.Collections.singletonList(afterSelect + " (after OPTIMIZE FINAL)"), state,
                 ComparatorHelper.ComparisonMode.MULTISET);
     }
 }
