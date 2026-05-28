@@ -19,7 +19,7 @@ rm -f logs/runs/*.log 2>/dev/null || true
 echo "Starting 6h run at $(date -u). Oracles: $(echo $ALL_ORACLES | tr ',' '\n' | wc -l) oracles, duration ${DURATION}s"
 ./.claude/run-sqlancer.sh \
   --oracles "$ALL_ORACLES" --duration "$DURATION" \
-  --threads 8 --heap 16g --ch-cpus 8 --ch-mem 6g \
+  --threads 8 --heap 16g --ch-cpus 8 --ch-mem 12g \
   --no-pull \
   2>&1 | tee "$OUT_BASE/runner.out"
 RC=$?

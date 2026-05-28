@@ -139,6 +139,11 @@ public class ClickHouseSchemaRoundtripOracle implements TestOracle<ClickHouseGlo
             while (rs.next()) {
                 out.add(rs.getString(1));
             }
+        } catch (SQLException e) {
+            if (sqlancer.clickhouse.ClickHouseErrors.isToleratedException(e)) {
+                throw new sqlancer.IgnoreMeException();
+            }
+            throw e;
         }
         // Defensive: a future ClickHouse rename of the schema view would make the list empty,
         // which the caller treats as "iteration uninformative" via IgnoreMeException -- no false

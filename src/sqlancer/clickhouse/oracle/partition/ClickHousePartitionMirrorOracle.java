@@ -251,12 +251,19 @@ public class ClickHousePartitionMirrorOracle implements TestOracle<ClickHouseGlo
         String sql = "SHOW CREATE TABLE " + state.getDatabaseName() + "." + tableName;
         // We bypass the SQLQueryAdapter / log capture here because the result set is the payload
         // we care about, not the query's exit status. The connection is shared with the rest of
-        // the oracle so the SET-on-connect settings still apply.
+        // the oracle so the SET-on-connect settings still apply. Tolerated CH errors
+        // (MEMORY_LIMIT_EXCEEDED, etc.) trigger IgnoreMeException instead of propagating as
+        // raw SQLException reproducers.
         try (Statement s = state.getConnection().createStatement(); ResultSet rs = s.executeQuery(sql)) {
             if (rs.next()) {
                 return rs.getString(1);
             }
             return null;
+        } catch (SQLException e) {
+            if (sqlancer.clickhouse.ClickHouseErrors.isToleratedException(e)) {
+                throw new sqlancer.IgnoreMeException();
+            }
+            throw e;
         }
     }
 }

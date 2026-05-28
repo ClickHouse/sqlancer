@@ -327,6 +327,31 @@ public final class ClickHouseErrors {
         errors.addAll(getMutationErrors());
     }
 
+    /**
+     * Walk an exception cause chain and return true if any frame's message matches a baseline-
+     * tolerated CH error. Use this from oracle code paths that invoke {@link
+     * java.sql.Statement#executeQuery} or {@code execute} directly (bypassing SQLQueryAdapter),
+     * to absorb the same family of expected errors that SQLQueryAdapter.checkException would.
+     *
+     * <p>Without this helper, direct-Statement errors propagate as raw SQLException up through
+     * the oracle's throws clause, becoming reproducer files for runs where CH trips its memory
+     * limit, drops a table mid-run, or otherwise produces a benign error during oracle setup.
+     * The 2026-05-28 6h run surfaced 344 MEMORY_LIMIT_EXCEEDED reproducers from this exact path.
+     */
+    public static boolean isToleratedException(Throwable e) {
+        ExpectedErrors errors = ExpectedErrors.newErrors().with(getExpectedExpressionErrors())
+                .with(getSessionSettingsErrors()).build();
+        Throwable cur = e;
+        while (cur != null) {
+            String msg = cur.getMessage();
+            if (msg != null && errors.errorIsExpected(msg)) {
+                return true;
+            }
+            cur = cur.getCause();
+        }
+        return false;
+    }
+
     // Substring patterns for the type-system-expansion workstreams (2/3/4/5/6/7). Each family
     // covers tolerated rejections from generator-emitted expressions over the new column shapes.
     // Pre-loaded into addExpectedExpressionErrors below.

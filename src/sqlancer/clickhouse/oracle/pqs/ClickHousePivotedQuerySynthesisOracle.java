@@ -187,6 +187,11 @@ public class ClickHousePivotedQuerySynthesisOracle extends
                 // is outside the v1 round-trip set.
                 values.put(c, ClickHouseSchema.getConstant(rs, i + 1, c.getType().getType()));
             }
+        } catch (SQLException e) {
+            if (sqlancer.clickhouse.ClickHouseErrors.isToleratedException(e)) {
+                throw new IgnoreMeException();
+            }
+            throw e;
         }
         return values;
     }
@@ -246,9 +251,13 @@ public class ClickHousePivotedQuerySynthesisOracle extends
             }
             return new ClickHouseUnaryPrefixOperation(pred, ClickHouseUnaryPrefixOperator.NOT);
         } catch (SQLException ex) {
-            // Type errors, overflows, regex-compile errors etc. in the
-            // randomly-generated predicate are not bugs in ClickHouse — drop
-            // this attempt.
+            // Type errors, overflows, regex-compile errors, MEMORY_LIMIT_EXCEEDED, etc. in the
+            // randomly-generated predicate are not bugs in ClickHouse — drop this attempt.
+            // Walk the cause chain via the centralised helper so deeply-nested CH exceptions
+            // (wrapped in a JDBC SQLException) get absorbed.
+            if (sqlancer.clickhouse.ClickHouseErrors.isToleratedException(ex)) {
+                throw new IgnoreMeException();
+            }
             String msg = ex.getMessage();
             if (msg != null && expectedErrors.errorIsExpected(msg)) {
                 throw new IgnoreMeException();

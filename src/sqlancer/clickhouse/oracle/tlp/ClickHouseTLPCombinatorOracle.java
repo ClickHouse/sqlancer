@@ -111,11 +111,12 @@ public class ClickHouseTLPCombinatorOracle extends ClickHouseTLPBase {
         // Mutate select to render only the FROM portion, then restore. Cheaper than cloning the AST.
         List<sqlancer.clickhouse.ast.ClickHouseExpression> savedFetch = select.getFetchColumns();
         try {
-            // Render the full select with a dummy column so we can take the FROM... section.
-            // ClickHouseVisitor.asString(select) emits "SELECT ... FROM tbl [JOINs] [WHERE]...";
-            // strip everything before "FROM" to get the from-onwards portion.
             String rendered = ClickHouseVisitor.asString(select);
-            int idx = rendered.indexOf(" FROM ");
+            // Find the OUTER FROM -- ignore any " FROM " inside parens (scalar subqueries
+            // emitted in the fetch-columns list have their own nested FROM that would otherwise
+            // match. The 2026-05-28 6h run surfaced 468 syntax-error reproducers from this
+            // exact path).
+            int idx = findOuterFrom(rendered);
             if (idx < 0) {
                 throw new IgnoreMeException();
             }
@@ -123,5 +124,20 @@ public class ClickHouseTLPCombinatorOracle extends ClickHouseTLPBase {
         } finally {
             select.setFetchColumns(savedFetch);
         }
+    }
+
+    private static int findOuterFrom(String rendered) {
+        int depth = 0;
+        for (int i = 0; i < rendered.length() - 6; i++) {
+            char c = rendered.charAt(i);
+            if (c == '(') {
+                depth++;
+            } else if (c == ')') {
+                depth--;
+            } else if (depth == 0 && c == ' ' && rendered.regionMatches(i, " FROM ", 0, 6)) {
+                return i;
+            }
+        }
+        return -1;
     }
 }
