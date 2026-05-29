@@ -98,10 +98,13 @@ public final class ClickHouseSessionSettings {
             // is the historical typo alias (still accepted by CH HEAD) and is included so SEMR
             // covers both spellings.
             "allow_statistics_optimize", "allow_statistic_optimize",
-            // Mutations apply virtually on read when the merge thread hasn't drained them yet.
-            // The on-read-apply path is structurally different from the merged path; SEMR
-            // toggling this surfaces optimizer-path divergences. Workstream 9 of the plan.
-            "apply_mutations_on_fly",
+            // apply_mutations_on_fly REMOVED from SEMR pool: it's NOT result-preserving when
+            // there are pending mutations. With the setting on, SELECT applies the pending
+            // mutations virtually; with it off, SELECT reads the pre-mutation view. A run with
+            // an ALTER DELETE / UPDATE in flight will show DIFFERENT row sets between the
+            // toggle positions -- correctly so. The plan's classification of this setting as
+            // "result-preserving" was wrong. SEMR catches the divergence as a false positive.
+            // The 8.7h run surfaced 3 SEMR reproducers from this single cause. NOT a CH bug.
             // FINAL behaviour differs when do_not_merge_across_partitions_select_final is on --
             // it skips merging across partitions, which can change the deduped row set. SEMR
             // toggling this against the same SELECT FINAL surfaces the cross-partition merge

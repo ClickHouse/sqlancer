@@ -89,9 +89,19 @@ public class ClickHouseWindowEquivalenceOracle implements TestOracle<ClickHouseG
             break;
         }
         default: {
+            // Restrict the cumulative-sum identity to INTEGER columns: float arithmetic is
+            // non-associative, so sum() over the full table (parallel) and sum() OVER
+            // (cumulative, ORDER-BY order) can produce ULP-different float results. The 8.7h
+            // run surfaced 12 WindowEquivalence reproducers all in this float-non-associativity
+            // family. Same root cause as the AggregateStateRoundtripOracle fix on workstream 5.
             List<ClickHouseColumn> numericCols = table.getColumns().stream()
-                    .filter(c -> c.getType().getTypeTerm().unwrap().isNumeric())
-                    .collect(Collectors.toList());
+                    .filter(c -> {
+                        com.clickhouse.data.ClickHouseDataType t = c.getType().getType();
+                        return t != com.clickhouse.data.ClickHouseDataType.Float32
+                                && t != com.clickhouse.data.ClickHouseDataType.Float64
+                                && t != com.clickhouse.data.ClickHouseDataType.Decimal
+                                && c.getType().getTypeTerm().unwrap().isNumeric();
+                    }).collect(Collectors.toList());
             if (numericCols.isEmpty()) {
                 throw new IgnoreMeException();
             }
