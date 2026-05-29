@@ -290,9 +290,15 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
 
     @Override
     public void visit(ClickHouseColumnReference c) {
-        if (c.getTableAlias() != null) {
+        if (c.getTableAlias() != null && !c.getTableAlias().isEmpty()) {
             sb.append(c.getTableAlias());
             sb.append(".");
+            sb.append(c.getColumn().getName());
+        } else if (c.getTableAlias() != null) {
+            // Empty alias is the explicit "render unqualified" sentinel. Mutation predicates
+            // (ALTER ... UPDATE/DELETE WHERE) are parsed in a single-table scope where CH cannot
+            // resolve table-qualified identifiers (`t0.c0` -> UNKNOWN_IDENTIFIER, Code 47), so the
+            // mutation generator asks for bare column names via asColumnReference("").
             sb.append(c.getColumn().getName());
         } else if (c.getColumn().getTable() == null) {
             sb.append(c.getColumn().getName());

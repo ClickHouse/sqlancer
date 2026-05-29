@@ -47,7 +47,7 @@ public final class ClickHouseMutationGenerator {
         List<ClickHouseColumn> cols = table.getColumns();
         // Predicates over the table's columns; depth 3 keeps the strings tractable.
         ClickHouseExpression predicate = gen.generateExpressionWithColumns(
-                cols.stream().map(c -> c.asColumnReference(null)).collect(Collectors.toList()), 3);
+                cols.stream().map(c -> c.asColumnReference("")).collect(Collectors.toList()), 3);
 
         String fqTable = state.getDatabaseName() + "." + table.getName();
         StringBuilder sb = new StringBuilder();
@@ -74,9 +74,9 @@ public final class ClickHouseMutationGenerator {
             List<ClickHouseColumn> others = cols.stream().filter(c -> c != updateCol).collect(Collectors.toList());
             ClickHouseExpression valueExpr = others.isEmpty()
                     ? gen.generateExpressionWithColumns(
-                            cols.stream().map(c -> c.asColumnReference(null)).collect(Collectors.toList()), 2)
+                            cols.stream().map(c -> c.asColumnReference("")).collect(Collectors.toList()), 2)
                     : gen.generateExpressionWithColumns(
-                            others.stream().map(c -> c.asColumnReference(null)).collect(Collectors.toList()), 2);
+                            others.stream().map(c -> c.asColumnReference("")).collect(Collectors.toList()), 2);
             sb.append("ALTER TABLE ").append(fqTable).append(" UPDATE ").append(updateCol.getName()).append(" = ")
                     .append(ClickHouseVisitor.asString(valueExpr)).append(" WHERE ")
                     .append(ClickHouseVisitor.asString(predicate));
