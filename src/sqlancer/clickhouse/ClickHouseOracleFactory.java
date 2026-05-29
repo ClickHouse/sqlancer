@@ -16,6 +16,7 @@ import sqlancer.clickhouse.oracle.final_.ClickHouseFinalMergeOracle;
 import sqlancer.clickhouse.oracle.window.ClickHouseWindowEquivalenceOracle;
 import sqlancer.clickhouse.oracle.join.ClickHouseJoinAlgorithmOracle;
 import sqlancer.clickhouse.oracle.keycond.ClickHouseKeyConditionOracle;
+import sqlancer.clickhouse.oracle.materialize.ClickHouseSubqueryMaterializeOracle;
 import sqlancer.clickhouse.oracle.parallelism.ClickHouseParallelismOracle;
 import sqlancer.clickhouse.oracle.partition.ClickHousePartitionMirrorOracle;
 import sqlancer.clickhouse.oracle.schema.ClickHouseSchemaRoundtripOracle;
@@ -278,6 +279,21 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseDynamicSubcolumnOracle(globalState);
+        }
+    },
+    SubqueryMaterialize {
+        // Cross-statement materialization differential. Persists an inner filter step into a
+        // physical Memory/Log temp table, then runs the outer predicate against the temp table and
+        // diffs against the equivalent inline derived-table query. Crossing the CREATE/DROP boundary
+        // disables the cross-query optimizer rewrite (OR-split / predicate-temp materialization /
+        // scalar-subquery pushdown / RIGHT-JOIN default handling) so a divergence pinpoints exactly
+        // that rewrite as buggy. This is the technique external fuzzer AnotherYx used to find the
+        // v26.5.1.882 wrong-result cluster ClickHouse#106080 / #106082 / #106083 / #106084 /
+        // #105717. It is NOT the same as KeyCondition's in-query materialize() wrap, which leaves
+        // those rewrites enabled.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseSubqueryMaterializeOracle(globalState);
         }
     }
 }

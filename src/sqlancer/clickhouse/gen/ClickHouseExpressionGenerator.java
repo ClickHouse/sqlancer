@@ -279,8 +279,21 @@ public class ClickHouseExpressionGenerator
     }
 
     /**
-     * Scalar subquery: {@code (SELECT count() FROM other_table)} renderable as an expression.
-     * Workstream 16. Returns null if there are no other tables to read from.
+     * Scalar subquery: a self-contained {@code (SELECT ...)} renderable as an expression.
+     * Workstream 16. Returns null if there are no tables to read from.
+     *
+     * <p>Two families are emitted at random:
+     * <ul>
+     *   <li>aggregate-over-table forms {@code (SELECT count()|min(1)|max(1) FROM t)} -- the
+     *       original Workstream-16 shape, always single-row and type-stable;
+     *   <li>value-returning ordered-LIMIT-1 forms
+     *       {@code (SELECT <col> FROM <db>.<t> [WHERE <pred>] ORDER BY <col> LIMIT 1)} -- a single
+     *       column value of a real numeric/string column. This second family is exactly the shape
+     *       behind #106082 / #106083 (filed 2026-05-24 on v26.5.1.882): a
+     *       {@code WHERE col = (SELECT c0 FROM t ORDER BY <key> LIMIT 1)} that drops the only
+     *       matching row. The original aggregate-only generator never produced an
+     *       ORDER BY ... LIMIT 1 single-column value, so the bug class was unreachable.
+     * </ul>
      */
     public ClickHouseExpression generateScalarSubquery() {
         java.util.List<sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable> tables = globalState.getSchema()
@@ -289,9 +302,38 @@ public class ClickHouseExpressionGenerator
             return null;
         }
         sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable t = Randomly.fromList(tables);
-        String agg = Randomly.fromOptions("count()", "min(1)", "max(1)");
-        String sql = "(SELECT " + agg + " FROM " + globalState.getDatabaseName() + "." + t.getName() + ")";
-        return new sqlancer.clickhouse.ast.ClickHouseRawText(sql);
+        String qualified = globalState.getDatabaseName() + "." + t.getName();
+        // Roughly half the time keep the aggregate form (always single-row, always well-typed);
+        // otherwise try the value-returning ORDER BY ... LIMIT 1 form when the table has a
+        // numeric / String column we can both project and order by. Fall back to the aggregate
+        // form when no such column exists so the method never returns null for a usable table.
+        if (Randomly.getBoolean()) {
+            String agg = Randomly.fromOptions("count()", "min(1)", "max(1)");
+            return new sqlancer.clickhouse.ast.ClickHouseRawText("(SELECT " + agg + " FROM " + qualified + ")");
+        }
+        java.util.List<ClickHouseColumn> valueCols = t.getColumns().stream()
+                .filter(c -> isNumeric(c.getType().getType())
+                        || c.getType().getType() == com.clickhouse.data.ClickHouseDataType.String)
+                .collect(Collectors.toList());
+        if (valueCols.isEmpty()) {
+            String agg = Randomly.fromOptions("count()", "min(1)", "max(1)");
+            return new sqlancer.clickhouse.ast.ClickHouseRawText("(SELECT " + agg + " FROM " + qualified + ")");
+        }
+        ClickHouseColumn col = Randomly.fromList(valueCols);
+        String colName = col.getName();
+        StringBuilder sb = new StringBuilder("(SELECT ").append(colName).append(" FROM ").append(qualified);
+        // Optionally constrain the inner scan with a WHERE on the projected column itself. The
+        // predicate is a simple bound against a constant of the column's own type so the inner
+        // SELECT stays well-typed; the LIMIT 1 then surfaces the boundary row that the bug drops.
+        if (Randomly.getBoolean()) {
+            ClickHouseExpression bound = generateConstantFromTerm(col.getType().getTypeTerm());
+            String op = Randomly.fromOptions(">=", "<=", "!=");
+            sb.append(" WHERE ").append(colName).append(" ").append(op).append(" ")
+                    .append(ClickHouseToStringVisitor.asString(bound));
+        }
+        String dir = Randomly.getBoolean() ? " DESC" : "";
+        sb.append(" ORDER BY ").append(colName).append(dir).append(" LIMIT 1)");
+        return new sqlancer.clickhouse.ast.ClickHouseRawText(sb.toString());
     }
 
     /**
@@ -672,6 +714,46 @@ public class ClickHouseExpressionGenerator
         return new ClickHouseExpression.ClickHouseJoinOnClause(pair[0], pair[1]);
     }
 
+    // GAP 4: rich JOIN ON clauses. #105716 (RIGHT OUTER JOIN) and #105717 (INNER JOIN) wrongly keep
+    // a default-value row when the ON clause has the shape `ON (a = b AND a IS NULL)` -- an equality
+    // AND-ed with an IS NULL on a join-key column. The plain `leftcol = rightcol` clause never
+    // reaches that surface. This helper takes the equality clause built by generateJoinClause and,
+    // with moderate probability, AND-conjoins an `<col> IS NULL` / `<col> IS NOT NULL` predicate on
+    // one of the two join-key columns.
+    //
+    // Rendering note: ClickHouseJoinOnClause `implements BinaryOperation`, so the to-string visitor
+    // always dispatches it through the base BinaryOperation path (`((left)=(right))`) -- there is no
+    // visitor hook to append a trailing conjunct. The faithful, self-contained surface is therefore
+    // a pre-rendered ClickHouseRawText carrying the full `(a = b) AND (a IS [NOT] NULL)` expression,
+    // following the generateScalarSubquery / dateInterval precedent for arbitrary boolean fragments.
+    // The join carries this via its arbitrary-expression onClause (set through ClickHouseJoin's
+    // setOnClause), leaving the plain-equality ClickHouseJoinOnClause unchanged and dominant.
+    //
+    // IMPORTANT: this only ADDS the IS NULL conjunct capability when explicitly requested by the
+    // caller; the JoinAlgorithm / TLP oracles that rely on deterministic equality-only join shapes
+    // keep passing the bare ClickHouseJoinOnClause unchanged.
+    private ClickHouseExpression maybeEnrichJoinOnClause(ClickHouseExpression.ClickHouseJoinOnClause equality,
+            ClickHouseExpression.ClickHouseJoin.JoinType joinType) {
+        // The default-value-vs-null bug lives in the OUTER family (RIGHT/LEFT/FULL OUTER); bias the
+        // enrichment heavily toward those and only rarely touch other deterministic shapes so plain
+        // equality stays the dominant case everywhere.
+        boolean outer = joinType == ClickHouseExpression.ClickHouseJoin.JoinType.RIGHT_OUTER
+                || joinType == ClickHouseExpression.ClickHouseJoin.JoinType.LEFT_OUTER
+                || joinType == ClickHouseExpression.ClickHouseJoin.JoinType.FULL_OUTER;
+        boolean enrich = outer ? Randomly.getBoolean() : Randomly.getBooleanWithSmallProbability();
+        if (!enrich) {
+            return equality;
+        }
+        // Pick which side's key column carries the IS NULL predicate. Both keys are real column
+        // references with a table alias, so asString renders them as `alias.colname`.
+        ClickHouseExpression keyCol = Randomly.getBoolean() ? equality.getLeft() : equality.getRight();
+        String nullOp = Randomly.getBoolean() ? "IS NULL" : "IS NOT NULL";
+        String sql = "(" + ClickHouseToStringVisitor.asString(equality.getLeft()) + " = "
+                + ClickHouseToStringVisitor.asString(equality.getRight()) + ") AND ("
+                + ClickHouseToStringVisitor.asString(keyCol) + " " + nullOp + ")";
+        return new sqlancer.clickhouse.ast.ClickHouseRawText(sql);
+    }
+
     @Override
     protected ClickHouseExpression generateColumn(ClickHouseLancerDataType type) {
         if (type.getTypeTerm() instanceof Unknown) {
@@ -726,6 +808,13 @@ public class ClickHouseExpressionGenerator
                 ClickHouseExpression.ClickHouseJoin.JoinType options = Randomly.fromList(DETERMINISTIC_JOIN_TYPES);
                 ClickHouseExpression.ClickHouseJoin j = new ClickHouseExpression.ClickHouseJoin(leftTable, rightTable,
                         options, joinClause);
+                // GAP 4: optionally enrich the ON clause with an `AND <key> IS [NOT] NULL` conjunct
+                // (preferred on the OUTER family where #105716 / #105717 live). CROSS has no ON
+                // clause (joinClause is non-null only for the non-CROSS shapes here), so skip the
+                // enrichment when the equality clause is absent.
+                if (joinClause != null) {
+                    j.setOnClause(maybeEnrichJoinOnClause(joinClause, options));
+                }
                 joinStatements.add(j);
                 leftTables.add(rightTable);
             }
@@ -1109,6 +1198,50 @@ public class ClickHouseExpressionGenerator
             return new ClickHouseBinaryLogicalOperation(base, literal,
                     ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
         }
+        // GAP 2: typed-constant predicate conjuncts. #103049 (`WHERE x AND toNullable(N)` returns
+        // 0 rows for N>=256) and #104393 (`WHERE p AND <LowCardinality(Nullable(UInt8)) constant>`
+        // returns zero rows on MergeTree) are wrong-result bugs where AND-ing a constant that is
+        // logically TRUE into the WHERE silently drops every row. The plain large-integer conjunct
+        // above does NOT exercise them -- the trigger is specifically a *typed* wrapper
+        // (toNullable / LowCardinality(Nullable(UInt8)) / Nullable(UInt8)) around the truthy value,
+        // so the buggy short-circuit on the typed-constant filter path fires. The wrapped value is
+        // always something that evaluates to TRUE on every row (a non-zero numeric constant, or a
+        // comparison of a numeric constant against itself) so a correct engine is a no-op AND only
+        // a buggy one drops rows -- making the divergence trivially catchable by TLPWhere / NoREC.
+        // Probability is small (additive surface, not a replacement): every emission narrows the
+        // covered surface of the underlying random predicate.
+        if (Randomly.getBooleanWithSmallProbability()) {
+            // Inner truthy value: either a non-zero numeric literal (256 is the #103049 boundary)
+            // or a tautological comparison. Both are constant-TRUE so the AND is a logical no-op.
+            String inner = Randomly.fromOptions("256", "1", "(1 = 1)", "(255 < 256)");
+            // One of the four typed wrappers from the bug reports. ClickHouseRawText follows the
+            // generateScalarSubquery precedent: no typed AST node carries a LowCardinality /
+            // Nullable CAST wrapper, so the pre-rendered fragment is the minimal faithful surface.
+            String wrapped = Randomly.fromOptions(
+                    "toNullable(" + inner + ")",
+                    "CAST(" + inner + " AS LowCardinality(Nullable(UInt8)))",
+                    "CAST(" + inner + " AS Nullable(UInt8))",
+                    "toLowCardinality(toNullable(" + inner + "))");
+            ClickHouseExpression typedConjunct = new sqlancer.clickhouse.ast.ClickHouseRawText(wrapped);
+            return new ClickHouseBinaryLogicalOperation(base, typedConjunct,
+                    ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
+        }
+        // GAP 5(b): scalar-subquery predicates. Wire generateScalarSubquery() into the shared
+        // predicate path so ALL oracles (KeyCondition, SEMR, the materialization oracle) -- not
+        // just the TLP base where it was previously the only consumer -- exercise
+        // `col <cmp> (scalar subquery)`. The ORDER BY ... LIMIT 1 forms surfaced by
+        // generateScalarSubquery are the #106082 / #106083 shape. Guard on a real in-scope column
+        // so the comparison is against an actual column (not a fabricated constant), and skip when
+        // there is no other table to read from (generateScalarSubquery returns null).
+        if (Randomly.getBooleanWithSmallProbability() && !columnRefs.isEmpty()) {
+            ClickHouseExpression subquery = generateScalarSubquery();
+            if (subquery != null) {
+                ClickHouseColumnReference col = columnRefs
+                        .get((int) Randomly.getNotCachedInteger(0, columnRefs.size()));
+                return new ClickHouseBinaryComparisonOperation(col, subquery,
+                        ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.getRandomOperator());
+            }
+        }
         return base;
     }
 
@@ -1164,6 +1297,11 @@ public class ClickHouseExpressionGenerator
                 ClickHouseExpression.ClickHouseJoin.JoinType options = Randomly.fromList(DETERMINISTIC_JOIN_TYPES);
                 ClickHouseExpression.ClickHouseJoin j = new ClickHouseExpression.ClickHouseJoin(leftTable, rightTable,
                         options, joinClause);
+                // GAP 4: same optional `AND <key> IS [NOT] NULL` enrichment as the table-scoped
+                // getRandomJoinClauses overload above (#105716 / #105717).
+                if (joinClause != null) {
+                    j.setOnClause(maybeEnrichJoinOnClause(joinClause, options));
+                }
                 joinStatements.add(j);
                 leftTables.add(rightTable);
             }

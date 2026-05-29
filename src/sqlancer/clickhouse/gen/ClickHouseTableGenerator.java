@@ -13,8 +13,14 @@ import sqlancer.clickhouse.ClickHouseErrors;
 import sqlancer.clickhouse.ClickHouseProvider;
 import sqlancer.clickhouse.ClickHouseSchema;
 import sqlancer.clickhouse.ClickHouseToStringVisitor;
+import sqlancer.clickhouse.ast.ClickHouseBinaryArithmeticOperation;
+import sqlancer.clickhouse.ast.ClickHouseBinaryFunctionOperation;
 import sqlancer.clickhouse.ast.ClickHouseColumnReference;
 import sqlancer.clickhouse.ast.ClickHouseExpression;
+import sqlancer.clickhouse.ast.ClickHouseRawText;
+import sqlancer.clickhouse.ast.ClickHouseUnaryFunctionOperation;
+import sqlancer.clickhouse.ast.ClickHouseUnaryPrefixOperation;
+import sqlancer.clickhouse.ast.constant.ClickHouseCreateConstant;
 import sqlancer.common.query.ExpectedErrors;
 import sqlancer.common.query.SQLQueryAdapter;
 import sqlancer.common.visitor.BinaryOperation;
@@ -155,6 +161,17 @@ public class ClickHouseTableGenerator {
             String fallbackOrderBy = engineRequiresNonEmptyOrderBy ? " ORDER BY " + columns.get(0).getName() + " "
                     : " ORDER BY tuple() ";
 
+            // SAMPLE BY must reference a column that is part of the primary key, otherwise ClickHouse
+            // rejects the CREATE outright ("Sampling expression must be present in the primary key.",
+            // Code 36, seen across the 30-min CH 26.6.1.229 fuzz run). The earlier generate-and-
+            // validate approach (isValidSampleBy) only checked that the sampling expression contained
+            // SOME column, never that it overlapped the ORDER BY/primary key, so every SAMPLE BY whose
+            // column differed from the sort key was a guaranteed failure. We instead capture the exact
+            // ORDER BY key when it is a single bare integer column and reuse THAT column verbatim as
+            // the SAMPLE BY expression -- the only shape guaranteed to be in the primary key. Stays
+            // null for tuple()/function/non-integer ORDER BY keys, in which case SAMPLE BY is skipped.
+            String sampleByColumn = null;
+
             if (Randomly.getBoolean()) {
                 // For dedupe engines (Replacing/Summing), function-of-numeric ORDER BY produces
                 // NaN under common float arithmetic (log/sqrt of negative, division by zero)
@@ -164,31 +181,71 @@ public class ClickHouseTableGenerator {
                 java.util.function.Predicate<ClickHouseExpression> orderByValidator = isDedupeEngine(engine)
                         ? ClickHouseTableGenerator::isValidOrderByForDedupe
                         : ClickHouseTableGenerator::isValidOrderBy;
-                ClickHouseExpression expr = generateValidated(exprFactory, orderByValidator);
+                // GAP 3 (suspicious non-monotonic key pool). The KeyCondition / partition-pruning
+                // range analyser mis-handles ORDER BY / PARTITION BY keys built from non-monotonic
+                // or only-partially-monotonic functions; four wrong-result reports on v26.5.1.882
+                // (ClickHouse#106080/#106082/#106083/#106084) all use exactly such keys
+                // (ORDER BY sqrt(c0), ORDER BY (c0)/(-158854227), ORDER BY -c0; PARTITION BY
+                // c0*c0, gcd(c0,c0), intDiv(c0,-691388354)). The generic depth-3 recursive builder
+                // only stumbles onto these named functions by chance and dilutes them with noise,
+                // so the KeyCondition oracle -- the correct detector for this class -- rarely fires.
+                // We bias ~40% of plain-MergeTree ORDER BYs to a single deliberately non-monotonic
+                // key from a curated pool. Dedupe engines are excluded: their key must stay a bare
+                // column (isValidOrderByForDedupe, see comment block above) because NaN-producing
+                // function keys collapse the dedupe bucketer non-deterministically.
+                ClickHouseExpression expr = null;
+                if (!isDedupeEngine(engine) && rollSuspiciousKey()) {
+                    expr = buildSuspiciousKey(false);
+                }
+                if (expr == null) {
+                    expr = generateValidated(exprFactory, orderByValidator);
+                }
                 if (expr != null) {
                     sb.append(" ORDER BY ");
                     sb.append(ClickHouseToStringVisitor.asString(expr));
+                    // Capture the ORDER BY key for SAMPLE BY reuse iff it is a single bare integer
+                    // column (no wrapper, no function). Any other shape is ineligible: function/
+                    // arithmetic keys are not a verbatim primary-key prefix expression, and float/
+                    // string/Date sampling columns trip separate server-side checks.
+                    sampleByColumn = bareIntegerColumnName(expr);
                 } else {
                     sb.append(fallbackOrderBy);
+                    sampleByColumn = fallbackSampleColumn(engineRequiresNonEmptyOrderBy);
                 }
             } else {
                 sb.append(fallbackOrderBy);
+                sampleByColumn = fallbackSampleColumn(engineRequiresNonEmptyOrderBy);
             }
 
             if (Randomly.getBoolean()) {
-                ClickHouseExpression expr = generateValidated(exprFactory,
-                        ClickHouseTableGenerator::isValidPartitionBy);
+                // GAP 3: same suspicious-key bias for PARTITION BY (the partition-pruning range
+                // analyser is the other half of the KeyCondition surface). PARTITION BY rejects
+                // float keys (isValidPartitionBy / "Floating point partition key is not
+                // supported"), so buildSuspiciousKey(true) draws only from the integer-result
+                // sub-pool (c*c, intDiv, gcd, c%n, -c, toYYYYMM(date)). The suspicious path is
+                // applied on plain MergeTree only -- dedupe engines (Replacing/Summing) take the
+                // generic-only path here so their partition key never picks up a NaN-producing
+                // function shape.
+                ClickHouseExpression expr = null;
+                if (!isDedupeEngine(engine) && rollSuspiciousKey()) {
+                    expr = buildSuspiciousKey(true);
+                }
+                if (expr == null) {
+                    expr = generateValidated(exprFactory, ClickHouseTableGenerator::isValidPartitionBy);
+                }
                 if (expr != null) {
                     sb.append(" PARTITION BY ");
                     sb.append(ClickHouseToStringVisitor.asString(expr));
                 }
             }
-            if (Randomly.getBoolean()) {
-                ClickHouseExpression expr = generateValidated(exprFactory, ClickHouseTableGenerator::isValidSampleBy);
-                if (expr != null) {
-                    sb.append(" SAMPLE BY ");
-                    sb.append(ClickHouseToStringVisitor.asString(expr));
-                }
+            // SAMPLE BY only when the ORDER BY key is a single bare integer column we can reuse
+            // verbatim (sampleByColumn non-null). Reusing the sort-key column guarantees the
+            // sampling expression is present in the primary key, which is the invariant ClickHouse
+            // enforces; any independently generated sampling expression would be rejected with
+            // "Sampling expression must be present in the primary key." See sampleByColumn above.
+            if (sampleByColumn != null && Randomly.getBoolean()) {
+                sb.append(" SAMPLE BY ");
+                sb.append(sampleByColumn);
             }
             // Suppress index sanity checks https://github.com/sqlancer/sqlancer/issues/788; permit
             // Nullable columns in ORDER BY / PARTITION BY / SAMPLE BY -- otherwise ClickHouse
@@ -446,13 +503,115 @@ public class ClickHouseTableGenerator {
     // PARTITION BY rejects float keys ("Floating point partition key is not supported") and
     // all-constant expressions ("Partition key cannot contain constants"). Also reject the
     // unorderable composite types.
+    //
+    // referencesFloatColumn alone is insufficient: it only inspects column TYPES, so a float-RESULT
+    // function over an INTEGER column slips through and wastes a CREATE on a server-side rejection.
+    // The 30-min fuzz run on CH 26.6.1.229 produced a stream of tolerated-but-wasteful
+    // "Code: 36 ... Floating point partition key is not supported: radians(c2). (BAD_ARGUMENTS)"
+    // failures from exactly this gap -- radians/sqrt/exp/sin/cos/log/cbrt of an int column, and
+    // real division a/b (always Float64 in ClickHouse), all type-check as float but pass
+    // referencesFloatColumn. isFloatResultExpression closes the gap by inspecting the evaluated
+    // result type. Integer-result non-monotonic shapes (intDiv, gcd, modulo, c*c, -c, abs,
+    // toYYYYMM/toWeek/toDayOfWeek on Date) are NOT rejected here -- those are the
+    // #106080/#106084 KeyCondition surface and are valid partition keys.
     static boolean isValidPartitionBy(ClickHouseExpression expr) {
-        return hasColumnReference(expr) && !referencesFloatColumn(expr) && !referencesUnorderableComposite(expr);
+        return hasColumnReference(expr) && !referencesFloatColumn(expr) && !isFloatResultExpression(expr)
+                && !referencesUnorderableComposite(expr);
+    }
+
+    // Float-returning unary function names from ClickHouseUnaryFunctionOperation's operator enum
+    // (EXP, SQRT, ERF, SIN, COS, TAN, RADIANS, LOG) plus the float-returning extras emitted as raw
+    // text by buildSuspiciousKey (cbrt, degrees, exp2, log2/log10, etc.). SIGN and ABS are
+    // deliberately ABSENT: both preserve the integer result type, so they remain valid PARTITION BY
+    // keys. ClickHouse widens every one of the listed functions to Float64 even over an integer
+    // argument, which makes the resulting expression an illegal floating-point partition key.
+    private static final java.util.Set<String> FLOAT_RESULT_FUNCTIONS = java.util.Set.of("exp", "exp2", "exp10", "sqrt",
+            "cbrt", "erf", "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "radians", "degrees",
+            "log", "log2", "log10", "ln", "pow", "power");
+
+    // True when the expression's evaluated RESULT type is floating point, regardless of whether it
+    // references a float COLUMN. ClickHouse rejects any floating-point PARTITION BY key, so this is
+    // the predicate that catches float-RESULT functions over integer columns (radians(intCol),
+    // sqrt(intCol), a/b real division) that referencesFloatColumn misses. Recurses so float
+    // propagation through arithmetic (e.g. sqrt(c0) + 1, which stays Float64) is also caught.
+    private static boolean isFloatResultExpression(ClickHouseExpression expr) {
+        if (expr instanceof ClickHouseUnaryFunctionOperation ufo) {
+            // getOperatorRepresentation() returns the lower-case function name (e.g. "sqrt").
+            if (FLOAT_RESULT_FUNCTIONS.contains(ufo.getOperatorRepresentation())) {
+                return true;
+            }
+            return isFloatResultExpression(ufo.getExpression());
+        }
+        if (expr instanceof ClickHouseBinaryArithmeticOperation bao) {
+            // Real division '/' always yields Float64 in ClickHouse, even over two integers
+            // (use intDiv for integer division). Any other arithmetic propagates a float operand.
+            if (bao.getOperator() == ClickHouseBinaryArithmeticOperation.ClickHouseBinaryArithmeticOperator.DIV) {
+                return true;
+            }
+            return isFloatResultExpression(bao.getLeft()) || isFloatResultExpression(bao.getRight());
+        }
+        if (expr instanceof ClickHouseRawText rt) {
+            // buildSuspiciousKey emits some functions (cbrt, date extractors) as raw text. Match the
+            // leading function-name token against the float-returning set so a raw "cbrt(c0)" key is
+            // rejected for PARTITION BY while the integer-result "toYYYYMM(d)" raw text is kept.
+            String sql = rt.getSql();
+            int paren = sql.indexOf('(');
+            String head = paren >= 0 ? sql.substring(0, paren).trim().toLowerCase(java.util.Locale.ROOT) : "";
+            return FLOAT_RESULT_FUNCTIONS.contains(head);
+        }
+        if (expr instanceof BinaryOperation<?> bo) {
+            return isFloatResultExpression((ClickHouseExpression) bo.getLeft())
+                    || isFloatResultExpression((ClickHouseExpression) bo.getRight());
+        }
+        if (expr instanceof UnaryOperation<?> uo) {
+            return isFloatResultExpression((ClickHouseExpression) uo.getExpression());
+        }
+        return false;
     }
 
     // SAMPLE BY must reference a column (the actual primary-key check is server-side).
     static boolean isValidSampleBy(ClickHouseExpression expr) {
         return hasColumnReference(expr) && !referencesUnorderableComposite(expr);
+    }
+
+    // Return the column name iff expr is a single bare reference to an UNSIGNED integer column;
+    // otherwise null. Used to derive a SAMPLE BY expression that is guaranteed to be present in the
+    // primary key (we only call this on the emitted ORDER BY key). ClickHouse additionally requires
+    // the sampling column to be an unsigned integer type ("Invalid sampling column type ... Must be
+    // unsigned integer"), so signed Int*/Date/Float/String columns are rejected here even though
+    // they are valid sort keys. No wrapper types (Nullable/LowCardinality/Array) -- a wrapped
+    // column is not a plain unsigned-integer sampling expression.
+    private static String bareIntegerColumnName(ClickHouseExpression expr) {
+        if (!(expr instanceof ClickHouseColumnReference cr)) {
+            return null;
+        }
+        sqlancer.clickhouse.ClickHouseType term = cr.getColumn().getType().getTypeTerm();
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Nullable
+                || term instanceof sqlancer.clickhouse.ClickHouseType.LowCardinality
+                || term instanceof sqlancer.clickhouse.ClickHouseType.Array
+                || term instanceof sqlancer.clickhouse.ClickHouseType.Unknown) {
+            return null;
+        }
+        switch (cr.getColumn().getType().getType()) {
+        case UInt8:
+        case UInt16:
+        case UInt32:
+        case UInt64:
+            return cr.getColumn().getName();
+        default:
+            return null;
+        }
+    }
+
+    // When ORDER BY fell back to the engine default, the sort key is either tuple() (plain
+    // MergeTree -- no sampling column at all) or columns.get(0) (dedupe engines). Only the latter
+    // gives a bare column we could reuse, and only if it is an unsigned integer; otherwise null so
+    // SAMPLE BY is skipped.
+    private String fallbackSampleColumn(boolean engineRequiresNonEmptyOrderBy) {
+        if (!engineRequiresNonEmptyOrderBy) {
+            return null;
+        }
+        return bareIntegerColumnName(columns.get(0).asColumnReference(null));
     }
 
     private static boolean hasColumnReference(ClickHouseExpression expr) {
@@ -482,6 +641,205 @@ public class ClickHouseTableGenerator {
             return referencesFloatColumn((ClickHouseExpression) uo.getExpression());
         }
         return false;
+    }
+
+    // GAP 3 suspicious-key emission probability. ~40% of plain-MergeTree ORDER BY / PARTITION BY
+    // generations take the curated non-monotonic pool; the remaining ~60% keep the generic
+    // depth-3 recursive path. The pool is ADDITIVE coverage, not a replacement -- the generic
+    // path still produces the bulk of column-only and arbitrary-expression keys.
+    private static final int SUSPICIOUS_KEY_PERCENT = 40;
+
+    private static boolean rollSuspiciousKey() {
+        return Randomly.getNotCachedInteger(0, 100) < SUSPICIOUS_KEY_PERCENT;
+    }
+
+    // GAP 3: build a single deliberately non-monotonic (or only-partially-monotonic) key over one
+    // column, drawn from a curated pool that mirrors the shapes in the four v26.5.1.882 wrong-
+    // result reports (#106080/#106082/#106083/#106084). These functions defeat KeyCondition's
+    // monotonic-range reasoning and partition pruning, which is precisely what the KeyCondition
+    // oracle is built to detect; the generic recursive builder reaches them only by chance.
+    //
+    // forPartitionBy=true restricts the pool to integer-RESULT expressions: PARTITION BY rejects
+    // float keys ("Floating point partition key is not supported"), and sqrt/cbrt/exp* of an
+    // integer column return Float64. isValidPartitionBy's referencesFloatColumn check only
+    // inspects column types, not result types, so it would let sqrt(intCol) through and waste a
+    // CREATE on a server-side rejection -- we exclude those shapes here instead.
+    //
+    // Returns null when the table has no column of a suitable type for any pooled shape (e.g. a
+    // String-only table); the caller then falls back to the generic path.
+    private ClickHouseExpression buildSuspiciousKey(boolean forPartitionBy) {
+        List<ClickHouseSchema.ClickHouseColumn> intCols = columns.stream().filter(ClickHouseTableGenerator::isIntegerColumn)
+                .collect(Collectors.toList());
+        List<ClickHouseSchema.ClickHouseColumn> dateCols = columns.stream().filter(ClickHouseTableGenerator::isDateColumn)
+                .collect(Collectors.toList());
+
+        // Collect the candidate shape builders that this table's column set can actually support,
+        // then pick one uniformly. Each entry is a no-arg supplier closing over a freshly picked
+        // column of the right type so the chosen shape always references an existing, type-correct
+        // column.
+        List<Supplier<ClickHouseExpression>> shapes = new ArrayList<>();
+
+        if (!intCols.isEmpty()) {
+            // Integer-result shapes -- valid for both ORDER BY and PARTITION BY.
+            // c * c : quadratic, non-monotonic over signed ranges (#106080 PARTITION BY c0*c0).
+            shapes.add(() -> {
+                ClickHouseExpression c = pickRef(intCols);
+                return ClickHouseBinaryArithmeticOperation.create(c, c,
+                        ClickHouseBinaryArithmeticOperation.ClickHouseBinaryArithmeticOperator.MULT);
+            });
+            // intDiv(c, <small nonzero, sometimes negative>) : step function, only partially
+            // monotonic (#106082/#106083 PARTITION BY intDiv(c0,-691388354), ORDER BY (c0)/const).
+            shapes.add(() -> ClickHouseBinaryFunctionOperation.create(pickRef(intCols), intConst(smallNonZeroDivisor()),
+                    ClickHouseBinaryFunctionOperation.ClickHouseBinaryFunctionOperator.INT_DIV));
+            // gcd(c, c) : collapses to |c|, non-monotonic across the sign boundary (#106082
+            // PARTITION BY gcd(c0,c0)).
+            shapes.add(() -> {
+                ClickHouseExpression c = pickRef(intCols);
+                return ClickHouseBinaryFunctionOperation.create(c, c,
+                        ClickHouseBinaryFunctionOperation.ClickHouseBinaryFunctionOperator.GCD);
+            });
+            // c % <nonzero> : sawtooth, strongly non-monotonic.
+            shapes.add(() -> ClickHouseBinaryArithmeticOperation.create(pickRef(intCols), intConst(smallNonZeroDivisor()),
+                    ClickHouseBinaryArithmeticOperation.ClickHouseBinaryArithmeticOperator.MODULO));
+            // -c : monotonically DEcreasing -- KeyCondition must flip range bounds; the reports
+            // show this alone is enough to misfire (#106084 ORDER BY -c0).
+            shapes.add(() -> new ClickHouseUnaryPrefixOperation(pickRef(intCols),
+                    ClickHouseUnaryPrefixOperation.ClickHouseUnaryPrefixOperator.MINUS));
+            // abs(c) : folds the negative half onto the positive, non-monotonic at zero.
+            shapes.add(() -> new ClickHouseUnaryFunctionOperation(pickRef(intCols),
+                    ClickHouseUnaryFunctionOperation.ClickHouseUnaryFunctionOperator.ABS));
+            // sign(c) : 3-valued step (-1/0/1), only weakly monotonic.
+            shapes.add(() -> new ClickHouseUnaryFunctionOperation(pickRef(intCols),
+                    ClickHouseUnaryFunctionOperation.ClickHouseUnaryFunctionOperator.SIGN));
+
+            if (!forPartitionBy) {
+                // Float-result shapes -- ORDER BY only (PARTITION BY rejects float keys). We feed
+                // an INTEGER column so isValidOrderBy / referencesFloatColumn accept the key; the
+                // function itself widens to Float64. sqrt over an Int column is fine, sqrt over a
+                // Float column would be rejected by referencesFloatColumn.
+                // sqrt(c) : partially monotonic, undefined for negatives -> NaN (#106080/#106084
+                // ORDER BY sqrt(c0)).
+                shapes.add(() -> new ClickHouseUnaryFunctionOperation(pickRef(intCols),
+                        ClickHouseUnaryFunctionOperation.ClickHouseUnaryFunctionOperator.SQRT));
+                // exp(c) : monotonic but explodes -- range-bound arithmetic in KeyCondition can
+                // overflow to +inf.
+                shapes.add(() -> new ClickHouseUnaryFunctionOperation(pickRef(intCols),
+                        ClickHouseUnaryFunctionOperation.ClickHouseUnaryFunctionOperator.EXP));
+                // sin(c) : periodic, the canonical non-monotonic function.
+                shapes.add(() -> new ClickHouseUnaryFunctionOperation(pickRef(intCols),
+                        ClickHouseUnaryFunctionOperation.ClickHouseUnaryFunctionOperator.SIN));
+                // c / <negative const> : monotonically decreasing float (#106083 ORDER BY
+                // (c0)/(-158854227)). Division yields Float64 so it is ORDER-BY-only.
+                shapes.add(() -> ClickHouseBinaryArithmeticOperation.create(pickRef(intCols),
+                        intConst(-(long) Randomly.getNotCachedInteger(1, 1_000_000_000)),
+                        ClickHouseBinaryArithmeticOperation.ClickHouseBinaryArithmeticOperator.DIV));
+                // cbrt(c) : monotonic but partially so under float rounding. No AST enum entry
+                // exists for cbrt, so emit raw text over the column reference -- the same
+                // raw-fragment precedent ClickHouseRawText documents for unmodelled functions.
+                shapes.add(() -> new ClickHouseRawText(
+                        "cbrt(" + ClickHouseToStringVisitor.asString(pickRef(intCols)) + ")"));
+            }
+        }
+
+        if (!dateCols.isEmpty()) {
+            // Date/DateTime bucketing functions. toYYYYMM is monotonic but lossy; toWeek(d, 3) and
+            // toDayOfWeek are periodic / non-monotonic. All return integers so they are valid for
+            // both ORDER BY and PARTITION BY. No AST enum entries model these date extractors, so
+            // they are emitted as raw text over a column reference (ClickHouseRawText precedent).
+            shapes.add(() -> new ClickHouseRawText(
+                    "toYYYYMM(" + ClickHouseToStringVisitor.asString(pickRef(dateCols)) + ")"));
+            shapes.add(() -> new ClickHouseRawText(
+                    "toWeek(" + ClickHouseToStringVisitor.asString(pickRef(dateCols)) + ", 3)"));
+            shapes.add(() -> new ClickHouseRawText(
+                    "toDayOfWeek(" + ClickHouseToStringVisitor.asString(pickRef(dateCols)) + ")"));
+        }
+
+        if (shapes.isEmpty()) {
+            return null;
+        }
+        ClickHouseExpression key = Randomly.fromList(shapes).get();
+        // Defensive result-type gate for the PARTITION BY path. The forPartitionBy guards above
+        // already exclude the float-RESULT shapes (sqrt/exp/sin/cbrt/division) from the pool, but
+        // routing the chosen key through the same isFloatResultExpression predicate that
+        // isValidPartitionBy uses keeps the two in lockstep: if a future shape is added to the
+        // integer sub-pool that turns out to widen to Float64, it is dropped here (caller falls
+        // back to the generic path) rather than emitted as an illegal floating-point partition key
+        // ("Floating point partition key is not supported", CH 26.6.1.229).
+        if (forPartitionBy && isFloatResultExpression(key)) {
+            return null;
+        }
+        return key;
+    }
+
+    // Pick a column from the candidate list and return its reference node. The list is guaranteed
+    // non-empty by the caller (buildSuspiciousKey checks isEmpty before adding a shape).
+    private static ClickHouseColumnReference pickRef(List<ClickHouseSchema.ClickHouseColumn> cands) {
+        return Randomly.fromList(cands).asColumnReference(null);
+    }
+
+    // A small nonzero divisor for intDiv / modulo, occasionally negative to exercise the sign-flip
+    // path in KeyCondition's range arithmetic (the reports use both signs: intDiv(c0,-691388354)).
+    private static long smallNonZeroDivisor() {
+        long magnitude = 1 + Randomly.getNotCachedInteger(1, 1000);
+        return Randomly.getBoolean() ? -magnitude : magnitude;
+    }
+
+    // Wrap a long in an Int32/Int64 constant node so the value renders as a bare integer literal
+    // alongside the column reference. Int32 covers the small-divisor case; values outside the
+    // Int32 range fall back to Int64.
+    private static ClickHouseExpression intConst(long val) {
+        if (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) {
+            return ClickHouseCreateConstant.createInt32Constant(val);
+        }
+        return ClickHouseCreateConstant.createInt64Constant(java.math.BigInteger.valueOf(val));
+    }
+
+    // GAP 3 column-type classifiers. Integer columns are eligible for the arithmetic / sqrt /
+    // intDiv / gcd pool; Date/DateTime columns feed the toYYYYMM / toWeek / toDayOfWeek pool.
+    // Wrapper types (Nullable / LowCardinality / Array) are excluded -- a function over a wrapped
+    // column changes the result type and reintroduces the validator-rejection / NaN-bucket risks
+    // the curated pool is designed to avoid.
+    private static boolean isIntegerColumn(ClickHouseSchema.ClickHouseColumn col) {
+        sqlancer.clickhouse.ClickHouseType term = col.getType().getTypeTerm();
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Nullable
+                || term instanceof sqlancer.clickhouse.ClickHouseType.LowCardinality
+                || term instanceof sqlancer.clickhouse.ClickHouseType.Array
+                || term instanceof sqlancer.clickhouse.ClickHouseType.Unknown) {
+            return false;
+        }
+        switch (col.getType().getType()) {
+        case Int8:
+        case Int16:
+        case Int32:
+        case Int64:
+        case UInt8:
+        case UInt16:
+        case UInt32:
+        case UInt64:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    private static boolean isDateColumn(ClickHouseSchema.ClickHouseColumn col) {
+        sqlancer.clickhouse.ClickHouseType term = col.getType().getTypeTerm();
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Nullable
+                || term instanceof sqlancer.clickhouse.ClickHouseType.LowCardinality
+                || term instanceof sqlancer.clickhouse.ClickHouseType.Array
+                || term instanceof sqlancer.clickhouse.ClickHouseType.Unknown) {
+            return false;
+        }
+        switch (col.getType().getType()) {
+        case Date:
+        case Date32:
+        case DateTime:
+        case DateTime32:
+        case DateTime64:
+            return true;
+        default:
+            return false;
+        }
     }
 
     private void addColumnsConstraint(ClickHouseExpressionGenerator gen) {

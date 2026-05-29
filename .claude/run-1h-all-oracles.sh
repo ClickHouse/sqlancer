@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 1-hour sanity-check run of all 30 oracles. Same shape as the 6h script
+# 1-hour sanity-check run of all 31 oracles. Same shape as the 6h script
 # but compressed; used after triage fixes to verify reduction in noise
 # before committing to another full 6h run.
 set -euo pipefail
@@ -7,7 +7,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-ALL_ORACLES="TLPWhere,TLPDistinct,TLPGroupBy,TLPAggregate,TLPHaving,NoREC,PQS,CERT,CODDTest,SEMR,SEMRMulti,EET,SetOpTLP,CombinatorTLP,QccCache,SortedUnionLimitBy,RowPolicy,SchemaRoundtrip,JoinAlgorithm,Cast,Parallelism,PartitionMirror,KeyCondition,TableFunctionIN,ViewEquivalence,FinalMerge,AggregateStateRoundtrip,DictGetVsJoin,WindowEquivalence,DynamicSubcolumn"
+ALL_ORACLES="TLPWhere,TLPDistinct,TLPGroupBy,TLPAggregate,TLPHaving,NoREC,PQS,CERT,CODDTest,SEMR,SEMRMulti,EET,SetOpTLP,CombinatorTLP,QccCache,SortedUnionLimitBy,RowPolicy,SchemaRoundtrip,JoinAlgorithm,Cast,Parallelism,PartitionMirror,KeyCondition,TableFunctionIN,ViewEquivalence,FinalMerge,AggregateStateRoundtrip,DictGetVsJoin,WindowEquivalence,DynamicSubcolumn,SubqueryMaterialize"
 
 DURATION=3600  # 1 hour
 OUT_BASE="logs/run-1h-$(date -u +%Y%m%d_%H%M%S)"
