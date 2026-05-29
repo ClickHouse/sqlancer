@@ -225,9 +225,13 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         // error (TOO_MANY_ROWS_OR_BYTES). The matching tolerance lives in ClickHouseErrors.
         settings.put("max_result_rows", "1000000");
         settings.put("result_overflow_mode", "throw");
-        if (clickHouseOptions.enableAnalyzer) {
-            settings.put("allow_experimental_analyzer", "1");
-        }
+        // alter_sync=2 / mutations_sync=2 (synchronous ALTER + mutations) are pinned in the CH
+        // server's default profile via .claude/clickhouse-config/alter_mutation_sync.xml (mounted
+        // into users.d/), not here -- see that file for the rationale.
+        // Analyzer is always enabled: it is the default in modern ClickHouse and the only path
+        // worth fuzzing, and several oracles assume analyzer semantics. Pinned unconditionally
+        // rather than gated on the (now vestigial) --enable-analyzer option.
+        settings.put("allow_experimental_analyzer", "1");
         if (clickHouseOptions.enableLowCardinality) {
             settings.put("allow_suspicious_low_cardinality_types", "1");
         }

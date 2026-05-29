@@ -65,7 +65,7 @@ done
 [[ "$ORACLES" == "all" ]] && ORACLES="$ALL_ORACLES"
 
 CFG="$ROOT/.claude/clickhouse-config"
-for f in log_level.xml trace_log_disabled.xml system_log_ttl.xml async_insert_off.xml; do
+for f in log_level.xml trace_log_disabled.xml system_log_ttl.xml async_insert_off.xml alter_mutation_sync.xml; do
   [[ -f "$CFG/$f" ]] || { echo "missing $CFG/$f" >&2; exit 1; }
 done
 
@@ -114,6 +114,7 @@ docker run --ulimit nofile=262144:262144 --name "$NAME" -p "$PORT":8123 -d \
   -v "$CFG/trace_log_disabled.xml:/etc/clickhouse-server/config.d/sf_trace_log_disabled.xml:ro" \
   -v "$CFG/system_log_ttl.xml:/etc/clickhouse-server/config.d/sf_system_log_ttl.xml:ro" \
   -v "$CFG/async_insert_off.xml:/etc/clickhouse-server/config.d/sf_async_insert_off.xml:ro" \
+  -v "$CFG/alter_mutation_sync.xml:/etc/clickhouse-server/users.d/sf_alter_mutation_sync.xml:ro" \
   clickhouse/clickhouse-server:head >/dev/null
 
 echo "==> waiting for /ping"
