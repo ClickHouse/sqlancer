@@ -288,7 +288,7 @@ predicates in generated queries and no new oracle false positives.
 **Verification:** Type-generation unit tests cover all 7 new kinds; a short fuzz run creates tables
 with each and TLPWhere/partition-pruning queries run clean against the head container.
 
-- [ ] **Unit 1.3: Explicit PRIMARY KEY prefix + broader per-table SETTINGS**
+- [x] **Unit 1.3: Explicit PRIMARY KEY prefix + broader per-table SETTINGS**
 
 **Goal:** Emit a PRIMARY KEY that is a strict prefix of ORDER BY, and widen per-table SETTINGS
 (small `index_granularity`, sparse-serialization ratio, `enable_mixed_granularity_parts`) to vary

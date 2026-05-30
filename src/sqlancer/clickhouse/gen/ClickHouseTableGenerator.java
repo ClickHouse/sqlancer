@@ -171,8 +171,30 @@ public class ClickHouseTableGenerator {
             // the SAMPLE BY expression -- the only shape guaranteed to be in the primary key. Stays
             // null for tuple()/function/non-integer ORDER BY keys, in which case SAMPLE BY is skipped.
             String sampleByColumn = null;
+            String primaryKeyClause = null;
+            boolean orderByHandled = false;
 
-            if (Randomly.getBoolean()) {
+            // Unit 1.3: explicit PRIMARY KEY that is a strict prefix of a multi-column ORDER BY. A
+            // PK shorter than the sort key changes the primary-index granule layout and
+            // KeyCondition mark selection without changing sort order -- a distinct pruning surface
+            // from ORDER-BY-only. Plain MergeTree only (dedupe engines need their full ORDER BY as
+            // the dedupe key); requires >= 2 bare scalar key columns so the prefix is strict and
+            // non-empty. SAMPLE BY is skipped on this path (sampleByColumn stays null).
+            if (!isDedupeEngine(engine) && Randomly.getBooleanWithSmallProbability()) {
+                java.util.List<String> bareCols = columns.stream()
+                        .filter(ClickHouseTableGenerator::isBareKeyColumn)
+                        .map(ClickHouseSchema.ClickHouseColumn::getName).collect(Collectors.toList());
+                if (bareCols.size() >= 2) {
+                    java.util.List<String> obCols = pickDistinct(bareCols,
+                            2 + (int) Randomly.getNotCachedInteger(0, Math.min(2, bareCols.size() - 1)));
+                    int pkCount = 1 + (int) Randomly.getNotCachedInteger(0, obCols.size() - 1);
+                    sb.append(" ORDER BY (").append(String.join(", ", obCols)).append(")");
+                    primaryKeyClause = " PRIMARY KEY (" + String.join(", ", obCols.subList(0, pkCount)) + ")";
+                    orderByHandled = true;
+                }
+            }
+
+            if (!orderByHandled && Randomly.getBoolean()) {
                 // For dedupe engines (Replacing/Summing), function-of-numeric ORDER BY produces
                 // NaN under common float arithmetic (log/sqrt of negative, division by zero)
                 // which the dedupe key bucketer treats as a hash collision, collapsing rows
@@ -212,9 +234,15 @@ public class ClickHouseTableGenerator {
                     sb.append(fallbackOrderBy);
                     sampleByColumn = fallbackSampleColumn(engineRequiresNonEmptyOrderBy);
                 }
-            } else {
+            } else if (!orderByHandled) {
                 sb.append(fallbackOrderBy);
                 sampleByColumn = fallbackSampleColumn(engineRequiresNonEmptyOrderBy);
+            }
+            // Emit the explicit PRIMARY KEY prefix (Unit 1.3) immediately after ORDER BY when the
+            // PK-prefix branch produced one. ClickHouse's storage-definition parser accepts these
+            // clauses in flexible order, matching the existing ORDER-BY-before-PARTITION-BY emission.
+            if (primaryKeyClause != null) {
+                sb.append(primaryKeyClause);
             }
 
             if (Randomly.getBoolean()) {
@@ -259,7 +287,21 @@ public class ClickHouseTableGenerator {
             if (Randomly.getBooleanWithSmallProbability()) {
                 sb.append(", min_bytes_for_wide_part=0");
             }
-            // TODO: PRIMARY KEY
+            // Unit 1.3: broaden per-table SETTINGS to vary granule/mark and column-serialization
+            // layout -- the surface KeyCondition mark selection and granule skipping read. Small
+            // index_granularity dramatically increases granule-boundary pruning-bug exposure. All
+            // values are valid MergeTree settings; each is emitted at low probability so the common
+            // default layout still dominates.
+            if (Randomly.getBooleanWithSmallProbability()) {
+                sb.append(", index_granularity=").append(Randomly.fromOptions(1L, 2L, 4L, 8L));
+            }
+            if (Randomly.getBooleanWithSmallProbability()) {
+                sb.append(", enable_mixed_granularity_parts=1");
+            }
+            if (Randomly.getBooleanWithSmallProbability()) {
+                sb.append(", ratio_of_defaults_for_sparse_serialization=")
+                        .append(Randomly.fromOptions(0.0, 0.5, 0.95, 1.0));
+            }
         }
 
     }
@@ -271,6 +313,32 @@ public class ClickHouseTableGenerator {
 
     private static boolean isDedupeEngine(ClickHouseEngine engine) {
         return engine == ClickHouseEngine.ReplacingMergeTree || engine == ClickHouseEngine.SummingMergeTree;
+    }
+
+    // Unit 1.3: a column usable as a bare ORDER BY / PRIMARY KEY key -- a scalar (comparable) type
+    // after unwrapping Nullable / LowCardinality (allow_nullable_key=1 is set). Composite types
+    // (Array/Tuple/Map/Nested/JSON/Variant/Dynamic/Geo) and Unknown are excluded.
+    static boolean isBareKeyColumn(ClickHouseSchema.ClickHouseColumn col) {
+        sqlancer.clickhouse.ClickHouseType u = col.getType().getTypeTerm().unwrap();
+        return u instanceof sqlancer.clickhouse.ClickHouseType.Primitive
+                || u instanceof sqlancer.clickhouse.ClickHouseType.FixedString
+                || u instanceof sqlancer.clickhouse.ClickHouseType.Decimal
+                || u instanceof sqlancer.clickhouse.ClickHouseType.DateTime64Type
+                || u instanceof sqlancer.clickhouse.ClickHouseType.Enum
+                || u instanceof sqlancer.clickhouse.ClickHouseType.Time
+                || u instanceof sqlancer.clickhouse.ClickHouseType.Time64;
+    }
+
+    // Pick up to k distinct elements from src in random order, drawn from the seeded Randomly so
+    // runs stay reproducible. Used to build the ORDER BY tuple + PRIMARY KEY prefix (Unit 1.3).
+    // Package-private for unit testing the distinctness invariant.
+    static java.util.List<String> pickDistinct(java.util.List<String> src, int k) {
+        java.util.List<String> pool = new java.util.ArrayList<>(src);
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (int i = 0; i < k && !pool.isEmpty(); i++) {
+            out.add(pool.remove((int) Randomly.getNotCachedInteger(0, pool.size())));
+        }
+        return out;
     }
 
     // Weighted engine pick: plain MergeTree dominates so historical coverage is preserved;

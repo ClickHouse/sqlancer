@@ -1,7 +1,13 @@
 package sqlancer.clickhouse.gen;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import com.clickhouse.data.ClickHouseDataType;
 
@@ -20,6 +26,10 @@ class ClickHouseTableGeneratorTest {
     private static ClickHouseColumnReference column(ClickHouseDataType type) {
         return new ClickHouseColumnReference(
                 new ClickHouseColumn("c", new ClickHouseLancerDataType(type), false, false, null), null, null);
+    }
+
+    private static ClickHouseColumn col(ClickHouseDataType type) {
+        return new ClickHouseColumn("c", new ClickHouseLancerDataType(type), false, false, null);
     }
 
     @Test
@@ -60,5 +70,38 @@ class ClickHouseTableGeneratorTest {
     void sampleByRequiresColumn() {
         assertFalse(ClickHouseTableGenerator.isValidSampleBy(ClickHouseCreateConstant.createInt32Constant(1L)));
         assertTrue(ClickHouseTableGenerator.isValidSampleBy(column(ClickHouseDataType.Int32)));
+    }
+
+    // Unit 1.3: PRIMARY-KEY-prefix helpers.
+
+    @Test
+    void pickDistinctReturnsRequestedCountDistinctInPool() {
+        List<String> src = Arrays.asList("a", "b", "c", "d", "e");
+        for (int trial = 0; trial < 500; trial++) {
+            List<String> got = ClickHouseTableGenerator.pickDistinct(src, 3);
+            assertEquals(3, got.size());
+            Set<String> unique = new HashSet<>(got);
+            assertEquals(got.size(), unique.size(), () -> "pickDistinct returned duplicates: " + got);
+            assertTrue(src.containsAll(got), () -> "pickDistinct returned out-of-pool element: " + got);
+        }
+    }
+
+    @Test
+    void pickDistinctCapsAtPoolSizeAndDoesNotMutateSource() {
+        List<String> src = Arrays.asList("a", "b");
+        List<String> got = ClickHouseTableGenerator.pickDistinct(src, 5);
+        assertEquals(2, got.size());
+        assertEquals(2, new HashSet<>(got).size());
+        assertEquals(Arrays.asList("a", "b"), src);
+    }
+
+    @Test
+    void isBareKeyColumnAcceptsScalarsRejectsComposite() {
+        assertTrue(ClickHouseTableGenerator.isBareKeyColumn(col(ClickHouseDataType.Int32)));
+        assertTrue(ClickHouseTableGenerator.isBareKeyColumn(col(ClickHouseDataType.String)));
+        assertTrue(ClickHouseTableGenerator.isBareKeyColumn(col(ClickHouseDataType.Date32)));
+        assertTrue(ClickHouseTableGenerator.isBareKeyColumn(col(ClickHouseDataType.UUID)));
+        // Array maps to no Kind -> Unknown type term -> not a usable bare key.
+        assertFalse(ClickHouseTableGenerator.isBareKeyColumn(col(ClickHouseDataType.Array)));
     }
 }
