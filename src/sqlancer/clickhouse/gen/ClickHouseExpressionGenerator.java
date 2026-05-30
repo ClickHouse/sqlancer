@@ -1124,15 +1124,51 @@ public class ClickHouseExpressionGenerator
             return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(randomDateTimeLiteral()),
                     new ClickHouseLancerDataType(new Primitive(Kind.DateTime)));
         case UUID:
+            // CAST('xxxxxxxx-...' AS UUID). UUID ORDER BY / primary-key ordering changed across CH
+            // versions; emitting real UUID columns + literals exercises that path. Unit 1.2.
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(randomUuidLiteral()),
+                    new ClickHouseLancerDataType(new Primitive(Kind.UUID)));
         case IPv4:
+            // CAST('a.b.c.d' AS IPv4). IPv4 is backed by UInt32 but compared with special ops --
+            // comparison/ordering/CAST bug history. Unit 1.2.
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(randomIPv4Literal()),
+                    new ClickHouseLancerDataType(new Primitive(Kind.IPv4)));
         case IPv6:
+            // CAST('h:h:h:h:h:h:h:h' AS IPv6). IPv6 is backed by FixedString(16); full 8-group hex
+            // form is always valid text. Unit 1.2.
+            return new ClickHouseCastOperation(ClickHouseCreateConstant.createStringConstant(randomIPv6Literal()),
+                    new ClickHouseLancerDataType(new Primitive(Kind.IPv6)));
         default:
-            // Literal emission for these scalar kinds is feasible (toUUID(...) / toIPv4(...)) but
-            // the picker does not synthesise columns of these types, and reflection-loaded columns
-            // are exceptionally rare. Skip the attempt rather than fabricate a literal here so the
-            // generator does not produce surface that has no corresponding PQS round-trip path.
+            // Truly unhandled scalar kind: skip rather than fabricate an untyped literal.
             throw new IgnoreMeException();
         }
+    }
+
+    // Random UUID text in canonical 8-4-4-4-12 hex form. Drawn from the seeded Randomly so runs
+    // remain reproducible. Unit 1.2.
+    private String randomUuidLiteral() {
+        Randomly r = globalState.getRandomly();
+        return String.format("%08x-%04x-%04x-%04x-%012x", r.getLong(0, 0x1_0000_0000L), r.getLong(0, 0x1_0000L),
+                r.getLong(0, 0x1_0000L), r.getLong(0, 0x1_0000L), r.getLong(0, 0x1_0000_0000_0000L));
+    }
+
+    // Random dotted-quad IPv4 literal. Unit 1.2.
+    private String randomIPv4Literal() {
+        return String.format("%d.%d.%d.%d", Randomly.getNotCachedInteger(0, 256), Randomly.getNotCachedInteger(0, 256),
+                Randomly.getNotCachedInteger(0, 256), Randomly.getNotCachedInteger(0, 256));
+    }
+
+    // Random full 8-group IPv6 literal (always valid text, no :: compression to keep it simple). Unit 1.2.
+    private String randomIPv6Literal() {
+        Randomly r = globalState.getRandomly();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 8; i++) {
+            if (i > 0) {
+                sb.append(':');
+            }
+            sb.append(String.format("%x", r.getLong(0, 0x1_0000L)));
+        }
+        return sb.toString();
     }
 
     // Random YYYY-MM-DD within a reasonable bug-bait range: covers the Date<->Date32 boundary

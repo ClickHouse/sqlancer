@@ -260,7 +260,7 @@ binary-comparison operator rendering in the ToString visitor.
 **Verification:** Unit tests assert rendered SQL; a short TLPWhere fuzz run shows IN-subquery
 predicates in generated queries and no new oracle false positives.
 
-- [ ] **Unit 1.2: Emit Date32, wide unsigned ints, and IPv4/IPv6/UUID as columns**
+- [x] **Unit 1.2: Emit Date32, wide unsigned ints, and IPv4/IPv6/UUID as columns**
 
 **Goal:** Turn dead literal/type paths into real columns: `Date32`, `UInt16`, `UInt128`,
 `UInt256`, `IPv4`, `IPv6`, `UUID`.

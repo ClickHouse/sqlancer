@@ -260,22 +260,32 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
             // toString(...) SQL functions OR oracle-side compares them via a structural form.
             // Workstreams 2 and 4: scaffolded, not actively exercised.
             //
-            // (Roll values 94-97 fall through; the tailRoll branches handle the remainder.)
+            // (Roll values 94-98 were dead no-op fall-throughs to the Enum tail -- previously
+            // reserved for Tuple/Map/Geo and Nested, which remain disabled because the JDBC/read
+            // and INSERT paths can't yet handle them. Unit 1.2 repurposes that band for scalar
+            // kinds that already parse and have working literal emitters but were never picked.)
+            if (roll < 96) {
+                // Date32 (1900..2299) -- the Date<->Date32 boundary and negative-day representation
+                // are partition-pruning / wrong-result bait; randomDateLiteral already targets the
+                // boundary. Highest-value of the Unit 1.2 additions.
+                return new Primitive(Kind.Date32);
+            }
             if (roll < 97) {
-                // Intentionally fall through. Was Tuple / Map / Geo. See note above.
+                return new Primitive(Kind.UInt16);
             }
             if (roll < 98) {
-                // Nested was previously emitted here but the INSERT generator can't coordinate
-                // parallel-array lengths across the Nested-decomposed subcolumns. ClickHouse
-                // returns SIZES_OF_ARRAYS_DONT_MATCH (Code 190) when subfields have different
-                // array sizes per row, which surfaces as a database-setup AssertionError.
-                // The type record stays in the codebase (parser-side recognition + canWrap
-                // guards) but the picker no longer emits Nested columns. Re-enable when the
-                // INSERT generator gains parallel-array-length coordination for Nested.
-                // Workstream 7 status: scaffolded but not actively exercised.
-                //
-                // Fall through to the JSON/Variant/Dynamic / AggregateFunction / Enum tail.
+                // Wide unsigned ints exercise the big-int arithmetic / comparison path that differs
+                // from native-width ints (signed Int128/256 are already emitted elsewhere).
+                return new Primitive(Randomly.getBoolean() ? Kind.UInt128 : Kind.UInt256);
             }
+            if (roll < 99) {
+                // IPv4 / IPv6 / UUID -- valid ORDER BY / PARTITION / JOIN keys with a documented
+                // comparison/ordering/CAST bug history. Literal emission added in Unit 1.2.
+                return new Primitive(Randomly.fromOptions(Kind.IPv4, Kind.IPv6, Kind.UUID));
+            }
+            // JSON / Variant / Dynamic / AggregateFunction / Nested / Tuple / Map / Geo picker
+            // emission remains removed (Object[]-render and INSERT-coordination issues documented
+            // above and below); type records stay for schema-read recognition. Workstreams 5/6/7.
             // JSON / Variant / Dynamic / AggregateFunction picker emission removed: same
             // Object[]-render issue as Tuple/Map/Geo -- the JDBC client returns opaque states
             // or polymorphic values that the existing TLPWhere getString() path renders as
