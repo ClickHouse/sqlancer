@@ -104,4 +104,14 @@ class ClickHouseTableGeneratorTest {
         // Array maps to no Kind -> Unknown type term -> not a usable bare key.
         assertFalse(ClickHouseTableGenerator.isBareKeyColumn(col(ClickHouseDataType.Array)));
     }
+
+    // Unit 2.1: CollapsingMergeTree sign column must be exactly Int8.
+
+    @Test
+    void isValidSignAcceptsOnlyInt8() {
+        assertTrue(ClickHouseTableGenerator.isValidSign(col(ClickHouseDataType.Int8)));
+        assertFalse(ClickHouseTableGenerator.isValidSign(col(ClickHouseDataType.Int16)));
+        assertFalse(ClickHouseTableGenerator.isValidSign(col(ClickHouseDataType.UInt8)));
+        assertFalse(ClickHouseTableGenerator.isValidSign(col(ClickHouseDataType.Int32)));
+    }
 }

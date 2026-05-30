@@ -347,7 +347,7 @@ holds.
 
 ### Phase 2 — WS2: Merge-semantics engines
 
-- [ ] **Unit 2.1: CollapsingMergeTree + VersionedCollapsingMergeTree engines**
+- [x] **Unit 2.1: CollapsingMergeTree + VersionedCollapsingMergeTree engines**
 
 **Goal:** Add the two collapse engines to the pool; the FINAL oracle family fires automatically
 (`supportsFinal()` already whitelists them).

@@ -4,6 +4,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.clickhouse.data.ClickHouseDataType;
+
+import sqlancer.Randomly;
 import sqlancer.clickhouse.ClickHouseErrors;
 import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseColumn;
@@ -16,6 +19,11 @@ public class ClickHouseInsertGenerator extends AbstractInsertGenerator<ClickHous
 
     private final ClickHouseGlobalState globalState;
     private final ClickHouseExpressionGenerator gen;
+    // Unit 2.1: when the target table is a (Versioned)CollapsingMergeTree, every Int8 value must be
+    // +1 / -1 -- CollapsingMergeTree rejects any other Sign value with Code 117 INCORRECT_DATA. We
+    // can't tell which Int8 column is the declared sign from the reflected schema, so we constrain
+    // all Int8 columns to {+1,-1}; non-sign Int8 columns simply get a reduced (still valid) range.
+    private boolean signConstrained;
 
     public ClickHouseInsertGenerator(ClickHouseGlobalState globalState) {
         this.globalState = globalState;
@@ -35,6 +43,8 @@ public class ClickHouseInsertGenerator extends AbstractInsertGenerator<ClickHous
     @Override
     public void buildStatement() {
         ClickHouseTable table = globalState.getSchema().getRandomTable(t -> !t.isView());
+        String engine = table.getEngine();
+        signConstrained = "CollapsingMergeTree".equals(engine) || "VersionedCollapsingMergeTree".equals(engine);
         List<ClickHouseColumn> columns = Collections.emptyList();
         while (columns.isEmpty()) {
             columns = table.getRandomNonEmptyColumnSubset().stream().filter(c -> !c.isAlias() && !c.isMaterialized())
@@ -45,6 +55,10 @@ public class ClickHouseInsertGenerator extends AbstractInsertGenerator<ClickHous
 
     @Override
     protected void insertValue(ClickHouseColumn column) {
+        if (signConstrained && column.getType().getType() == ClickHouseDataType.Int8) {
+            sb.append(Randomly.getBoolean() ? "1" : "-1");
+            return;
+        }
         String s = ClickHouseToStringVisitor.asString(gen.generateConstant(column.getType()));
         sb.append(s);
     }

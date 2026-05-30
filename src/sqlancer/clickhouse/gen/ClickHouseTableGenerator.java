@@ -37,10 +37,14 @@ public class ClickHouseTableGenerator {
         // Replacing/Summing variants are included because the regression family around the query
         // condition cache (ClickHouse#104781) was reported against ReplacingMergeTree, and the
         // engine-specific merge logic is itself a bug-bait surface (deduplication on ver, sum-on-
-        // merge accumulator). AggregatingMergeTree is excluded -- it requires every non-PK column
-        // to be a SimpleAggregateFunction or AggregateFunction type, which the v1 type system
-        // does not yet emit.
-        MergeTree, ReplacingMergeTree, SummingMergeTree
+        // merge accumulator). Collapsing/VersionedCollapsing (Unit 2.1) add the sign-based collapse
+        // merge path -- among the most bug-prone merge logic in CH and adjacent to the
+        // SummingMergeTree FINAL row-drop bug. supportsFinal() already whitelists both, so the
+        // FinalMerge / Optimizing / PartitionMirror oracles exercise them on emission. The INSERT
+        // generator constrains Int8 columns to {+1,-1} for these engines (CollapsingMergeTree
+        // rejects any other Sign value with Code 117). AggregatingMergeTree is excluded here -- it
+        // requires every non-PK column to be a (Simple)AggregateFunction type (Unit 3.2).
+        MergeTree, ReplacingMergeTree, SummingMergeTree, CollapsingMergeTree, VersionedCollapsingMergeTree
     }
 
     private final StringBuilder sb = new StringBuilder();
@@ -156,8 +160,7 @@ public class ClickHouseTableGenerator {
             // racy cardinality (the false (756/126), (78/13), (5/1) trips in the 2026-05-19
             // run all came from this combination). For these engines we require a non-empty
             // sort key -- fall back to the first column rather than tuple().
-            boolean engineRequiresNonEmptyOrderBy = engine == ClickHouseEngine.ReplacingMergeTree
-                    || engine == ClickHouseEngine.SummingMergeTree;
+            boolean engineRequiresNonEmptyOrderBy = isDedupeEngine(engine);
             String fallbackOrderBy = engineRequiresNonEmptyOrderBy ? " ORDER BY " + columns.get(0).getName() + " "
                     : " ORDER BY tuple() ";
 
@@ -307,12 +310,22 @@ public class ClickHouseTableGenerator {
     }
 
     private static boolean isMergeTreeFamily(ClickHouseEngine engine) {
-        return engine == ClickHouseEngine.MergeTree || engine == ClickHouseEngine.ReplacingMergeTree
-                || engine == ClickHouseEngine.SummingMergeTree;
+        return engine == ClickHouseEngine.MergeTree || isDedupeEngine(engine);
     }
 
     private static boolean isDedupeEngine(ClickHouseEngine engine) {
-        return engine == ClickHouseEngine.ReplacingMergeTree || engine == ClickHouseEngine.SummingMergeTree;
+        return engine == ClickHouseEngine.ReplacingMergeTree || engine == ClickHouseEngine.SummingMergeTree
+                || engine == ClickHouseEngine.CollapsingMergeTree
+                || engine == ClickHouseEngine.VersionedCollapsingMergeTree;
+    }
+
+    // Unit 2.1: CollapsingMergeTree(sign) / VersionedCollapsingMergeTree(sign, version) require the
+    // Sign column to be exactly Int8 (no Nullable / LowCardinality wrapper). Match the full type
+    // term so a Nullable(Int8) column is not chosen as the sign.
+    static boolean isValidSign(ClickHouseSchema.ClickHouseColumn col) {
+        sqlancer.clickhouse.ClickHouseType term = col.getType().getTypeTerm();
+        return term instanceof sqlancer.clickhouse.ClickHouseType.Primitive p
+                && p.kind() == sqlancer.clickhouse.ClickHouseType.Kind.Int8;
     }
 
     // Unit 1.3: a column usable as a bare ORDER BY / PRIMARY KEY key -- a scalar (comparable) type
@@ -348,21 +361,35 @@ public class ClickHouseTableGenerator {
     // drifts across SELECTs as the merge thread runs.
     private ClickHouseEngine pickEngine(List<ClickHouseSchema.ClickHouseColumn> cols) {
         int roll = (int) Randomly.getNotCachedInteger(0, 100);
-        if (roll < 80) {
+        if (roll < 78) {
             return ClickHouseEngine.MergeTree;
         }
-        if (roll < 90) {
+        if (roll < 86) {
             // ReplacingMergeTree needs a version-column candidate (UInt*/Date*/DateTime*).
             // Without one, the engine has no tiebreaker between same-PK rows and just keeps the
             // last-merged. Fall back to plain MergeTree.
             boolean hasVerCandidate = cols.stream().anyMatch(this::isValidReplacingVer);
             return hasVerCandidate ? ClickHouseEngine.ReplacingMergeTree : ClickHouseEngine.MergeTree;
         }
-        // SummingMergeTree needs at least one numeric column to sum. Without one the engine just
-        // dedupes by ORDER BY key, which is the same non-deterministic-cardinality shape the
-        // 2026-05-20 false-positive cluster surfaced.
-        boolean hasSumCandidate = cols.stream().anyMatch(this::isValidSummingCol);
-        return hasSumCandidate ? ClickHouseEngine.SummingMergeTree : ClickHouseEngine.MergeTree;
+        if (roll < 92) {
+            // SummingMergeTree needs at least one numeric column to sum. Without one the engine just
+            // dedupes by ORDER BY key, which is the same non-deterministic-cardinality shape the
+            // 2026-05-20 false-positive cluster surfaced.
+            boolean hasSumCandidate = cols.stream().anyMatch(this::isValidSummingCol);
+            return hasSumCandidate ? ClickHouseEngine.SummingMergeTree : ClickHouseEngine.MergeTree;
+        }
+        // Unit 2.1: Collapsing needs an Int8 Sign column; VersionedCollapsing additionally needs a
+        // version column (UInt*/Date*/DateTime*). Fall back to plain MergeTree when the column shape
+        // can't support the sign/version requirement so we never emit a degenerate dedupe shape.
+        boolean hasSign = cols.stream().anyMatch(ClickHouseTableGenerator::isValidSign);
+        if (!hasSign) {
+            return ClickHouseEngine.MergeTree;
+        }
+        if (roll < 96) {
+            return ClickHouseEngine.CollapsingMergeTree;
+        }
+        boolean hasVerCandidate = cols.stream().anyMatch(this::isValidReplacingVer);
+        return hasVerCandidate ? ClickHouseEngine.VersionedCollapsingMergeTree : ClickHouseEngine.CollapsingMergeTree;
     }
 
     // ReplacingMergeTree(ver) requires UInt*/Date/DateTime; SummingMergeTree(col[, ...]) requires
@@ -392,6 +419,20 @@ public class ClickHouseTableGenerator {
             // BY is generated after this method so we cannot pre-validate; ClickHouse rejects the
             // overlap at CREATE time and the error catalog absorbs it.
             return Randomly.fromList(candidates).getName();
+        }
+        if (engine == ClickHouseEngine.CollapsingMergeTree) {
+            // Sign arg is mandatory. pickEngine guaranteed an Int8 candidate exists.
+            List<ClickHouseSchema.ClickHouseColumn> signs = columns.stream().filter(ClickHouseTableGenerator::isValidSign)
+                    .collect(Collectors.toList());
+            return Randomly.fromList(signs).getName();
+        }
+        if (engine == ClickHouseEngine.VersionedCollapsingMergeTree) {
+            // Both sign and version are mandatory: VersionedCollapsingMergeTree(sign, version).
+            List<ClickHouseSchema.ClickHouseColumn> signs = columns.stream().filter(ClickHouseTableGenerator::isValidSign)
+                    .collect(Collectors.toList());
+            List<ClickHouseSchema.ClickHouseColumn> vers = columns.stream().filter(this::isValidReplacingVer)
+                    .collect(Collectors.toList());
+            return Randomly.fromList(signs).getName() + ", " + Randomly.fromList(vers).getName();
         }
         return "";
     }
