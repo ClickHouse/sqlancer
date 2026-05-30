@@ -76,11 +76,18 @@ public class ClickHouseDictGetVsJoinOracle implements TestOracle<ClickHouseGloba
         String fqSrc = state.getDatabaseName() + "." + srcTable.getName();
         String fqDict = state.getDatabaseName() + "." + dictName;
 
+        // Unit 1.4: vary the dictionary LAYOUT across simple-key hash layouts that all use the
+        // identical single-key dictGet invariant, so dictGet == JOIN exercises the HASHED vs
+        // SPARSE_HASHED storage/serialization code paths rather than only HASHED. COMPLEX_KEY_HASHED
+        // (tuple key) and RANGE_HASHED (range_min/range_max columns) need a different dictGet call
+        // shape and are deferred to a follow-up; FLAT is excluded because it allocates an array
+        // sized to the max key and would fail on the large random keys sqlancer inserts.
+        String layout = Randomly.fromOptions("HASHED()", "SPARSE_HASHED()");
         String createDict = String.format(
                 "CREATE DICTIONARY %s (%s UInt64, %s String) PRIMARY KEY %s "
-                        + "SOURCE(CLICKHOUSE(TABLE '%s' DB '%s')) LIFETIME(0) LAYOUT(HASHED())",
+                        + "SOURCE(CLICKHOUSE(TABLE '%s' DB '%s')) LIFETIME(0) LAYOUT(%s)",
                 fqDict, keyCol.getName(), valCol.getName(), keyCol.getName(), srcTable.getName(),
-                state.getDatabaseName());
+                state.getDatabaseName(), layout);
 
         try (Statement s = state.getConnection().createStatement()) {
             s.execute(createDict);

@@ -317,7 +317,7 @@ granule-boundary pruning exposure. Reproducer-only settings stay in server confi
 **Verification:** Visitor/generator tests assert PK-prefix and SETTINGS shape; fuzz run shows
 varied granule layouts feeding KeyCondition with no new false positives.
 
-- [ ] **Unit 1.4: Dictionary LAYOUT variety wired into dictGet-vs-JOIN**
+- [x] **Unit 1.4: Dictionary LAYOUT variety wired into dictGet-vs-JOIN**
 
 **Goal:** Stop hardcoding `HASHED()`; drive the already-written but dead `RANGE_HASHED` /
 `COMPLEX_KEY_HASHED` layouts through the existing `dictGet == JOIN` invariant.
