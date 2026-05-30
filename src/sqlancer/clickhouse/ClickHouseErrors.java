@@ -303,7 +303,11 @@ public final class ClickHouseErrors {
                 "Column with name", "is part of primary key", "Cannot alter column", "ALTER of key column",
                 "Algorithm not implemented", "CANNOT_DROP_INDEX", "ALTER_OF_COLUMN_IS_FORBIDDEN",
                 "DUPLICATE_COLUMN", "NO_SUCH_COLUMN_IN_TABLE", "UNFINISHED",
-                "Cannot convert column", "is currently locked for", "EMPTY_LIST_OF_COLUMNS_QUERIED");
+                "Cannot convert column", "is currently locked for", "EMPTY_LIST_OF_COLUMNS_QUERIED",
+                // Unit 2.2: ADD/MATERIALIZE PROJECTION rejections -- duplicate name, unsupported
+                // engine (views / non-MergeTree), or a projection definition the analyzer refuses.
+                "Projection with name", "NO_SUCH_PROJECTION_IN_TABLE", "ILLEGAL_PROJECTION",
+                "Projection is fully supported", "projection", "Cannot add projection");
     }
 
     public static void addAlterErrors(ExpectedErrors errors) {

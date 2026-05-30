@@ -31,7 +31,7 @@ public final class ClickHouseAlterGenerator {
     }
 
     private enum AlterKind {
-        ADD_COLUMN, DROP_COLUMN, MODIFY_COLUMN, RENAME_COLUMN, COMMENT_COLUMN
+        ADD_COLUMN, DROP_COLUMN, MODIFY_COLUMN, RENAME_COLUMN, COMMENT_COLUMN, ADD_PROJECTION
     }
 
     public static SQLQueryAdapter getQuery(ClickHouseGlobalState state) {
@@ -60,6 +60,9 @@ public final class ClickHouseAlterGenerator {
             break;
         case COMMENT_COLUMN:
             renderCommentColumn(sb, table);
+            break;
+        case ADD_PROJECTION:
+            renderAddProjection(sb, table);
             break;
         default:
             throw new AssertionError(kind);
@@ -128,6 +131,34 @@ public final class ClickHouseAlterGenerator {
         ClickHouseColumn col = Randomly.fromList(table.getColumns());
         String newName = pickFreshColumnName(table);
         sb.append(" RENAME COLUMN ").append(col.getName()).append(" TO ").append(newName);
+    }
+
+    // Unit 2.2: ALTER TABLE ... ADD PROJECTION on an already-populated table. Pre-existing parts do
+    // not carry the projection until a merge / MATERIALIZE, while parts from subsequent INSERTs do
+    // -- exactly the mixed materialized/unmaterialized regime where the #103052 (DISTINCT+projection
+    // drops rows) and #88350 (count() wrong with UNION+projection) wrong-result bugs live. No new
+    // oracle is needed: TLPWhere / NoREC / TLPDistinct over count()/DISTINCT diverge if a projection
+    // serves a partial result. A unique random name avoids ADD-projection name collisions; the
+    // alter-error catalog absorbs the residual (duplicate name, unsupported engine).
+    private static void renderAddProjection(StringBuilder sb, ClickHouseTable table) {
+        List<ClickHouseColumn> cols = table.getColumns();
+        if (cols.isEmpty()) {
+            throw new IgnoreMeException();
+        }
+        String name = "p_alter_" + Randomly.getNotCachedInteger(0, 1_000_000);
+        sb.append(" ADD PROJECTION ").append(name).append(" (");
+        if (Randomly.getBoolean()) {
+            // Aggregating projection -- count() needs no argument and is always well-typed.
+            String groupCol = cols.get((int) Randomly.getNotCachedInteger(0, cols.size())).getName();
+            sb.append("SELECT count() GROUP BY ").append(groupCol);
+        } else {
+            // Column-subset projection.
+            int subsetSize = Math.min(cols.size(), 1 + (int) Randomly.getNotCachedInteger(0, 2));
+            String colList = Randomly.extractNrRandomColumns(cols, subsetSize).stream()
+                    .map(ClickHouseColumn::getName).collect(java.util.stream.Collectors.joining(", "));
+            sb.append("SELECT ").append(colList);
+        }
+        sb.append(")");
     }
 
     private static void renderCommentColumn(StringBuilder sb, ClickHouseTable table) {

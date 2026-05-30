@@ -379,7 +379,7 @@ to be observable.
 `supportsFinal()` true more often and FinalMerge/PartitionMirror exercise them with no new
 false positives.
 
-- [ ] **Unit 2.2: ALTER ADD/MATERIALIZE PROJECTION on a populated table + projection-equivalence oracle**
+- [x] **Unit 2.2: ALTER ADD/MATERIALIZE PROJECTION on a populated table + projection-equivalence oracle** *(emission landed — rides TLPWhere/NoREC/TLPDistinct; companion optimize_use_projections toggle-oracle deferred to follow-up)*
 
 **Goal:** Create the mixed materialized/unmaterialized projection regime (where #103052 /
 #88350-class bugs live) by adding a projection to an already-populated multi-part table, and add
