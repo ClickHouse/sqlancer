@@ -1242,7 +1242,65 @@ public class ClickHouseExpressionGenerator
                         ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.getRandomOperator());
             }
         }
+        // Unit 1.1: IN / NOT IN with a subquery RHS -- `col [NOT] IN (SELECT c FROM db.t [WHERE ...])`.
+        // ClickHouse rewrites this to a semijoin/set and it interacts with PREWHERE, KeyCondition
+        // index analysis, and partition pruning -- a dense wrong-result/crash area. The per-row IN
+        // result is UInt8 / Nullable(UInt8), so the WHERE-partition invariant still holds and
+        // TLPWhere / NoREC / SEMR exercise it for free. Additive low-probability surface, guarded on
+        // a real in-scope column; generateInSubquery returns null when no type-compatible inner
+        // column exists, in which case we fall through to the base predicate.
+        if (Randomly.getBooleanWithSmallProbability() && !columnRefs.isEmpty()) {
+            ClickHouseColumnReference col = columnRefs.get((int) Randomly.getNotCachedInteger(0, columnRefs.size()));
+            ClickHouseExpression inSubquery = generateInSubquery(col);
+            if (inSubquery != null) {
+                ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator op = Randomly.getBoolean()
+                        ? ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.IN
+                        : ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.NOT_IN;
+                return new ClickHouseBinaryComparisonOperation(col, inSubquery, op);
+            }
+        }
         return base;
+    }
+
+    /**
+     * Build the RHS of an {@code IN} / {@code NOT IN} predicate: a single-column subquery
+     * {@code (SELECT c FROM db.t [WHERE c <op> const])} that projects a column whose type category
+     * matches {@code outer} so the set-membership test stays well-typed. Unlike
+     * {@link #generateScalarSubquery()} this projects a multi-row set (no {@code LIMIT 1}) because
+     * {@code IN} tests membership across the whole inner result. Returns null when no table has a
+     * type-compatible column to project, so the caller can fall back to the base predicate.
+     */
+    private ClickHouseExpression generateInSubquery(ClickHouseColumnReference outer) {
+        java.util.List<sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable> tables = globalState.getSchema()
+                .getDatabaseTables();
+        if (tables.isEmpty()) {
+            return null;
+        }
+        ClickHouseDataType outerType = outer.getColumn().getType().getType();
+        boolean outerNumeric = isNumeric(outerType);
+        sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable t = Randomly.fromList(tables);
+        String qualified = globalState.getDatabaseName() + "." + t.getName();
+        // Numeric outer accepts any numeric inner column (CH coerces to a common supertype in IN);
+        // a non-numeric outer requires an exact data-type match to avoid IN type-mismatch errors.
+        java.util.List<ClickHouseColumn> candidates = t.getColumns().stream()
+                .filter(c -> outerNumeric ? isNumeric(c.getType().getType()) : c.getType().getType() == outerType)
+                .collect(Collectors.toList());
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        ClickHouseColumn inner = Randomly.fromList(candidates);
+        String colName = inner.getName();
+        StringBuilder sb = new StringBuilder("(SELECT ").append(colName).append(" FROM ").append(qualified);
+        // Optionally constrain the inner scan with a simple bound on the projected column itself so
+        // the IN set is a non-trivial subset; the predicate stays well-typed via a same-type constant.
+        if (Randomly.getBoolean()) {
+            ClickHouseExpression bound = generateConstantFromTerm(inner.getType().getTypeTerm());
+            String op = Randomly.fromOptions(">=", "<=", "!=");
+            sb.append(" WHERE ").append(colName).append(" ").append(op).append(" ")
+                    .append(ClickHouseToStringVisitor.asString(bound));
+        }
+        sb.append(")");
+        return new sqlancer.clickhouse.ast.ClickHouseRawText(sb.toString());
     }
 
     @Override
