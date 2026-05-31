@@ -332,7 +332,13 @@ public final class ClickHouseErrors {
         return List.of("TIMEOUT_EXCEEDED", "Cannot UPDATE key column", "Cannot DELETE",
                 "Mutation cannot be executed", "Mutations are not supported by", "UNFINISHED_MUTATION",
                 "Cannot read from", "Lightweight DELETE", "_row_exists", "Background mutation",
-                "ATTEMPT_TO_READ_AFTER_EOF", "Cannot find column");
+                "ATTEMPT_TO_READ_AFTER_EOF", "Cannot find column",
+                // A lightweight DELETE on a table that carries projections is rejected (Code 344)
+                // under the default lightweight_mutation_projection_mode=throw. Now that create-time
+                // projections succeed (column-list ORDER BY fix) and ALTER ADD PROJECTION runs,
+                // projection-bearing tables are common, so this CH restriction surfaces -- it is a
+                // documented restriction, not a bug.
+                "DELETE query is not allowed", "lightweight_mutation_projection_mode");
     }
 
     public static void addMutationErrors(ExpectedErrors errors) {
