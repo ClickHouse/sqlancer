@@ -93,6 +93,14 @@ public final class ClickHouseTypeParser {
         if (dt64 != null) {
             return dt64;
         }
+        // (Simple)AggregateFunction(func, T...). Reflected from system catalog after CREATE so the
+        // re-read schema carries the proper state type rather than collapsing to Unknown (which
+        // would make INSERT generation skip the column and the AggregateStateRoundtrip oracle ignore
+        // it). Unit 3.2.
+        ClickHouseType agg = tryParseAggregateFunction(s);
+        if (agg != null) {
+            return agg;
+        }
         // Plain DateTime can carry an optional timezone arg: DateTime('Europe/Moscow'). For now we
         // collapse both forms onto the bare DateTime kind -- the timezone is a presentation detail
         // and the value domain is the same. If timezone-bearing forms appear we strip them; if any
@@ -207,6 +215,76 @@ public final class ClickHouseTypeParser {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    // SimpleAggregateFunction(func, T) -> SimpleAggregateFunctionType(func, parse(T)).
+    // AggregateFunction(func[, T...]) -> AggregateFunctionType(func, [parse(T)...]). The first
+    // top-level token is the function spec (kept verbatim -- it may itself be parametric, e.g.
+    // `quantiles(0.5, 0.9)`); the remaining tokens are argument types. Returns null if any argument
+    // type is unrecognised so the whole thing falls through to Unknown rather than a partial parse.
+    private static ClickHouseType tryParseAggregateFunction(String s) {
+        boolean simple = s.startsWith("SimpleAggregateFunction(");
+        boolean full = !simple && s.startsWith("AggregateFunction(");
+        if (!simple && !full || !s.endsWith(")")) {
+            return null;
+        }
+        String wrapper = simple ? "SimpleAggregateFunction" : "AggregateFunction";
+        String body = s.substring(wrapper.length() + 1, s.length() - 1);
+        java.util.List<String> parts = splitTopLevel(body);
+        if (parts.size() < 2) {
+            return null;
+        }
+        String funcName = parts.get(0).trim();
+        if (funcName.isEmpty()) {
+            return null;
+        }
+        if (simple) {
+            if (parts.size() != 2) {
+                return null;
+            }
+            ClickHouseType inner = tryParseRecognised(parts.get(1).trim());
+            return inner != null ? new ClickHouseType.SimpleAggregateFunctionType(funcName, inner) : null;
+        }
+        java.util.List<ClickHouseType> args = new java.util.ArrayList<>();
+        for (int i = 1; i < parts.size(); i++) {
+            ClickHouseType a = tryParseRecognised(parts.get(i).trim());
+            if (a == null) {
+                return null;
+            }
+            args.add(a);
+        }
+        return new ClickHouseType.AggregateFunctionType(funcName, args);
+    }
+
+    // Split on top-level (depth-0, outside single-quoted strings) commas. Used by the
+    // (Simple)AggregateFunction parser so a comma inside a nested parametric function or type
+    // argument does not split a token.
+    private static java.util.List<String> splitTopLevel(String body) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        int depth = 0;
+        boolean inString = false;
+        int start = 0;
+        for (int i = 0; i < body.length(); i++) {
+            char c = body.charAt(i);
+            if (inString) {
+                if (c == '\'') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (c == '\'') {
+                inString = true;
+            } else if (c == '(') {
+                depth++;
+            } else if (c == ')') {
+                depth--;
+            } else if (c == ',' && depth == 0) {
+                out.add(body.substring(start, i));
+                start = i + 1;
+            }
+        }
+        out.add(body.substring(start));
+        return out;
     }
 
     private static ClickHouseType tryParseDateTime64(String s) {

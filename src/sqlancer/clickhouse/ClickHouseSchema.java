@@ -183,6 +183,30 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
         // Pick a primitive Kind for use as a leaf in composite type construction (Tuple element,
         // Map value, Nested field). Restricted to types that round-trip through the existing
         // constant emitters so the composite's literal form is well-defined.
+        // Unit 3.2: build a SimpleAggregateFunction(func, T) term with an insert/read-safe shape.
+        // sum is restricted to integer T (float summation is non-associative -> the
+        // AggregateStateRoundtrip oracle's sum vs sumState comparison would diverge by ULP across
+        // read orders); min/max are exact regardless of order, so they additionally accept Float64.
+        // any/anyLast are deliberately excluded -- they keep an arbitrary value on merge, which
+        // would make a merged table's visible value non-deterministic.
+        private static ClickHouseType pickSimpleAggregateFunctionType() {
+            String func = Randomly.fromOptions("sum", "min", "max");
+            Kind kind;
+            if (func.equals("sum")) {
+                // SimpleAggregateFunction(sum, T) requires T to be sum's *result* (accumulator)
+                // type, not the input type: sum over any signed integer width returns Int64, over
+                // any unsigned width returns UInt64 (CH rejects a narrower T with Code 36
+                // "Incompatible data types between aggregate function 'sum' which returns UInt64 and
+                // column storage type UInt32"). Float is excluded (non-associative summation breaks
+                // the AggregateStateRoundtrip ULP comparison).
+                kind = Randomly.fromOptions(Kind.Int64, Kind.UInt64);
+            } else {
+                // min/max are type-preserving, so any scalar T is a valid storage type.
+                kind = Randomly.fromOptions(Kind.Int32, Kind.Int64, Kind.UInt32, Kind.UInt64, Kind.Float64);
+            }
+            return new ClickHouseType.SimpleAggregateFunctionType(func, new Primitive(kind));
+        }
+
         private static Kind pickPrimitiveKind() {
             int r = (int) Randomly.getNotCachedInteger(0, 5);
             switch (r) {
@@ -264,11 +288,23 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
             // reserved for Tuple/Map/Geo and Nested, which remain disabled because the JDBC/read
             // and INSERT paths can't yet handle them. Unit 1.2 repurposes that band for scalar
             // kinds that already parse and have working literal emitters but were never picked.)
-            if (roll < 96) {
+            if (roll < 95) {
                 // Date32 (1900..2299) -- the Date<->Date32 boundary and negative-day representation
                 // are partition-pruning / wrong-result bait; randomDateLiteral already targets the
                 // boundary. Highest-value of the Unit 1.2 additions.
                 return new Primitive(Kind.Date32);
+            }
+            if (roll < 96) {
+                // Unit 3.2: SimpleAggregateFunction(func, T). Unlike AggregateFunction (opaque state
+                // bytes that the read path renders unstably -- the reason it stays out of the
+                // picker), a SimpleAggregateFunction column is READ as its plain underlying type T
+                // and INSERTed as a plain T literal, so it is safe for every oracle that reads
+                // columns generically. The chosen functions are deterministic and order-insensitive
+                // (sum over integer T, min/max over any scalar T) so a table merged under
+                // AggregatingMergeTree keeps a stable visible value. Feeds the dormant
+                // AggregateStateRoundtrip oracle (the column counts as numeric) and unlocks
+                // AggregatingMergeTree in the table generator.
+                return pickSimpleAggregateFunctionType();
             }
             if (roll < 97) {
                 return new Primitive(Kind.UInt16);

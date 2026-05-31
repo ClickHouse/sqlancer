@@ -42,9 +42,12 @@ public class ClickHouseTableGenerator {
         // SummingMergeTree FINAL row-drop bug. supportsFinal() already whitelists both, so the
         // FinalMerge / Optimizing / PartitionMirror oracles exercise them on emission. The INSERT
         // generator constrains Int8 columns to {+1,-1} for these engines (CollapsingMergeTree
-        // rejects any other Sign value with Code 117). AggregatingMergeTree is excluded here -- it
-        // requires every non-PK column to be a (Simple)AggregateFunction type (Unit 3.2).
-        MergeTree, ReplacingMergeTree, SummingMergeTree, CollapsingMergeTree, VersionedCollapsingMergeTree
+        // rejects any other Sign value with Code 117). AggregatingMergeTree (Unit 3.2) is chosen
+        // only when the table carries at least one SimpleAggregateFunction column and a bare-key
+        // column for the (mandatory non-empty, bare-column) ORDER BY; it merges state columns and
+        // is FINAL-whitelisted, so FinalMerge / PartitionMirror exercise it on emission.
+        MergeTree, ReplacingMergeTree, SummingMergeTree, CollapsingMergeTree, VersionedCollapsingMergeTree,
+        AggregatingMergeTree
     }
 
     private final StringBuilder sb = new StringBuilder();
@@ -163,7 +166,14 @@ public class ClickHouseTableGenerator {
             // run all came from this combination). For these engines we require a non-empty
             // sort key -- fall back to the first column rather than tuple().
             boolean engineRequiresNonEmptyOrderBy = isDedupeEngine(engine);
-            String fallbackOrderBy = engineRequiresNonEmptyOrderBy ? " ORDER BY " + columns.get(0).getName() + " "
+            // For dedupe / AggregatingMergeTree engines the fallback sort key must be a bare,
+            // orderable column -- columns.get(0) may be a composite or (Simple)AggregateFunction
+            // column that is not a valid sort key. Pick the first bare-key column; pickEngine
+            // guarantees one exists for these engines (Replacing/Summing/Collapsing via their ver/
+            // sum/sign candidate, Aggregating via the explicit hasBareKey gate).
+            String fallbackKeyColumn = columns.stream().filter(ClickHouseTableGenerator::isBareKeyColumn)
+                    .map(ClickHouseSchema.ClickHouseColumn::getName).findFirst().orElse(columns.get(0).getName());
+            String fallbackOrderBy = engineRequiresNonEmptyOrderBy ? " ORDER BY " + fallbackKeyColumn + " "
                     : " ORDER BY tuple() ";
 
             // SAMPLE BY must reference a column that is part of the primary key, otherwise ClickHouse
@@ -318,7 +328,15 @@ public class ClickHouseTableGenerator {
     private static boolean isDedupeEngine(ClickHouseEngine engine) {
         return engine == ClickHouseEngine.ReplacingMergeTree || engine == ClickHouseEngine.SummingMergeTree
                 || engine == ClickHouseEngine.CollapsingMergeTree
-                || engine == ClickHouseEngine.VersionedCollapsingMergeTree;
+                || engine == ClickHouseEngine.VersionedCollapsingMergeTree
+                || engine == ClickHouseEngine.AggregatingMergeTree;
+    }
+
+    // Unit 3.2: a column whose (unwrapped) type is SimpleAggregateFunction -- the aggregate-state
+    // column AggregatingMergeTree merges. AggregateFunction columns are not emitted by the picker
+    // (opaque-read issue), so SimpleAggregateFunction is the only state shape we gate on.
+    private static boolean isSimpleAggregateColumn(ClickHouseSchema.ClickHouseColumn col) {
+        return col.getType().getTypeTerm().unwrap() instanceof sqlancer.clickhouse.ClickHouseType.SimpleAggregateFunctionType;
     }
 
     // Unit 2.1: CollapsingMergeTree(sign) / VersionedCollapsingMergeTree(sign, version) require the
@@ -380,18 +398,30 @@ public class ClickHouseTableGenerator {
             boolean hasSumCandidate = cols.stream().anyMatch(this::isValidSummingCol);
             return hasSumCandidate ? ClickHouseEngine.SummingMergeTree : ClickHouseEngine.MergeTree;
         }
-        // Unit 2.1: Collapsing needs an Int8 Sign column; VersionedCollapsing additionally needs a
-        // version column (UInt*/Date*/DateTime*). Fall back to plain MergeTree when the column shape
-        // can't support the sign/version requirement so we never emit a degenerate dedupe shape.
-        boolean hasSign = cols.stream().anyMatch(ClickHouseTableGenerator::isValidSign);
-        if (!hasSign) {
-            return ClickHouseEngine.MergeTree;
-        }
         if (roll < 96) {
-            return ClickHouseEngine.CollapsingMergeTree;
+            // Unit 2.1: Collapsing needs an Int8 Sign column; VersionedCollapsing additionally needs
+            // a version column (UInt*/Date*/DateTime*). Fall back to plain MergeTree when the column
+            // shape can't support the sign/version requirement so we never emit a degenerate dedupe
+            // shape.
+            boolean hasSign = cols.stream().anyMatch(ClickHouseTableGenerator::isValidSign);
+            if (!hasSign) {
+                return ClickHouseEngine.MergeTree;
+            }
+            if (roll < 94) {
+                return ClickHouseEngine.CollapsingMergeTree;
+            }
+            boolean hasVerCandidate = cols.stream().anyMatch(this::isValidReplacingVer);
+            return hasVerCandidate ? ClickHouseEngine.VersionedCollapsingMergeTree
+                    : ClickHouseEngine.CollapsingMergeTree;
         }
-        boolean hasVerCandidate = cols.stream().anyMatch(this::isValidReplacingVer);
-        return hasVerCandidate ? ClickHouseEngine.VersionedCollapsingMergeTree : ClickHouseEngine.CollapsingMergeTree;
+        // Unit 3.2: AggregatingMergeTree. Requires a SimpleAggregateFunction column to actually merge
+        // (otherwise it degenerates to a bare dedupe-by-ORDER-BY shape -> non-deterministic visible
+        // cardinality, the 2026-05-20 cluster) and a bare-key column for the mandatory non-empty,
+        // bare-column ORDER BY (state columns are not orderable). Fall back to plain MergeTree when
+        // either is missing.
+        boolean hasSimpleAgg = cols.stream().anyMatch(ClickHouseTableGenerator::isSimpleAggregateColumn);
+        boolean hasBareKey = cols.stream().anyMatch(ClickHouseTableGenerator::isBareKeyColumn);
+        return hasSimpleAgg && hasBareKey ? ClickHouseEngine.AggregatingMergeTree : ClickHouseEngine.MergeTree;
     }
 
     // ReplacingMergeTree(ver) requires UInt*/Date/DateTime; SummingMergeTree(col[, ...]) requires
@@ -611,7 +641,12 @@ public class ClickHouseTableGenerator {
     // distinct rows into the same dedupe bucket non-deterministically, which presents to oracles
     // as visible-cardinality drift between two SELECTs against the same table.
     static boolean isValidOrderByForDedupe(ClickHouseExpression expr) {
-        return expr instanceof ClickHouseColumnReference;
+        // Must be a bare column reference (no function-of-column) AND an orderable scalar type.
+        // isBareKeyColumn rejects composite / state types (Array/Tuple/Map/JSON/(Simple)Aggregate-
+        // Function/...), which a dedupe or AggregatingMergeTree sort key cannot be -- previously any
+        // ColumnReference passed, so an Array/state-typed column slipped through and the CREATE was
+        // rejected server-side (tolerated but wasteful).
+        return expr instanceof ClickHouseColumnReference cr && isBareKeyColumn(cr.getColumn());
     }
 
     // PARTITION BY rejects float keys ("Floating point partition key is not supported") and

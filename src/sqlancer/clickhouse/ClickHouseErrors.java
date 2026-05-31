@@ -209,6 +209,11 @@ public final class ClickHouseErrors {
                 // is syntactically valid but rejected because CAST AS FixedString only accepts
                 // String/FixedString sources. Pre-existing generator gap.
                 "CAST AS FixedString is only implemented", "default expression and column type are incompatible",
+                // Unit 3.2: SimpleAggregateFunction(func, T) requires T to match the aggregate's
+                // result type. The picker now emits only valid (func, T) pairs, but keep this narrow
+                // substring as a defense so a future func/type addition that violates the rule is
+                // absorbed at CREATE time rather than tearing down a worker.
+                "Incompatible data types between aggregate function",
                 "NOT_IMPLEMENTED");
     }
 

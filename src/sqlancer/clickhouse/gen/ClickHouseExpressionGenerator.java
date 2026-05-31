@@ -455,7 +455,7 @@ public class ClickHouseExpressionGenerator
         List<ClickHouseColumnReference> numeric = numericColumns(columns);
         if (Randomly.getBooleanWithRatherLowProbability()) {
             ClickHouseAggregate.ClickHouseAggregateFunction func = ClickHouseAggregate.ClickHouseAggregateFunction
-                    .getRandom();
+                    .getRandomScalar();
             ClickHouseExpression argExpr = generateNumericExpressionWithColumns(numeric, remainingDepth - 1);
             List<ClickHouseAggregateCombinator> chain = maybeGenerateCombinatorChain(columns, remainingDepth);
             return new ClickHouseAggregate(argExpr, func, chain);
@@ -632,7 +632,7 @@ public class ClickHouseExpressionGenerator
             ClickHouseLancerDataType aggType = ClickHouseLancerDataType.getRandom();
             ClickHouseExpression aggArg = generateExpression(aggType, depth + 1);
             ClickHouseAggregate.ClickHouseAggregateFunction func = ClickHouseAggregate.ClickHouseAggregateFunction
-                    .getRandom();
+                    .getRandomScalar();
             List<ClickHouseAggregateCombinator> chain = maybeGenerateCombinatorChain(columnRefs,
                     Math.max(1, globalState.getOptions().getMaxExpressionDepth() - depth));
             return new ClickHouseAggregate(aggArg, func, chain);
@@ -1079,12 +1079,18 @@ public class ClickHouseExpressionGenerator
             // -- INTERVAL is a SQL keyword and can't be wrapped in single quotes.
             return ClickHouseCreateConstant.createStringConstant("INTERVAL " + n + " " + unit);
         }
-        // Nested / AggregateFunction / SimpleAggregateFunction: structurally can't be emitted as
-        // a simple literal. INSERTs into these columns happen via separate parallel-array /
-        // -State combinator paths that aren't in this generator's scope.
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.SimpleAggregateFunctionType saf) {
+            // Unit 3.2: a SimpleAggregateFunction(func, T) column stores and accepts a plain value of
+            // the inner type T -- INSERT a bare T literal, exactly like a column of type T. The
+            // engine wraps it as a single-element running state internally.
+            return generateConstantFromTerm(saf.arg());
+        }
+        // Nested / AggregateFunction: structurally can't be emitted as a simple literal. INSERTs into
+        // an AggregateFunction column require a -State expression / initializeAggregation, and the
+        // opaque state bytes render unstably through the generic read path, so those columns are not
+        // emitted by the picker (same rationale as JSON/Variant/Dynamic).
         if (term instanceof sqlancer.clickhouse.ClickHouseType.Nested
-                || term instanceof sqlancer.clickhouse.ClickHouseType.AggregateFunctionType
-                || term instanceof sqlancer.clickhouse.ClickHouseType.SimpleAggregateFunctionType) {
+                || term instanceof sqlancer.clickhouse.ClickHouseType.AggregateFunctionType) {
             throw new IgnoreMeException();
         }
         throw new IgnoreMeException();
