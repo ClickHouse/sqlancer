@@ -22,7 +22,8 @@ import sqlancer.clickhouse.oracle.partition.ClickHousePartitionMirrorOracle;
 import sqlancer.clickhouse.oracle.schema.ClickHouseSchemaRoundtripOracle;
 import sqlancer.clickhouse.oracle.pqs.ClickHousePivotedQuerySynthesisOracle;
 import sqlancer.clickhouse.oracle.qcc.ClickHouseQueryConditionCacheOracle;
-import sqlancer.clickhouse.oracle.rowpolicy.ClickHouseRowPolicyOracle;
+// TEMPORARILY DISABLED with the RowPolicy enum constant below (2026-05-31):
+// import sqlancer.clickhouse.oracle.rowpolicy.ClickHouseRowPolicyOracle;
 import sqlancer.clickhouse.oracle.semr.ClickHouseSEMRMultiOracle;
 import sqlancer.clickhouse.oracle.semr.ClickHouseSEMROracle;
 import sqlancer.clickhouse.oracle.setop_limit.ClickHouseSortedUnionLimitByOracle;
@@ -154,14 +155,19 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
             return new ClickHouseSortedUnionLimitByOracle(globalState);
         }
     },
-    RowPolicy {
-        // Asserts that a permissive row policy USING p filters identically to an explicit WHERE p.
-        // Touches the row-policy / PREWHERE / FINAL interaction surface (ClickHouse#97076).
-        @Override
-        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
-            return new ClickHouseRowPolicyOracle(globalState);
-        }
-    },
+    // TEMPORARILY DISABLED (2026-05-31): the RowPolicy oracle dominates all-oracle run noise --
+    // Code 49 (duplicate column in row policy actions output) / Code 162 (too-deep-subqueries) /
+    // Code 306 (stack recursion) account for the bulk of every iteration's reproducers and drown
+    // out genuine signal from other oracles. Code 49 is a likely real CH bug to file separately
+    // (see project_clickhouse_rowpolicy_code49_candidate_bug). Re-enable after that is filed/fixed.
+    // RowPolicy {
+    // // Asserts that a permissive row policy USING p filters identically to an explicit WHERE p.
+    // // Touches the row-policy / PREWHERE / FINAL interaction surface (ClickHouse#97076).
+    // @Override
+    // public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+    // return new ClickHouseRowPolicyOracle(globalState);
+    // }
+    // },
     SchemaRoundtrip {
         // CREATE TABLE under data_type_default_nullable={0,1} with explicit NOT NULL, then verify
         // via system.columns that the resulting column type is not Nullable. Targets ClickHouse
