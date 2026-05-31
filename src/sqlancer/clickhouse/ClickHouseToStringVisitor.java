@@ -183,25 +183,35 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
     public void visit(ClickHouseAggregate aggregate) {
         List<ClickHouseAggregateCombinator> chain = aggregate.getChain();
         if (chain.isEmpty()) {
-            // Backward-compatible plain-aggregate rendering: keep the enum's upper-case toString
-            // so existing oracles that pattern-match on `SUM(...)` etc. remain unaffected.
-            sb.append(aggregate.getFunc());
+            // Backward-compatible plain-aggregate rendering: getName() returns the enum's upper-case
+            // spelling for the historical five (SUM/COUNT/...) so oracles/tests matching `SUM(...)`
+            // stay stable, and the documented camelCase for newer functions (uniqExact/argMin/...).
+            sb.append(aggregate.getFunc().getName());
             sb.append("(");
             visit(aggregate.getExpr());
+            for (ClickHouseExpression extra : aggregate.getExtraValueArgs()) {
+                sb.append(", ");
+                visit(extra);
+            }
             sb.append(")");
             return;
         }
         // Combinator-chain rendering: fold the suffixes into the function name (lower-cased base
         // because ClickHouse's combinator-token convention is camelCase like `sumIf`), then emit
-        // the expression and each combinator's extra args in declaration order inside one paren
-        // group. ClickHouse is case-insensitive on the base function name; lower-case is the
-        // documented convention for chained forms.
-        sb.append(aggregate.getFunc().name().toLowerCase());
+        // the expression, any extra value args, and each combinator's extra args in declaration
+        // order inside one paren group. ClickHouse resolves the base function name case-
+        // insensitively, so lower-casing the base while keeping the suffix casing yields `sumIf`,
+        // `uniqexactIf`, etc.
+        sb.append(aggregate.getFunc().getName().toLowerCase());
         for (ClickHouseAggregateCombinator combinator : chain) {
             sb.append(combinator.getSuffix().getTextual());
         }
         sb.append("(");
         visit(aggregate.getExpr());
+        for (ClickHouseExpression extra : aggregate.getExtraValueArgs()) {
+            sb.append(", ");
+            visit(extra);
+        }
         for (ClickHouseAggregateCombinator combinator : chain) {
             for (ClickHouseExpression extra : combinator.getExtraArgs()) {
                 sb.append(", ");
