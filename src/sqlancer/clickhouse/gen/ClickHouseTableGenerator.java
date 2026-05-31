@@ -136,8 +136,10 @@ public class ClickHouseTableGenerator {
         // #88350 (count() wrong with UNION + projection column cleanup) are projection-only --
         // without emitting a projection, no oracle reaches that code path.
         //
-        // We emit only column-list and simple-aggregate projections; ORDER BY in projections is
-        // syntactically supported but compounds the failure-attribution surface, deferred.
+        // We emit only column-list and simple-aggregate projections; a column-list (normal)
+        // projection MUST carry its own ORDER BY -- CH rejects `PROJECTION p (SELECT c)` with no
+        // ORDER BY by `Code 36: ORDER BY cannot be empty (BAD_ARGUMENTS)` (the aggregate form with
+        // GROUP BY does not need one). See renderProjection.
         if (columns.size() >= 2 && Randomly.getBooleanWithSmallProbability()) {
             String projection = renderProjection(0, columns);
             if (projection != null) {
@@ -519,7 +521,10 @@ public class ClickHouseTableGenerator {
         List<ClickHouseSchema.ClickHouseColumn> subset = Randomly.extractNrRandomColumns(cols, subsetSize);
         String colList = subset.stream().map(ClickHouseSchema.ClickHouseColumn::getName)
                 .collect(Collectors.joining(", "));
-        return String.format("PROJECTION %s (SELECT %s)", name, colList);
+        // A normal (column-list) projection requires its own ORDER BY -- without it ClickHouse
+        // rejects the CREATE with `Code 36: ORDER BY cannot be empty`. Order by the projected
+        // columns themselves, which are always valid sort-key expressions.
+        return String.format("PROJECTION %s (SELECT %s ORDER BY %s)", name, colList, colList);
     }
 
     // Skip-index emission. Index name is derived from the column to keep CREATE statements

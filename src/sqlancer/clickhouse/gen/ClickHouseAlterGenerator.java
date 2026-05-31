@@ -152,11 +152,12 @@ public final class ClickHouseAlterGenerator {
             String groupCol = cols.get((int) Randomly.getNotCachedInteger(0, cols.size())).getName();
             sb.append("SELECT count() GROUP BY ").append(groupCol);
         } else {
-            // Column-subset projection.
+            // Column-subset projection. A normal (column-list) projection requires its own ORDER BY
+            // (CH Code 36 otherwise); order by the projected columns themselves.
             int subsetSize = Math.min(cols.size(), 1 + (int) Randomly.getNotCachedInteger(0, 2));
             String colList = Randomly.extractNrRandomColumns(cols, subsetSize).stream()
                     .map(ClickHouseColumn::getName).collect(java.util.stream.Collectors.joining(", "));
-            sb.append("SELECT ").append(colList);
+            sb.append("SELECT ").append(colList).append(" ORDER BY ").append(colList);
         }
         sb.append(")");
     }
