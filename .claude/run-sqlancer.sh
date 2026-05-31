@@ -26,7 +26,7 @@ KEEP=0
 
 # RowPolicy temporarily removed (2026-05-31): it dominates all-oracle run noise (Code 49/162/306)
 # and is commented out in ClickHouseOracleFactory, so passing it would fail enum parsing.
-ALL_ORACLES="TLPWhere,TLPDistinct,TLPGroupBy,TLPAggregate,TLPHaving,NoREC,PQS,CERT,CODDTest,SEMR,SEMRMulti,EET,SetOpTLP,CombinatorTLP,QccCache,SortedUnionLimitBy,SchemaRoundtrip,JoinAlgorithm,Cast,Parallelism,PartitionMirror,KeyCondition,TableFunctionIN,ViewEquivalence"
+ALL_ORACLES="TLPWhere,TLPDistinct,TLPGroupBy,TLPAggregate,TLPHaving,NoREC,PQS,CERT,CODDTest,SEMR,SEMRMulti,EET,SetOpTLP,CombinatorTLP,QccCache,SortedUnionLimitBy,SchemaRoundtrip,JoinAlgorithm,Cast,Parallelism,PartitionMirror,KeyCondition,TableFunctionIN,ViewEquivalence,AggregateStateRoundtrip,MaterializedViewConsistency,FinalMerge"
 
 usage() {
   cat <<EOF

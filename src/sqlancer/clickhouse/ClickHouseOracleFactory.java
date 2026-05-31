@@ -28,6 +28,7 @@ import sqlancer.clickhouse.oracle.semr.ClickHouseSEMRMultiOracle;
 import sqlancer.clickhouse.oracle.semr.ClickHouseSEMROracle;
 import sqlancer.clickhouse.oracle.setop_limit.ClickHouseSortedUnionLimitByOracle;
 import sqlancer.clickhouse.oracle.tablefn.ClickHouseTableFunctionINOracle;
+import sqlancer.clickhouse.oracle.view.ClickHouseMaterializedViewConsistencyOracle;
 import sqlancer.clickhouse.oracle.view.ClickHouseViewEquivalenceOracle;
 import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPAggregateOracle;
 import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPCombinatorOracle;
@@ -261,6 +262,16 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseAggregateStateRoundtripOracle(globalState);
+        }
+    },
+    MaterializedViewConsistency {
+        // Asserts a materialized view's incrementally-maintained aggregate (AggregatingMergeTree
+        // -State columns or SummingMergeTree running sums) equals a direct aggregate over the
+        // source after multi-block inserts. Targets the MV block-transform / part-merge / state-
+        // serialization wrong-result surface. Workstream 3 (Unit 3.3) of the coverage plan.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseMaterializedViewConsistencyOracle(globalState);
         }
     },
     DictGetVsJoin {
