@@ -429,7 +429,7 @@ public class ClickHouseCODDTestOracle extends CODDTestBase<ClickHouseGlobalState
     // embedding. Returning null signals that the type isn't safely foldable in the current
     // implementation -- the caller should skip the test attempt. Floats are excluded because the
     // paper flags float folding as a source of false alarms (Section 4.1).
-    private static String renderLiteral(String value, String typeName) {
+    static String renderLiteral(String value, String typeName) {
         if (value == null) {
             return "NULL";
         }
@@ -438,18 +438,24 @@ public class ClickHouseCODDTestOracle extends CODDTestBase<ClickHouseGlobalState
             return null;
         }
         switch (p.kind()) {
+        case Int128:
+        case Int256:
+        case UInt128:
+        case UInt256:
+            // Wide integers: a bare decimal literal exceeding (U)Int64 range is typed by ClickHouse
+            // as Float64, which silently loses precision (e.g. a UInt256 max folds to a Float64 that
+            // no longer equals any stored row -> spurious CODDTest mismatch). Wrap in a typed cast so
+            // the folded literal carries the exact wide-integer value. The narrower ints below are
+            // safe as bare literals (CH types them as the smallest fitting (U)Int* type).
+            return "CAST('" + value + "' AS " + p.kind().name() + ")";
         case Int8:
         case Int16:
         case Int32:
         case Int64:
-        case Int128:
-        case Int256:
         case UInt8:
         case UInt16:
         case UInt32:
         case UInt64:
-        case UInt128:
-        case UInt256:
             // JDBC's getString produces canonical decimal text. Trust it.
             return value;
         case Bool:
