@@ -441,7 +441,7 @@ DROP on clean CH.
 
 ### Phase 3 — WS3: Aggregate & state subsystem
 
-- [ ] **Unit 3.1: Expand the aggregate-function enum (deterministic high-value subset)** *(prerequisite P3)*
+- [x] **Unit 3.1: Expand the aggregate-function enum (deterministic high-value subset)** *(prerequisite P3)*
 
 **Goal:** Grow the enum from ~5 functions to a deterministic, multiset-comparable subset
 (argMin, argMax, uniqExact, quantileExact, groupArrayArray/arraySort(groupArray), sumKahan,
@@ -472,7 +472,7 @@ Non-deterministic ones (uniq, non-Exact quantile, topK) are excluded from those 
 
 **Verification:** Render tests pass; a fuzz run across the five enum-consuming oracles is clean.
 
-- [ ] **Unit 3.2: AggregateFunction / SimpleAggregateFunction column emission + AggregatingMergeTree** *(prerequisite P2)*
+- [x] **Unit 3.2: AggregateFunction / SimpleAggregateFunction column emission + AggregatingMergeTree** *(prerequisite P2)*
 
 **Goal:** Make the type picker build `AggregateFunction(name, T)` / `SimpleAggregateFunction(name, T)`
 columns (with a `-State` arg triple), turning the dormant `AggregateStateRoundtripOracle` live and
@@ -505,7 +505,7 @@ column-eligibility gating.
 **Verification:** AggregateStateRoundtrip is no longer a no-op (transcript shows real queries);
 type-generation tests cover the state columns.
 
-- [ ] **Unit 3.3: Materialized-view consistency oracle**
+- [x] **Unit 3.3: Materialized-view consistency oracle**
 
 **Goal:** Add MV (TO-table / inner-table) generation and an oracle asserting an aggregate over the
 base table equals the aggregate read from a Summing/Aggregating MV target after inserts — the

@@ -165,24 +165,49 @@ column held K empty values. Going binary eliminates the hand-rolled escape parse
 
 ## Engine pool (2026-05-27)
 
-Engine pool is schema-aware (per `ClickHouseTableGenerator.pickEngine(cols)`):
-- 80% plain MergeTree (always eligible)
-- 10% ReplacingMergeTree -- only when the column list has a viable ver-column
-  (UInt*/Date*/DateTime*); falls back to MergeTree otherwise
-- 10% SummingMergeTree -- only when the column list has a viable sum-column
-  (numeric); falls back to MergeTree otherwise
+Engine pool is schema-aware (per `ClickHouseTableGenerator.pickEngine(cols)`),
+roll 0-99 (updated 2026-05-31, WS3):
+- 78% plain MergeTree (always eligible)
+- 8% ReplacingMergeTree -- only with a viable ver-column (UInt*/Date*/DateTime*)
+- 6% SummingMergeTree -- only with a viable sum-column (numeric)
+- 4% Collapsing/VersionedCollapsing -- only with an Int8 Sign column (+ ver for
+  Versioned); see U2.1
+- 4% AggregatingMergeTree (WS3/U3.2) -- only when the column list has a
+  SimpleAggregateFunction column AND a bare-key column for ORDER BY
+Each "only when ..." engine falls back to plain MergeTree when its gate fails.
 
-Dedupe engines without an eligible ver/sum column collapse all rows into one
-"dedupe by ORDER BY key" shape, which produces non-deterministic visible
-cardinality across SELECTs (the 2026-05-20 false-positive cluster). The
-fallback-to-MergeTree avoids the degenerate case. Additionally:
-- For dedupe engines, ORDER BY must be a bare column reference, not a
-  function-of-numeric (NaN-producing functions collapse rows into one bucket).
-  Enforced via `isValidOrderByForDedupe`.
+Dedupe / AggregatingMergeTree engines without an eligible differentiator column
+collapse all rows into one "dedupe by ORDER BY key" shape, which produces non-
+deterministic visible cardinality across SELECTs (the 2026-05-20 false-positive
+cluster). The fallback-to-MergeTree avoids the degenerate case. Additionally:
+- For these engines, ORDER BY must be a *bare key column* (not a function-of-
+  numeric, not a composite/state-typed column). Enforced via
+  `isValidOrderByForDedupe` (now requires `isBareKeyColumn`); the dedupe fallback
+  ORDER BY also picks the first bare-key column rather than `columns.get(0)`.
 
-With dedupe engines back in the pool, `ClickHouseTable.supportsFinal()` returns
-true ~10-20% of the time, and the `FinalMerge` oracle (workstream 10) has work
-to do.
+`SimpleAggregateFunction(func, T)` columns (WS3/U3.2) are emitted by the type
+picker at ~1%. They read as the plain inner type and insert as a plain literal,
+so every oracle handles them transparently. **`sum` requires T to be the widened
+accumulator type (Int64/UInt64), NOT a narrow int** -- CH rejects
+`SimpleAggregateFunction(sum, UInt32)` with Code 36 "Incompatible data types
+between aggregate function". min/max are type-preserving (any scalar T). Full
+`AggregateFunction(...)` columns are deliberately NOT emitted (opaque state bytes
+render unstably through the generic read path, same reason JSON/Variant/Dynamic
+stay out).
+
+With these engines in the pool, `ClickHouseTable.supportsFinal()` is true a good
+fraction of the time, and `FinalMerge` / `AggregateStateRoundtrip` exercise them.
+
+WS3 oracles (in run-sqlancer.sh `--oracles all`): `AggregateStateRoundtrip`
+(`finalizeAggregation(arrayReduce('sumState', groupArray(c))) == sum(c)`, runs on
+numeric incl. SimpleAggregateFunction columns) and `MaterializedViewConsistency`
+(self-contained: fresh src + Aggregating/Summing MV, numbers()-fed multi-block
+inserts, asserts source aggregate == MV-maintained aggregate). The MV oracle has
+a **totals-consistency precondition**: if the MV's total row count != the source's
+it abandons the iteration -- under a memory-starved CH (`-m=6g`) an INSERT's MV
+push can partially fail while the source commits and the INSERT still returns
+success, leaving src > MV; that is an environment artifact, not a wrong-result
+(proven: the same case replays identical on an unloaded CH).
 
 ## TLPGroupBy oracle correctness
 
