@@ -152,6 +152,14 @@ public final class ClickHouseErrors {
                 // the column's valid range (Date: 1970..2149, Date32: 1900..2299) and ClickHouse
                 // rejects the cast.
                 "Cannot parse Date", "CANNOT_PARSE_DATE", "Cannot parse DateTime", "CANNOT_PARSE_DATETIME",
+                // Unit 1.2 emits IPv4/IPv6/UUID columns + literals. The generic expression generator
+                // composes type-incompatible comparisons like `CAST('98.20.60.72','IPv4') < '1103202675'`
+                // -- CH tries to coerce the RHS string into the IP/UUID domain and fails to parse it
+                // (CANNOT_PARSE_IPV4/IPV6, code 675/676). Same sqlancer-side typing gap as the
+                // Int/Date/Bool cases above; the whole subexpression is invalid by CH's rules, not a
+                // bug to file.
+                "Cannot parse IPv4", "Cannot parse IPv6", "CANNOT_PARSE_IPV4", "CANNOT_PARSE_IPV6",
+                "Cannot parse uuid", "Cannot parse UUID", "CANNOT_PARSE_UUID",
                 // Generator may compose `'' < (true)` or similar `String <op> Bool` comparisons.
                 // ClickHouse rejects with `CANNOT_PARSE_BOOL: Expected boolean value but get EOF`
                 // (code 467). The whole comparison subexpression is invalid SQL by CH's typing
