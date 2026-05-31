@@ -3,6 +3,7 @@ package sqlancer;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -162,11 +163,13 @@ public final class ComparatorHelper {
         switch (mode) {
         case MULTISET:
             contentMatches = multisetsEqual(resultSet, secondResultSet)
-                    || multisetsEqual(canonicalizeFloatsList(resultSet), canonicalizeFloatsList(secondResultSet));
+                    || multisetsEqual(canonicalizeFloatsList(resultSet), canonicalizeFloatsList(secondResultSet))
+                    || floatTolerantMultisetsEqual(resultSet, secondResultSet);
             break;
         case ULP_TOLERANT_MULTISET:
             contentMatches = multisetsEqual(canonicalizeFloatsList(resultSet),
-                    canonicalizeFloatsList(secondResultSet));
+                    canonicalizeFloatsList(secondResultSet))
+                    || floatTolerantMultisetsEqual(resultSet, secondResultSet);
             break;
         case SET:
         default:
@@ -193,6 +196,91 @@ public final class ComparatorHelper {
                     + "First query : \"%s\"" + System.lineSeparator() + "Second query: \"%s\"", originalQueryString,
                     secondQueryString);
             throw new AssertionError(assertionMessage);
+        }
+    }
+
+    // Floating-point summation is not associative: SUM over all rows and SUM over a UNION ALL of
+    // partition sub-sums combine partial sums in a different order, and even a single aggregate
+    // query's result wobbles purely with max_threads (the parallel partial-sum merge order). On
+    // ClickHouse aggregate oracles the observed divergence is ~1 ULP (relative ~1e-13..1e-16; proven
+    // by replaying a SUM(tan(c0)) reproducer across max_threads=1..16 and watching only the last
+    // digits move). The legacy string/representation canonicalization in ULP_TOLERANT_MULTISET does
+    // NOT absorb this -- two doubles one ULP apart have distinct shortest-round-trip strings. These
+    // tolerances are ~6 orders of magnitude tighter than the legacy equals() (1e-3 relative), so a
+    // genuine aggregation wrong-result stays visible while reorder noise is absorbed.
+    private static final double FLOAT_REL_TOLERANCE = 1e-9;
+    private static final double FLOAT_ABS_TOLERANCE = 1e-9;
+
+    private static boolean floatsWithinTolerance(double a, double b) {
+        if (a == b) {
+            return true;
+        }
+        double diff = Math.abs(a - b);
+        return diff <= FLOAT_REL_TOLERANCE * Math.max(Math.abs(a), Math.abs(b)) + FLOAT_ABS_TOLERANCE;
+    }
+
+    // Multiset equality that tolerates ULP-level float divergence. Non-numeric and non-finite
+    // (NaN/Infinity) entries are matched exactly as a multiset, so e.g. NaN-distinctness divergence
+    // is never masked; finite doubles are sorted and compared pairwise within tolerance. Integers
+    // are parsed as doubles too, but the minimum integer gap (1) dwarfs the tolerance, so distinct
+    // integers never collide.
+    static boolean floatTolerantMultisetsEqual(List<String> a, List<String> b) {
+        if (a.size() != b.size()) {
+            return false;
+        }
+        List<Double> numA = new ArrayList<>();
+        List<Double> numB = new ArrayList<>();
+        List<String> otherA = new ArrayList<>();
+        List<String> otherB = new ArrayList<>();
+        partitionFiniteDoubles(a, numA, otherA);
+        partitionFiniteDoubles(b, numB, otherB);
+        if (numA.size() != numB.size() || !multisetsEqual(otherA, otherB)) {
+            return false;
+        }
+        Collections.sort(numA);
+        Collections.sort(numB);
+        for (int i = 0; i < numA.size(); i++) {
+            if (!floatsWithinTolerance(numA.get(i), numB.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void partitionFiniteDoubles(List<String> values, List<Double> numeric, List<String> other) {
+        for (String v : values) {
+            Double d = parseFiniteDouble(v);
+            if (d == null) {
+                other.add(v);
+            } else {
+                numeric.add(d);
+            }
+        }
+    }
+
+    private static Double parseFiniteDouble(String v) {
+        if (v == null) {
+            return null;
+        }
+        boolean hasDigit = false;
+        for (int i = 0; i < v.length(); i++) {
+            char c = v.charAt(i);
+            if (c >= '0' && c <= '9') {
+                hasDigit = true;
+                break;
+            }
+        }
+        if (!hasDigit) {
+            return null;
+        }
+        try {
+            double d = Double.parseDouble(v);
+            if (Double.isNaN(d) || Double.isInfinite(d)) {
+                return null;
+            }
+            return d;
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 
