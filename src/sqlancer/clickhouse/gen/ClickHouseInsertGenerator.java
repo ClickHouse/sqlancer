@@ -50,6 +50,20 @@ public class ClickHouseInsertGenerator extends AbstractInsertGenerator<ClickHous
             columns = table.getRandomNonEmptyColumnSubset().stream().filter(c -> !c.isAlias() && !c.isMaterialized())
                     .collect(Collectors.toList());
         }
+        if (signConstrained) {
+            // CollapsingMergeTree rejects a defaulted Sign (Sign=0, Code 117). The declared sign is
+            // an Int8 column; if the random column subset omits it, it defaults to 0 and the INSERT
+            // fails. Force every insertable Int8 column into the subset so the sign always receives
+            // an explicit +1/-1 (insertValue emits ±1 for Int8 on these engines).
+            List<ClickHouseColumn> withSign = new java.util.ArrayList<>(columns);
+            for (ClickHouseColumn c : table.getColumns()) {
+                if (c.getType().getType() == ClickHouseDataType.Int8 && !c.isAlias() && !c.isMaterialized()
+                        && withSign.stream().noneMatch(x -> x.getName().equals(c.getName()))) {
+                    withSign.add(c);
+                }
+            }
+            columns = withSign;
+        }
         buildInsertInto(table.getName(), columns);
     }
 
