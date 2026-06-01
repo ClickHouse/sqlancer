@@ -19,6 +19,7 @@ import sqlancer.clickhouse.oracle.keycond.ClickHouseKeyConditionOracle;
 import sqlancer.clickhouse.oracle.materialize.ClickHouseSubqueryMaterializeOracle;
 import sqlancer.clickhouse.oracle.parallelism.ClickHouseParallelismOracle;
 import sqlancer.clickhouse.oracle.partition.ClickHousePartitionMirrorOracle;
+import sqlancer.clickhouse.oracle.projection.ClickHouseProjectionToggleOracle;
 import sqlancer.clickhouse.oracle.schema.ClickHouseSchemaRoundtripOracle;
 import sqlancer.clickhouse.oracle.pqs.ClickHousePivotedQuerySynthesisOracle;
 import sqlancer.clickhouse.oracle.qcc.ClickHouseQueryConditionCacheOracle;
@@ -272,6 +273,16 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseMaterializedViewConsistencyOracle(globalState);
+        }
+    },
+    ProjectionToggle {
+        // Companion to Unit 2.2: asserts a projection-matching aggregate returns identical results
+        // under optimize_use_projections = 0 vs = 1. A stale / partially-materialized projection
+        // that serves a wrong result diverges here. Targets the #103052 / #88350 projection
+        // wrong-result family.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseProjectionToggleOracle(globalState);
         }
     },
     DictGetVsJoin {
