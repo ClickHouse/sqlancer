@@ -202,7 +202,12 @@ public class ClickHouseViewEquivalenceOracle implements TestOracle<ClickHouseGlo
             // generated predicates -- there is no user data with that prefix in the rendered SQL.
             String qualifierPrefix = table.getName() + ".";
             String queryPredicateForView = ClickHouseVisitor.asString(queryPredicate).replace(qualifierPrefix, "");
-            String viewReadQuery = "SELECT " + projectionCol.getColumn().getName() + " FROM " + viewName + " WHERE "
+            // Qualify the view with the database name, exactly as the CREATE/DROP do (fqView). The
+            // unqualified viewName resolves against the pooled connection's *current* database,
+            // which is not guaranteed to be the test database, so an unqualified read intermittently
+            // failed with Code 60 UNKNOWN_TABLE ("Unknown table expression identifier 'v_..._N'")
+            // even though the view was created successfully -- a false-positive oracle failure.
+            String viewReadQuery = "SELECT " + projectionCol.getColumn().getName() + " FROM " + fqView + " WHERE "
                     + queryPredicateForView;
 
             List<String> viewRows = ComparatorHelper.getResultSetFirstColumnAsString(viewReadQuery, errors, state);
