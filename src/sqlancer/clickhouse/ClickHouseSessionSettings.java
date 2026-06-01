@@ -97,19 +97,21 @@ public final class ClickHouseSessionSettings {
             // opt-in exercises the rewrite path against the same SELECT. `allow_statistic_optimize`
             // is the historical typo alias (still accepted by CH HEAD) and is included so SEMR
             // covers both spellings.
-            "allow_statistics_optimize", "allow_statistic_optimize",
-            // apply_mutations_on_fly REMOVED from SEMR pool: it's NOT result-preserving when
-            // there are pending mutations. With the setting on, SELECT applies the pending
-            // mutations virtually; with it off, SELECT reads the pre-mutation view. A run with
-            // an ALTER DELETE / UPDATE in flight will show DIFFERENT row sets between the
-            // toggle positions -- correctly so. The plan's classification of this setting as
-            // "result-preserving" was wrong. SEMR catches the divergence as a false positive.
-            // The 8.7h run surfaced 3 SEMR reproducers from this single cause. NOT a CH bug.
-            // FINAL behaviour differs when do_not_merge_across_partitions_select_final is on --
-            // it skips merging across partitions, which can change the deduped row set. SEMR
-            // toggling this against the same SELECT FINAL surfaces the cross-partition merge
-            // path's invariants. Workstream 10 of the plan.
-            "do_not_merge_across_partitions_select_final");
+            "allow_statistics_optimize", "allow_statistic_optimize");
+    // Two settings deliberately NOT in SEMR_SETTINGS because they are NOT result-preserving on
+    // arbitrary schemas (toggling them legitimately changes the result, so SEMR would report
+    // false positives):
+    //   - apply_mutations_on_fly: with it on, SELECT applies pending ALTER DELETE/UPDATE
+    //     mutations virtually; with it off, SELECT reads the pre-mutation view. With a mutation
+    //     in flight the row sets differ -- correctly. (3 SEMR reproducers in the 8.7h run.)
+    //   - do_not_merge_across_partitions_select_final (removed 2026-06-01): when the partition
+    //     key is not a prefix of the sorting key, the same ORDER BY key spans multiple
+    //     partitions; with the setting ON, FINAL skips the cross-partition merge so duplicate
+    //     keys survive, changing the deduped row COUNT. Proven on CH 26.6.1.284 with
+    //     SummingMergeTree ORDER BY c0 PARTITION BY (c1+c2): SELECT ... FROM t FINAL returned 1
+    //     row with the setting off and 4 with it on. CH documents it as safe only when the
+    //     partition key is a prefix of the sort key -- a precondition SEMR's random tables don't
+    //     meet. Surfaced as a SEMRMulti size-mismatch (1 vs 4). NOT a CH bug.
 
     // Execution-mode settings the random-session-settings layer may apply via
     // SET k = v at connect time. Each entry has discrete candidate values picked

@@ -176,7 +176,8 @@ public final class ComparatorHelper {
             Set<String> firstHashSet = new HashSet<>(resultSet);
             Set<String> secondHashSet = new HashSet<>(secondResultSet);
             contentMatches = firstHashSet.equals(secondHashSet)
-                    || canonicalizeFloats(resultSet).equals(canonicalizeFloats(secondResultSet));
+                    || canonicalizeFloats(resultSet).equals(canonicalizeFloats(secondResultSet))
+                    || floatTolerantMultisetsEqual(new ArrayList<>(firstHashSet), new ArrayList<>(secondHashSet));
             break;
         }
 

@@ -122,6 +122,13 @@ public final class ClickHouseErrors {
                 "type cannot be inside Nullable type", "type cannot be inside LowCardinality",
                 "Cannot read floating point value", // float-inside-LowCardinality DEFAULT round-trip
                 "NULL value is not allowed",
+                // Scalar subqueries emitted into fetch-columns (e.g. correlated-looking
+                // `(SELECT c0 FROM t ORDER BY c0 DESC LIMIT 1)`) can return an empty result; when
+                // the subquery's column type cannot be made Nullable (notably LowCardinality(T)),
+                // CH raises "Scalar subquery returned empty result of type ... which cannot be
+                // Nullable", and "returned more than one row" for the multi-row case. Both are
+                // structural artifacts of the generated subquery, not wrong-results.
+                "(INCORRECT_RESULT_OF_SCALAR_SUBQUERY)",
                 // Fired when the JDBC URL setting hasn't propagated (e.g. test fixtures opening their
                 // own connection). The runtime CREATE TABLE setting in ClickHouseProvider normally
                 // makes this unreachable.
