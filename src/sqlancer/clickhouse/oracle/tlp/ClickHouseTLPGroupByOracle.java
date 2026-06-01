@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import sqlancer.ComparatorHelper;
+import sqlancer.IgnoreMeException;
 import sqlancer.Randomly;
 import sqlancer.clickhouse.ClickHouseProvider;
 import sqlancer.clickhouse.ClickHouseVisitor;
@@ -67,6 +68,15 @@ public class ClickHouseTLPGroupByOracle extends ClickHouseTLPBase {
             secondResultSet = ComparatorHelper.getCombinedResultSetNoDuplicates(firstQueryString, secondQueryString,
                     thirdQueryString, combinedString, false, state, errors);
         }
+        // NaN/Inf guard (shared with TLPDistinct via ClickHouseTLPBase): a GROUP BY key that is a
+        // NaN/Inf-producing expression makes the distinct-group count implementation-defined --
+        // single-pass GROUP BY coalesces NaN bit-patterns differently than the UNION-ALL + outer
+        // DISTINCT reformulation, so the cardinalities legitimately diverge. (iter9 db6:
+        // (-(c0-c0)) * (max2(c0,c0) % sign(c0)) -> 0*(c0%0) = NaN for c0=0, giving a 2-vs-3 split.)
+        if (projectionMayBeNonFinite(resultSet, secondResultSet, originalQueryString)) {
+            throw new IgnoreMeException();
+        }
+
         ComparatorHelper.assumeResultSetsAreEqual(resultSet, secondResultSet, originalQueryString, combinedString,
                 state, strict ? ComparatorHelper.ComparisonMode.MULTISET : ComparatorHelper.ComparisonMode.SET);
     }

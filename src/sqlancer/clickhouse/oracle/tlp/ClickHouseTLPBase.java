@@ -5,6 +5,7 @@ import static java.util.stream.IntStream.range;
 
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import sqlancer.ComparatorHelper;
@@ -182,6 +183,92 @@ public class ClickHouseTLPBase extends TernaryLogicPartitioningOracleBase<ClickH
     @Override
     protected ExpressionGenerator<ClickHouseExpression> getGen() {
         return gen;
+    }
+
+    // ---- NaN/Inf guard shared by TLPDistinct and TLPGroupBy ----------------------------------
+    //
+    // Both oracles compare a single-pass DISTINCT/GROUP BY against a UNION-ALL+DISTINCT
+    // reformulation. Starting in CH 26.6 a single-pass DISTINCT/GROUP BY coalesces different NaN
+    // bit-patterns into one row while the UNION-ALL path keeps them separate (or vice-versa), so
+    // the two formulations report different cardinalities for the same projected non-finite value.
+    // Since NaN != NaN, the distinct-group count over a NaN/Inf-producing projection is
+    // implementation-defined and the TLP invariant genuinely does not hold -- not a wrong-result.
+    // Returns true when the comparison should be abandoned (caller throws IgnoreMeException).
+
+    // Fast path: the leading projected column rendered as a non-finite token (cheap, no extra query).
+    protected boolean leadingResultsNonFinite(List<String> resultSet, List<String> secondResultSet) {
+        return resultSet.stream().anyMatch(ClickHouseTLPBase::isNonFiniteToken)
+                || secondResultSet.stream().anyMatch(ClickHouseTLPBase::isNonFiniteToken);
+    }
+
+    // Full check: leading-column fast path, then (for multi-column projections) a server-side probe
+    // of every projected column. `select.getFetchColumns()` must still hold the projection that
+    // produced `originalQueryString` (no-WHERE form, so the probe covers all rows).
+    protected boolean projectionMayBeNonFinite(List<String> resultSet, List<String> secondResultSet,
+            String originalQueryString) {
+        if (leadingResultsNonFinite(resultSet, secondResultSet)) {
+            return true;
+        }
+        List<ClickHouseExpression> fetch = select.getFetchColumns();
+        return fetch.size() > 1 && probeAllColumnsNonFinite(originalQueryString, fetch);
+    }
+
+    // Best-effort: true iff any projected column yields NaN/Inf on any row. Reuses the FROM tail of
+    // the original query. Each column is normalised via toFloat64OrZero(toString(...)) so
+    // non-numeric columns parse to 0 (not flagged). Any probe failure returns false (do not skip).
+    private boolean probeAllColumnsNonFinite(String originalQueryString, List<ClickHouseExpression> fetch) {
+        int fromIdx = findOuterFrom(originalQueryString);
+        if (fromIdx < 0) {
+            return false;
+        }
+        String fromTail = originalQueryString.substring(fromIdx + 1); // keep "FROM ..."
+        StringBuilder cond = new StringBuilder();
+        for (int i = 0; i < fetch.size(); i++) {
+            if (i > 0) {
+                cond.append(" OR ");
+            }
+            String e = ClickHouseVisitor.asString(fetch.get(i));
+            cond.append("isNaN(toFloat64OrZero(toString(").append(e)
+                    .append("))) OR isInfinite(toFloat64OrZero(toString(").append(e).append(")))");
+        }
+        String probe = "SELECT max(" + cond + ") " + fromTail;
+        try {
+            return ComparatorHelper.getResultSetFirstColumnAsString(probe, errors, state).stream()
+                    .anyMatch("1"::equals);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // True iff the rendered value is a non-finite float token (nan / inf / infinity, any sign),
+    // matched exactly so ordinary String column values like "information" are not caught.
+    private static boolean isNonFiniteToken(String v) {
+        if (v == null) {
+            return false;
+        }
+        String s = v.trim();
+        if (!s.isEmpty() && (s.charAt(0) == '+' || s.charAt(0) == '-')) {
+            s = s.substring(1);
+        }
+        s = s.toLowerCase(Locale.ROOT);
+        return s.equals("nan") || s.equals("inf") || s.equals("infinity");
+    }
+
+    // Index of the outer-scope " FROM ", skipping any " FROM " nested inside parentheses (e.g. a
+    // scalar-subquery fetch column carries its own FROM).
+    private static int findOuterFrom(String rendered) {
+        int depth = 0;
+        for (int i = 0; i < rendered.length() - 6; i++) {
+            char c = rendered.charAt(i);
+            if (c == '(') {
+                depth++;
+            } else if (c == ')') {
+                depth--;
+            } else if (depth == 0 && c == ' ' && rendered.regionMatches(i, " FROM ", 0, 6)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
 }
