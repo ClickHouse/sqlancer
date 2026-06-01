@@ -82,6 +82,18 @@ public class ClickHouseAggregateStateRoundtripOracle implements TestOracle<Click
         List<String> lhs = ComparatorHelper.getResultSetFirstColumnAsString(lhsQuery, errors, state);
         List<String> rhs = ComparatorHelper.getResultSetFirstColumnAsString(rhsQuery, errors, state);
 
+        // The roundtrip identity holds only when the aggregate has a defined (non-NULL) value.
+        // groupArray() silently drops SQL NULLs, so over an empty or all-NULL column the
+        // arrayReduce('<agg>State', []) path finalizes to the aggregate's empty-input default
+        // (e.g. 0 for max/min/sum) while the plain aggregate returns NULL. That divergence is a
+        // NULL-handling artifact of groupArray, not the aggregate-state-encoding bug this oracle
+        // targets, so skip it. (count is unaffected -- both sides return 0 -- but the guard is
+        // harmless there.) Verified on CH 26.6.1.284: max(c0)=\N vs state-path=0 on an empty and
+        // an all-NULL Nullable column.
+        if (lhs.isEmpty() || lhs.contains(null) || rhs.contains(null)) {
+            throw new IgnoreMeException();
+        }
+
         ComparatorHelper.assumeResultSetsAreEqual(lhs, rhs, lhsQuery, java.util.Collections.singletonList(rhsQuery),
                 state, ComparatorHelper.ComparisonMode.ULP_TOLERANT_MULTISET);
     }
