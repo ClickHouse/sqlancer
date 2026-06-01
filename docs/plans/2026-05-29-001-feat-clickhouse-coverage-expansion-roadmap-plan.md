@@ -379,7 +379,7 @@ to be observable.
 `supportsFinal()` true more often and FinalMerge/PartitionMirror exercise them with no new
 false positives.
 
-- [x] **Unit 2.2: ALTER ADD/MATERIALIZE PROJECTION on a populated table + projection-equivalence oracle** *(emission landed — rides TLPWhere/NoREC/TLPDistinct; companion optimize_use_projections toggle-oracle deferred to follow-up)*
+- [x] **Unit 2.2: ALTER ADD/MATERIALIZE PROJECTION on a populated table + projection-equivalence oracle** *(emission landed — rides TLPWhere/NoREC/TLPDistinct; companion optimize_use_projections toggle-oracle landed as ClickHouseProjectionToggleOracle — asserts a projection-matching aggregate returns identical results under optimize_use_projections=0 vs =1, restricted to exact integer aggregates + non-float group keys to avoid float-sum-ordering non-determinism)*
 
 **Goal:** Create the mixed materialized/unmaterialized projection regime (where #103052 /
 #88350-class bugs live) by adding a projection to an already-populated multi-part table, and add
@@ -696,7 +696,7 @@ Cannot ride TLP/NoREC (correctly excluded).
 
 ### Phase 6 — WS6: Expression-equivalence catalog growth
 
-- [ ] **Unit 6.1: multiIf / CASE WHEN node + EET nested-if identity**
+- [x] **Unit 6.1: multiIf / CASE WHEN node + EET nested-if identity** *(generator emits multiIf/CASE as a CAST(... AS Nullable(Float64)) fetch column — wrapped to avoid the Variant(...) common type the client-v2 reader can't decode; EET gains a MULTIIF_EQUIV mode asserting multiIf(c1,a,c2,b,d)==if(c1,a,if(c2,b,d)) via a single-snapshot two-column compare)*
 
 **Goal:** Add a `multiIf`/CASE node and the EET identity `multiIf(c1,a,c2,b,d) == if(c1,a,if(c2,b,d))`.
 
@@ -721,7 +721,7 @@ classic case.
 
 **Verification:** EET reports the identity holds across generated multiIf expressions.
 
-- [ ] **Unit 6.2: String / regex / search function family via EET roundtrip identities**
+- [x] **Unit 6.2: String / regex / search function family via EET roundtrip identities** *(EET catalog gains 4 plain-String fold-to-x rows: reverse∘reverse, substring whole, concat-substring split, replaceRegexpAll no-match; generateStringCall emits lower/upper/reverse/substring/replaceRegexp/length over String columns into TLP fetch lists)*
 
 **Goal:** Add string/regex/search scalar functions and EET roundtrip identities
 (`concat(substring(s,1,k),substring(s,k+1))==s`; `reverse(reverse(s))==s`; lower/upper idempotence).
@@ -747,7 +747,7 @@ analyzer than at runtime.
 
 **Verification:** EET holds across the new String identities on clean CH.
 
-- [ ] **Unit 6.3: Date/time scalar transforms in predicates (CODDTest / KeyCondition)**
+- [x] **Unit 6.3: Date/time scalar transforms in predicates (CODDTest / KeyCondition)** *(generateDateTransform emits `<transform>(d) <cmp> <transform>(lit)` — toYYYYMM/toStartOf*/toYear/toRelative*Num etc. — wired into the SHARED generatePredicate path so CODDTest, KeyCondition, PartitionMirror and all predicate consumers see them; also emitted into TLP fetch lists)*
 
 **Goal:** Emit `toStartOf*`/`toYYYYMM`/`toYYYYMMDD`/`dateDiff`/`toRelative*` as SELECT/predicate
 expressions (today they exist only in partition keys) so CODDTest's monotonic-function machinery

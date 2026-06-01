@@ -279,6 +279,168 @@ public class ClickHouseExpressionGenerator
     }
 
     /**
+     * Unit 6.1 -- {@code multiIf} / {@code CASE WHEN} conditional over the in-scope numeric
+     * columns. Returns a 2-condition conditional that selects among three numeric branch values,
+     * rendered either as {@code multiIf(c1, a, c2, b, d)} or the equivalent
+     * {@code CASE WHEN c1 THEN a WHEN c2 THEN b ELSE d END}. Returns null when there is no numeric
+     * column to build the branch values from.
+     *
+     * <p>multiIf/CASE exercises the optimizer's branch type-unification and short-circuit
+     * (`short_circuit_function_evaluation`) machinery. The conditions are real comparison
+     * predicates and the branch values are arbitrary numeric expressions, so the result is a
+     * deterministic scalar that every multiset oracle can compare directly. Emitted as a
+     * pre-rendered fragment following the generateDateIntervalArith / generateScalarSubquery
+     * precedent (no dedicated AST node, to avoid visitor churn for an additive surface).
+     */
+    public ClickHouseExpression generateMultiIf(List<ClickHouseColumnReference> columns) {
+        List<ClickHouseColumnReference> numeric = numericColumns(columns);
+        if (numeric.isEmpty()) {
+            return null;
+        }
+        String c1 = renderNumericCondition(numeric);
+        String c2 = renderNumericCondition(numeric);
+        String a = ClickHouseToStringVisitor.asString(generateNumericExpressionWithColumns(numeric, 3));
+        String b = ClickHouseToStringVisitor.asString(generateNumericExpressionWithColumns(numeric, 3));
+        String d = ClickHouseToStringVisitor.asString(generateNumericExpressionWithColumns(numeric, 3));
+        String inner;
+        if (Randomly.getBoolean()) {
+            inner = "CASE WHEN " + c1 + " THEN " + a + " WHEN " + c2 + " THEN " + b + " ELSE " + d + " END";
+        } else {
+            inner = "multiIf(" + c1 + ", " + a + ", " + c2 + ", " + b + ", " + d + ")";
+        }
+        // Wrap in CAST(... AS Nullable(Float64)). When the branch value types do not losslessly
+        // unify (e.g. Int64 + Float32), CH 26.6 settles on a Variant(...) common type, which the
+        // client-v2 RowBinary reader cannot decode (IndexOutOfBounds) and which the codebase keeps
+        // out of the read path on purpose. Casting to Nullable(Float64) forces a concrete, readable
+        // scalar while preserving NULLs and the multiset semantics every oracle relies on.
+        return new sqlancer.clickhouse.ast.ClickHouseRawText("CAST((" + inner + ") AS Nullable(Float64))");
+    }
+
+    /**
+     * Unit 6.1 EET identity helper. Renders the SAME {@code (c1, a, c2, b, d)} components two
+     * equivalent ways: {@code multiIf(c1, a, c2, b, d)} and the nested
+     * {@code if(c1, a, if(c2, b, d))}. The pair must produce identical results on every row; any
+     * divergence is a branch-folding / type-unification bug. Returns {@code [multiIfSql,
+     * nestedIfSql]}, or null when there is no numeric column to build the branch values from.
+     */
+    public String[] renderMultiIfAndNestedIf(List<ClickHouseColumnReference> columns) {
+        List<ClickHouseColumnReference> numeric = numericColumns(columns);
+        if (numeric.isEmpty()) {
+            return null;
+        }
+        String c1 = renderNumericCondition(numeric);
+        String c2 = renderNumericCondition(numeric);
+        String a = ClickHouseToStringVisitor.asString(generateNumericExpressionWithColumns(numeric, 3));
+        String b = ClickHouseToStringVisitor.asString(generateNumericExpressionWithColumns(numeric, 3));
+        String d = ClickHouseToStringVisitor.asString(generateNumericExpressionWithColumns(numeric, 3));
+        // CAST both forms to Nullable(Float64): the branch types may unify to a Variant (Int64 +
+        // Float32 etc.), which the client-v2 RowBinary reader cannot decode, and the multiIf vs
+        // nested-if forms can even pick DIFFERENT common types (multiIf unifies n-ary in one pass,
+        // nested-if pairwise). Casting both to the identical concrete type makes the comparison a
+        // pure value check, readable on the wire, and immune to the legitimate type-inference
+        // difference between the two shapes.
+        String multiIfSql = "CAST((multiIf(" + c1 + ", " + a + ", " + c2 + ", " + b + ", " + d
+                + ")) AS Nullable(Float64))";
+        String nestedIfSql = "CAST((if(" + c1 + ", " + a + ", if(" + c2 + ", " + b + ", " + d
+                + "))) AS Nullable(Float64))";
+        return new String[] { multiIfSql, nestedIfSql };
+    }
+
+    // Build a parenthesised boolean comparison between two numeric expressions over `numeric`.
+    private String renderNumericCondition(List<ClickHouseColumnReference> numeric) {
+        ClickHouseExpression cond = new ClickHouseBinaryComparisonOperation(
+                generateNumericExpressionWithColumns(numeric, 2), generateNumericExpressionWithColumns(numeric, 2),
+                ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.getRandomOperator());
+        return "(" + ClickHouseToStringVisitor.asString(cond) + ")";
+    }
+
+    /**
+     * Unit 6.2 -- a String / regex / search scalar function applied to an in-scope String column.
+     * Returns null when no plain String column is in scope (FixedString excluded: its fixed-width
+     * NUL padding renders unstably through these functions). The result is either a String or a
+     * numeric scalar, both deterministic, so every multiset oracle compares it directly.
+     */
+    public ClickHouseExpression generateStringCall(List<ClickHouseColumnReference> columns) {
+        List<ClickHouseColumnReference> stringCols = new java.util.ArrayList<>();
+        for (ClickHouseColumnReference c : columns) {
+            if (c.getColumn().getType().getType() == ClickHouseDataType.String) {
+                stringCols.add(c);
+            }
+        }
+        if (stringCols.isEmpty()) {
+            return null;
+        }
+        ClickHouseColumnReference col = Randomly.fromList(stringCols);
+        String s = ClickHouseToStringVisitor.asString(col);
+        // String-returning unary functions plus a couple of length/search functions that return a
+        // numeric scalar. replaceRegexpAll / extractAll exercise the regex engine path that folds
+        // differently under the analyzer (the historically buggy target named in the plan).
+        String fn = Randomly.fromOptions("lower", "upper", "reverse", "length", "lengthUTF8", "trimLeft", "trimRight",
+                "trimBoth", "empty", "notEmpty", "substring", "replaceRegexp", "replaceOne");
+        String sql;
+        switch (fn) {
+        case "substring":
+            sql = "substring(" + s + ", " + (1 + Randomly.getNotCachedInteger(0, 6)) + ", "
+                    + (1 + Randomly.getNotCachedInteger(0, 8)) + ")";
+            break;
+        case "replaceRegexp":
+            sql = "replaceRegexpAll(" + s + ", '[0-9]+', 'N')";
+            break;
+        case "replaceOne":
+            sql = "replaceOne(" + s + ", 'a', 'b')";
+            break;
+        default:
+            sql = fn + "(" + s + ")";
+            break;
+        }
+        return new sqlancer.clickhouse.ast.ClickHouseRawText(sql);
+    }
+
+    /**
+     * Unit 6.3 -- a Date/time scalar-transform predicate over an in-scope Date / DateTime column:
+     * {@code <transform>(col) <cmp> <transform>(<date-literal>)}. The same transform is applied to
+     * both sides so the comparison is always well-typed regardless of which transform was chosen.
+     * Returns null when no temporal column is in scope.
+     *
+     * <p>Monotonic transforms (toYYYYMM, toStartOf*, toYear, toRelative*Num, ...) drive partition
+     * pruning and KeyCondition range analysis -- the exact class behind the filed negative-divisor
+     * intDiv pruning bug. Feeding them on the predicate side widens CODDTest / KeyCondition coverage
+     * to the transform-on-key surface, which previously only existed in partition-key position.
+     */
+    public ClickHouseExpression generateDateTransform(List<ClickHouseColumnReference> columns) {
+        List<ClickHouseColumnReference> dateCols = new java.util.ArrayList<>();
+        boolean dateTimeResolution = false;
+        for (ClickHouseColumnReference c : columns) {
+            ClickHouseDataType t = c.getColumn().getType().getType();
+            if (t == ClickHouseDataType.Date || t == ClickHouseDataType.Date32
+                    || t == ClickHouseDataType.DateTime || t == ClickHouseDataType.DateTime64) {
+                dateCols.add(c);
+            }
+        }
+        if (dateCols.isEmpty()) {
+            return null;
+        }
+        ClickHouseColumnReference col = Randomly.fromList(dateCols);
+        ClickHouseDataType colType = col.getColumn().getType().getType();
+        dateTimeResolution = colType == ClickHouseDataType.DateTime || colType == ClickHouseDataType.DateTime64;
+        // Transforms valid for any date/datetime resolution.
+        List<String> transforms = new java.util.ArrayList<>(List.of("toYYYYMM", "toYYYYMMDD", "toYear", "toMonth",
+                "toDayOfMonth", "toDayOfWeek", "toISOWeek", "toQuarter", "toStartOfMonth", "toStartOfYear",
+                "toStartOfQuarter", "toRelativeMonthNum", "toRelativeYearNum", "toRelativeWeekNum", "toRelativeDayNum"));
+        if (dateTimeResolution) {
+            // Sub-day transforms require a DateTime (a bare Date has no time component).
+            transforms.addAll(List.of("toStartOfDay", "toStartOfHour", "toStartOfMinute", "toHour", "toMinute",
+                    "toRelativeHourNum", "toYYYYMMDDhhmmss"));
+        }
+        String transform = Randomly.fromList(transforms);
+        String lit = dateTimeResolution ? "toDateTime('2021-06-15 12:30:45')" : "toDate('2021-06-15')";
+        String op = Randomly.fromOptions("<", "<=", "=", ">=", ">", "!=");
+        String s = ClickHouseToStringVisitor.asString(col);
+        String sql = "(" + transform + "(" + s + ") " + op + " " + transform + "(" + lit + "))";
+        return new sqlancer.clickhouse.ast.ClickHouseRawText(sql);
+    }
+
+    /**
      * Scalar subquery: a self-contained {@code (SELECT ...)} renderable as an expression.
      * Workstream 16. Returns null if there are no tables to read from.
      *
@@ -1224,6 +1386,22 @@ public class ClickHouseExpressionGenerator
     @Override
     public ClickHouseExpression generatePredicate() {
         ClickHouseExpression base = generateExpressionWithColumns(columnRefs, 3);
+        // Unit 6.3: date/time scalar-transform predicate. Feeding `toYYYYMM(d) <cmp> toYYYYMM(lit)`
+        // and friends through the SHARED predicate path means CODDTest, KeyCondition, PartitionMirror
+        // and every other generatePredicate consumer exercises the monotonic-transform pruning
+        // surface on the predicate side -- previously these transforms existed only in partition-key
+        // position. Half the time the transform is the sole predicate (the cleanest KeyCondition
+        // pruning signal); half the time it is AND-conjoined onto the base predicate for variety.
+        if (Randomly.getBooleanWithRatherLowProbability() && !columnRefs.isEmpty()) {
+            ClickHouseExpression dt = generateDateTransform(columnRefs);
+            if (dt != null) {
+                if (Randomly.getBoolean()) {
+                    return dt;
+                }
+                return new ClickHouseBinaryLogicalOperation(base, dt,
+                        ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
+            }
+        }
         // Occasionally fold a bare large-integer literal into the predicate as a top-level AND
         // conjunct: e.g. `expr AND 2147483648`. ClickHouse promotes the integer to a boolean as
         // "non-zero". Regression #101287 (`WHERE 2147483648 > b AND 2147483648` incorrectly

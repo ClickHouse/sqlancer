@@ -49,6 +49,70 @@ class ClickHouseEETIdentitiesTest {
     }
 
     @Test
+    void stringTypeAcceptsNewRoundtripIdentities() {
+        // Unit 6.2: the four new String fold-to-x identities must all be eligible for String and
+        // appear across repeated draws.
+        Set<String> seen = new HashSet<>();
+        for (int i = 0; i < 400; i++) {
+            Optional<ClickHouseEETIdentities.Identity> picked = ClickHouseEETIdentities
+                    .pickIdentityForType(new Randomly(913L + i), "String");
+            assertTrue(picked.isPresent());
+            seen.add(picked.get().name());
+        }
+        assertTrue(seen.contains("reverse_reverse"), () -> "reverse_reverse not picked for String; saw " + seen);
+        assertTrue(seen.contains("substring_whole"), () -> "substring_whole not picked for String; saw " + seen);
+        assertTrue(seen.contains("concat_substring_split"),
+                () -> "concat_substring_split not picked for String; saw " + seen);
+        assertTrue(seen.contains("replace_regexp_nomatch"),
+                () -> "replace_regexp_nomatch not picked for String; saw " + seen);
+    }
+
+    @Test
+    void newStringIdentitiesExcludedFromIntAndFloat() {
+        Set<String> stringOnly = Set.of("reverse_reverse", "substring_whole", "concat_substring_split",
+                "replace_regexp_nomatch", "concat_empty");
+        for (String typeName : new String[] { "Int32", "UInt64", "Float64" }) {
+            for (int i = 0; i < 200; i++) {
+                Optional<ClickHouseEETIdentities.Identity> picked = ClickHouseEETIdentities
+                        .pickIdentityForType(new Randomly(41L + i), typeName);
+                assertTrue(picked.isPresent());
+                assertFalse(stringOnly.contains(picked.get().name()),
+                        () -> typeName + " must not pick a String-only identity; got " + picked.get().name());
+            }
+        }
+    }
+
+    @Test
+    void newStringIdentitiesRenderExpectedSql() {
+        assertEquals("reverse(reverse(t.c))", identity("reverse_reverse").applyTo("t.c"));
+        assertEquals("substring(t.c, 1)", identity("substring_whole").applyTo("t.c"));
+        assertEquals("concat(substring(t.c, 1, 1), substring(t.c, 2))",
+                identity("concat_substring_split").applyTo("t.c"));
+        assertEquals("replaceRegexpAll(t.c, 'zzqq_never_matches_9181', 'Q')",
+                identity("replace_regexp_nomatch").applyTo("t.c"));
+    }
+
+    @Test
+    void fixedStringExcludedFromStringIdentities() {
+        // FixedString is a distinct Kind and must NOT pick any plain-String identity (the trailing
+        // NUL padding round-trips unevenly through these functions + cast-back).
+        Set<String> stringOnly = Set.of("reverse_reverse", "substring_whole", "concat_substring_split",
+                "replace_regexp_nomatch", "concat_empty");
+        for (int i = 0; i < 200; i++) {
+            Optional<ClickHouseEETIdentities.Identity> picked = ClickHouseEETIdentities
+                    .pickIdentityForType(new Randomly(77L + i), "FixedString(8)");
+            if (picked.isPresent()) {
+                assertFalse(stringOnly.contains(picked.get().name()),
+                        () -> "FixedString must not pick a plain-String identity; got " + picked.get().name());
+            }
+        }
+    }
+
+    private static ClickHouseEETIdentities.Identity identity(String name) {
+        return ClickHouseEETIdentities.CATALOG.stream().filter(id -> id.name().equals(name)).findFirst().orElseThrow();
+    }
+
+    @Test
     void floatTypeExcludesArithmeticIdentities() {
         // Locks down the v1 scope boundary: Float must never be eligible for plus_zero or
         // multiply_one because of NaN / -0.0 false-positive risk. If someone widens the predicate

@@ -82,7 +82,7 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
     private static final String HAVING_SETTINGS_SUFFIX = " SETTINGS aggregate_functions_null_for_empty=1, enable_optimize_predicate_expression=0";
 
     enum Mode {
-        WHERE_INJECT, HAVING_INJECT, EXPR_REWRITE, ALGEBRAIC_ID
+        WHERE_INJECT, HAVING_INJECT, EXPR_REWRITE, ALGEBRAIC_ID, MULTIIF_EQUIV
     }
 
     enum Polarity {
@@ -126,6 +126,10 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
             // Polarity is irrelevant for the algebraic-identity mode (every catalog entry is
             // unconditionally x-preserving), so we ignore the picked polarity here.
             checkAlgebraicIdentity(table, readableColumns);
+            break;
+        case MULTIIF_EQUIV:
+            // Polarity is irrelevant: the two forms are structurally equivalent regardless.
+            checkMultiIfNestedIfEquivalence(table, readableColumns);
             break;
         default:
             throw new AssertionError(mode);
@@ -332,29 +336,9 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
 
         ExprShape shape = Randomly.fromOptions(ExprShape.values());
         String rewriteInner = buildExprRewrite(shape, polarity, xSql, junkSql, taut, contra);
-        String rewriteSql = "cast((" + rewriteInner + "), " + sqlQuote(typeOfX) + ") AS check";
-
-        String originalSql = "SELECT (" + xSql + ") AS check FROM " + tableQ;
-        String transformedSql = "SELECT " + rewriteSql + " FROM " + tableQ;
-
-        this.auxiliaryQueryString = "-- EET EXPR-" + shape.name() + "-" + polarity.name() + " typeOfX=" + typeOfX;
-        this.originalQueryString = originalSql;
-        this.foldedQueryString = transformedSql;
-
-        if (state.getOptions().logEachSelect()) {
-            state.getLogger().writeCurrent(originalSql);
-            state.getLogger().writeCurrent(transformedSql);
-        }
-
-        List<String> originalRows = collectRows(originalSql);
-        List<String> transformedRows = collectRows(transformedSql);
-
-        if (!originalRows.equals(transformedRows)) {
-            throw new AssertionError(String.format(
-                    "EET[mode=EXPR-%s-%s] result mismatch:%n  typeOfX:  %s%n  Q:        %s%n  T:        %s%n  Q rows (%d): %s%n  T rows (%d): %s",
-                    shape.name(), polarity.name(), typeOfX, originalSql, transformedSql, originalRows.size(),
-                    originalRows, transformedRows.size(), transformedRows));
-        }
+        String transExpr = "cast((" + rewriteInner + "), " + sqlQuote(typeOfX) + ")";
+        assertSingleSnapshotEquivalent(table, xSql, transExpr,
+                "EXPR-" + shape.name() + "-" + polarity.name() + " typeOfX=" + typeOfX);
     }
 
     // Construct the if/multiIf/CASE shape that must fold to x regardless of polarity:
@@ -441,27 +425,81 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         }
         ClickHouseEETIdentities.Identity identity = picker.get();
 
-        String rewriteSql = "cast((" + identity.applyTo(xSql) + "), " + sqlQuote(typeOfX) + ") AS check";
-        String originalSql = "SELECT (" + xSql + ") AS check FROM " + tableQ;
-        String transformedSql = "SELECT " + rewriteSql + " FROM " + tableQ;
+        String transExpr = "cast((" + identity.applyTo(xSql) + "), " + sqlQuote(typeOfX) + ")";
+        assertSingleSnapshotEquivalent(table, xSql, transExpr, "ALG-" + identity.name() + " typeOfX=" + typeOfX);
+    }
 
-        this.auxiliaryQueryString = "-- EET ALG-" + identity.name() + " typeOfX=" + typeOfX;
-        this.originalQueryString = originalSql;
-        this.foldedQueryString = transformedSql;
+    // ----- Mode: multiIf <-> nested-if structural equivalence (Unit 6.1) -----
 
-        if (state.getOptions().logEachSelect()) {
-            state.getLogger().writeCurrent(originalSql);
-            state.getLogger().writeCurrent(transformedSql);
+    // Assert the catalog identity multiIf(c1, a, c2, b, d) == if(c1, a, if(c2, b, d)). The
+    // generator renders both forms from the SAME (c1, a, c2, b, d) components, so the VALUE each
+    // produces on every row must agree; a divergence is a branch-selection or short-circuit-folding
+    // bug -- the surface the plan's WS6 multiIf unit targets.
+    //
+    // IMPORTANT: multiIf and nested-if do NOT necessarily agree on the RESULT TYPE. ClickHouse
+    // unifies the branch types of an n-ary multiIf in one pass but unifies a nested if pairwise
+    // from the inside out, so e.g. multiIf(.., lcm()->UInt, .., c0->Int32, max2()->Float64) settles
+    // on an integer type while if(.., lcm, if(.., c0, max2)) settles on Float64. The values are
+    // identical (-1875264158 vs -1.875264158E9), only the textual rendering differs. That is a
+    // legitimate type-inference difference, not a wrong result, so comparing the raw renderings is
+    // unsound. We normalise both forms through CAST(... AS Float64) so the comparison is purely on
+    // value. Trade-off: two genuinely-different integer values above 2^53 could collide after the
+    // Float64 round; that narrow blind spot is acceptable -- every branch-selection / short-circuit
+    // bug changes the value far more than one ULP, and this mirrors the codebase's existing
+    // float-tolerance stance for aggregate oracles.
+    private void checkMultiIfNestedIfEquivalence(ClickHouseTable table, List<ClickHouseColumn> columns)
+            throws SQLException {
+        List<ClickHouseColumnReference> colRefs = columns.stream().map(c -> c.asColumnReference(table.getName()))
+                .collect(Collectors.toList());
+        ClickHouseExpressionGenerator gen = new ClickHouseExpressionGenerator(state);
+        gen.addColumns(colRefs);
+
+        String[] forms = gen.renderMultiIfAndNestedIf(colRefs);
+        if (forms == null) {
+            // No numeric column to build branch values from.
+            throw new IgnoreMeException();
         }
+        // forms[0]/[1] already CAST to a common Nullable(Float64) (see renderMultiIfAndNestedIf):
+        // that normalises away the legitimate multiIf-vs-nested-if type-inference difference and
+        // keeps the column wire-readable, so we compare the two forms directly.
+        assertSingleSnapshotEquivalent(table, forms[0], forms[1], "MULTIIF-EQUIV");
+    }
 
-        List<String> originalRows = collectRows(originalSql);
-        List<String> transformedRows = collectRows(transformedSql);
-
-        if (!originalRows.equals(transformedRows)) {
-            throw new AssertionError(String.format(
-                    "EET[mode=ALG-%s] result mismatch:%n  typeOfX:  %s%n  Q:        %s%n  T:        %s%n  Q rows (%d): %s%n  T rows (%d): %s",
-                    identity.name(), typeOfX, originalSql, transformedSql, originalRows.size(), originalRows,
-                    transformedRows.size(), transformedRows));
+    // Single-snapshot value-equivalence check shared by the ALGEBRAIC_ID, EXPR_REWRITE and
+    // MULTIIF_EQUIV modes. Both expressions are projected as two columns of ONE SELECT, so they are
+    // evaluated against the same table snapshot. This is what makes the comparison sound under
+    // concurrent async mutations: a previous design read the original and transformed forms as two
+    // SEPARATE queries, and an in-flight `ALTER TABLE ... DELETE WHERE <truthy>` mutation completing
+    // between the two reads produced a spurious "16 rows vs 0 rows" mismatch (root-caused 2026-06-02
+    // on the reverse_reverse identity). Comparing two columns of the same query removes the race and
+    // halves the query count. Rows are compared positionally (no sort): both columns come from the
+    // same rows in the same order, and a per-row a!=b is the divergence.
+    private void assertSingleSnapshotEquivalent(ClickHouseTable table, String origExpr, String transExpr, String label)
+            throws SQLException {
+        String tableQ = quote(table.getName());
+        String query = "SELECT (" + origExpr + ") AS a, (" + transExpr + ") AS b FROM " + tableQ;
+        this.auxiliaryQueryString = "-- EET " + label + " (single-snapshot two-column)";
+        this.originalQueryString = "SELECT (" + origExpr + ") FROM " + tableQ;
+        this.foldedQueryString = "SELECT (" + transExpr + ") FROM " + tableQ;
+        if (state.getOptions().logEachSelect()) {
+            state.getLogger().writeCurrent(query);
+        }
+        try (Statement s = state.getConnection().createStatement(); ResultSet rs = s.executeQuery(query)) {
+            long rowIdx = 0;
+            while (rs.next()) {
+                String a = rs.getString(1);
+                boolean aNull = rs.wasNull();
+                String b = rs.getString(2);
+                boolean bNull = rs.wasNull();
+                if (aNull != bNull || !aNull && !a.equals(b)) {
+                    throw new AssertionError(String.format(
+                            "EET[mode=%s] value mismatch at row %d:%n  Q: %s%n  a (orig)=%s%n  b (trans)=%s",
+                            label, rowIdx, query, aNull ? "NULL" : a, bNull ? "NULL" : b));
+                }
+                rowIdx++;
+            }
+        } catch (SQLException ex) {
+            throw maybeIgnore(ex);
         }
     }
 

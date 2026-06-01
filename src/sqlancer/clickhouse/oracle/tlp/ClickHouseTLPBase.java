@@ -118,6 +118,37 @@ public class ClickHouseTLPBase extends TernaryLogicPartitioningOracleBase<ClickH
                 from.add(dt);
             }
         }
+        // multiIf / CASE WHEN conditional (Unit 6.1). Fires only when a numeric column is in
+        // scope. Adds multiIf(c1, a, c2, b, d) / CASE WHEN ... END as an extra fetch column so
+        // every TLP/NoREC oracle exercises the optimizer's branch type-unification + short-circuit
+        // path on a deterministic scalar.
+        if (Randomly.getBooleanWithRatherLowProbability()) {
+            ClickHouseExpression mif = gen.generateMultiIf(columns);
+            if (mif != null) {
+                from = new java.util.ArrayList<>(from);
+                from.add(mif);
+            }
+        }
+        // String / regex / search call (Unit 6.2). Fires only when a plain String column is in
+        // scope. Adds lower/upper/reverse/substring/replaceRegexp(...) etc. as an extra fetch
+        // column.
+        if (Randomly.getBooleanWithRatherLowProbability()) {
+            ClickHouseExpression sc = gen.generateStringCall(columns);
+            if (sc != null) {
+                from = new java.util.ArrayList<>(from);
+                from.add(sc);
+            }
+        }
+        // Date/time scalar-transform predicate as a SELECT-list boolean (Unit 6.3). Fires only when
+        // a Date/DateTime column is in scope; complements the predicate-side emission in
+        // generatePredicate so the transforms also appear in projection position.
+        if (Randomly.getBooleanWithRatherLowProbability()) {
+            ClickHouseExpression dtx = gen.generateDateTransform(columns);
+            if (dtx != null) {
+                from = new java.util.ArrayList<>(from);
+                from.add(dtx);
+            }
+        }
         // Scalar subquery in SELECT (workstream 16). Emits (SELECT count() FROM other_table) as
         // an additional fetch column. Bounded at one per SELECT per the plan spec.
         if (Randomly.getBooleanWithRatherLowProbability()) {

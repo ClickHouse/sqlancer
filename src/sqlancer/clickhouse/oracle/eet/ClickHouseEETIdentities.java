@@ -47,9 +47,22 @@ public final class ClickHouseEETIdentities {
     static final List<Identity> CATALOG = List.of(
             new Identity("plus_zero", "plus(%s, 0)", t -> isIntegerKind(unwrapped(t))),
             new Identity("multiply_one", "multiply(%s, 1)", t -> isIntegerKind(unwrapped(t))),
-            new Identity("concat_empty", "concat(%s, '')", t -> kindOf(unwrapped(t)) == Kind.String),
+            new Identity("concat_empty", "concat(%s, '')", t -> isPlainStringKind(t)),
             new Identity("coalesce_self", "coalesce(%s, %s)", t -> isFoldablePrimitive(unwrapped(t))),
-            new Identity("if_true", "if(true, %s, %s)", t -> isFoldablePrimitive(unwrapped(t))));
+            new Identity("if_true", "if(true, %s, %s)", t -> isFoldablePrimitive(unwrapped(t))),
+            // Unit 6.2 -- String roundtrip / search identities. All fold to x byte-for-byte on a
+            // plain String (FixedString excluded: its trailing-NUL padding round-trips unevenly
+            // through these functions and the cast-back, producing formatting-only false positives).
+            // reverse is a byte reversal, so reverse(reverse(s)) == s for any byte sequence including
+            // truncated UTF-8; substring/concat operate on bytes too, so a split-and-rejoin is the
+            // identity; the regex pattern is chosen to never match real data, exercising the
+            // re2/Hyperscan compile+scan path without depending on replacement semantics.
+            new Identity("reverse_reverse", "reverse(reverse(%s))", t -> isPlainStringKind(t)),
+            new Identity("substring_whole", "substring(%s, 1)", t -> isPlainStringKind(t)),
+            new Identity("concat_substring_split", "concat(substring(%s, 1, 1), substring(%s, 2))",
+                    t -> isPlainStringKind(t)),
+            new Identity("replace_regexp_nomatch", "replaceRegexpAll(%s, 'zzqq_never_matches_9181', 'Q')",
+                    t -> isPlainStringKind(t)));
 
     /**
      * Pick an identity whose safe-type predicate accepts the given runtime type name.
@@ -89,6 +102,13 @@ public final class ClickHouseEETIdentities {
 
     private static boolean isFoldablePrimitive(ClickHouseType inner) {
         return inner instanceof Primitive;
+    }
+
+    // Plain String only (after stripping Nullable / LowCardinality wrappers). FixedString is
+    // deliberately excluded: it is a distinct Kind, and its fixed-width NUL padding does not
+    // survive a String-returning function + cast-back cleanly.
+    private static boolean isPlainStringKind(ClickHouseType t) {
+        return kindOf(unwrapped(t)) == Kind.String;
     }
 
     private static boolean isIntegerKind(ClickHouseType inner) {
