@@ -24,6 +24,18 @@
   sqlancer threads these three together hold the data dir + file logs under ~150 MB during a
   15-minute run versus ~1 GB without them. Drop a `-v` flag (or all three) if you specifically
   want trace_log / verbose server logs for a debugging session.
+- **Config parity with `run-sqlancer.sh` (important for local smoke tests).** The ad-hoc recipe
+  above mounts only 3 configs; `run-sqlancer.sh` mounts **five** — it adds
+  `async_insert_off.xml` (config.d) and `alter_mutation_sync.xml` (**users.d**, sets
+  `alter_sync=2` + `mutations_sync=2`). Without `alter_mutation_sync.xml`, async `ALTER … DELETE`
+  mutations issued during DB generation run in the background and can complete *between* the two
+  reads of any two-query oracle, producing local-only false positives (observed 2026-06-02: an
+  EET reverse∘reverse identity reported "16 rows vs 0" purely because a `DELETE WHERE <truthy>`
+  landed mid-iteration — does NOT repro on the dev-vm, which has the sync mount). **For a local
+  smoke that should match dev-vm behaviour, mount all five** (or just run `.claude/run-sqlancer.sh`
+  which does it for you). The two extra files: `async_insert_off.xml` →
+  `/etc/clickhouse-server/config.d/`, `alter_mutation_sync.xml` →
+  `/etc/clickhouse-server/users.d/` (profile settings load from the users tree, not config.d).
 - Readiness probe: `until curl -sf http://127.0.0.1:18124/ping; do sleep 1; done`.
 - Between runs: `.claude/clickhouse-disk-cleanup.sh` truncates the system observability tables and
   in-container file logs and drops orphan sqlancer databases. Idempotent; ~87% reduction on a
@@ -44,6 +56,7 @@
 - `--log-each-select=true` is default and is required for AssertionError reproducer files; turning it off is invasive.
 - The default `--num-threads=16` is too high for a `--cpus=6` CH server (CH becomes the bottleneck); 6 sqlancer threads matched the 6 CPU cores cleanly.
 - Progress line interpretation: `Threads shut down: N` means `N` of `--num-threads` workers have died via `AssertionError` (real bug or unhandled error). `Main`'s `ThreadPoolExecutor` replaces dead workers, so the **counter is cumulative across the run** (M deaths over time, not the current live count) and throughput stays steady even as the counter climbs. Compare against the saved `logs/clickhouse/database*.log` reproducer count for the real picture.
+- **`run-sqlancer.sh` exit code: `255` = "reproducers were found", `0` = none.** It is NOT a crash — a clean 30-min run that surfaced 1+ reproducers exits 255 (the JVM exits non-zero when any worker died with an AssertionError). Don't mistake exit 255 for an aborted run; check the `==> Summary` block's `reproducers:` count and `Threads shut down:` instead. (A genuine degraded run looks different: throughput collapsing to single-digit q/s with the query counter flat-lining — that's GC thrash from a heavy seed materialising large result sets, independent of the exit code.)
 
 ## Running on the dev VM (Graviton ARM, CH HEAD)
 
@@ -105,6 +118,9 @@ Typical noise families (now tolerated globally in `ClickHouseErrors`, so a fresh
 
 Genuine bug-shape signal usually comes from `ClickHouseTLPSetOpOracle` (real INTERSECT/UNION_DISTINCT divergence) or `ComparatorHelper.assumeResultSetsAreEqual:127` (row-count mismatch). For the latter, **TLP+`GROUP BY` queries** are a known TLP oracle limitation that produces false positives — the same group key can appear in multiple WHERE-partition branches and inflate the UNION ALL count. If you see a row-count mismatch on a query with `GROUP BY`, replay the same query without it before filing; if the non-`GROUP BY` version matches, it's an oracle artifact.
 
+- **Attributing a reproducer to a specific generator/oracle change: grep ONLY the failing query, not the whole file.** A `database*.log` is the *entire lifecycle log* of that database id — every CREATE/INSERT/ALTER/SELECT from many oracle iterations, not just the failing one. Grepping the whole file for a construct (e.g. `toISOWeek`, `multiIf`, `optimize_use_projections`) gives **false attribution**: the marker appears in dozens of *succeeded* statements from unrelated iterations even when the one failing query doesn't use it (cost me a false "my-change" flag on 2026-06-02). The failing query is the AssertionError + offending SQL in the **first ~6 lines** only. Scan those: `head -6 "$f" | grep -oE '<your markers>'`. The actual oracle is on the stack-trace lines just below (e.g. `ClickHouseTLPSetOpOracle.checkExcept`, `NoRECOracle.extractCounts`).
+- **Float false-positive families that are NOT new-code bugs**, recurring across runs: TLPSetOp `EXCEPT ALL` over float math (`radians`/`erf`/`log` producing values like `6.8e16`), TLPGroupBy with a float projection (`-erf(abs(c0))`), and any differential aggregate oracle running `sum(Float)` (order-sensitive: partial-aggregate path vs full rescan round differently — the #99109 class). When authoring a new differential/aggregate oracle, restrict to **exact-integer aggregates (sum/min/max/count) and non-float GROUP BY keys**, or the run drowns in float noise (learned building `ProjectionToggle`).
+
 ## Preserving artefacts between attempts
 
 Long-run iterations on the same machine clobber each other's `logs/runs/` and `logs/clickhouse/database*.log`. The convention from the 2026-05-23 3h sequence:
@@ -157,6 +173,18 @@ that move stand:
   Float NaN/Infinity, Decimal(38,15)) with one cosmetic difference -- the reader emits
   `"NaN"` and `"Infinity"` where TSV emits `"nan"` and `"inf"`. Oracle string compares operate
   on values that all flow through the same reader, so they stay self-consistent.
+- **The reader CANNOT decode `Variant(...)` columns** -- it throws
+  `IndexOutOfBoundsException: Index -1 out of bounds for length N` and the worker dies. This is
+  the same reason `Variant`/`Dynamic`/`JSON` columns are kept out of the generated schema. The
+  **non-obvious trap (2026-06-02):** an n-ary conditional whose branches do NOT losslessly unify
+  produces a Variant *common type* even when no column is Variant. e.g.
+  `multiIf(cond, intExpr, cond2, int64Expr, float32Expr)` settles on `Variant(Float32, Int64)`
+  on CH 26.6 (`toTypeName` confirms). **Authoring rule: any generator emission whose result type
+  is a multi-branch/union of dissimilar numeric types must be wrapped in a concrete cast** --
+  `CAST((…) AS Nullable(Float64))` is the safe default (preserves NULLs, reads cleanly, keeps
+  multiset semantics; `AS Float64` errors on NULL rows). This is why `generateMultiIf` /
+  `renderMultiIfAndNestedIf` wrap their output. Verify a new conditional/union emission with
+  `SELECT toTypeName(<expr>) FROM t` -- if it says `Variant(...)`, add the cast.
 
 The previous `ClickHouseTsvParser` was removed as part of this change. It silently dropped
 single-column empty-string rows because of a misunderstanding of `BufferedReader.readLine`'s
@@ -227,6 +255,21 @@ TLPAggregate has a separate residual false-positive class (JOIN+WHERE+SUM with
 NaN-producing functions in the SUM argument) that the SUM-of-SUM-of-partitions
 identity doesn't hold under. Not addressed in this session; ~23 reproducers /
 5 min remain.
+
+**Authoring rule for value-equivalence oracles: compare two expression forms as
+two columns of ONE query, not as two separate queries.** A value-equivalence
+oracle ("expr A == expr B on every row") that issues `SELECT A FROM t` and
+`SELECT B FROM t` as two statements is exposed to a mutation race -- an async
+`ALTER … DELETE` (or merge) landing between the reads makes A and B see
+different snapshots and reports a spurious mismatch. Issue
+`SELECT (A) AS a, (B) AS b FROM t` and compare the two columns **positionally**
+(same rows, same order, no sort) -- both forms then evaluate against one
+snapshot, the race is gone, and you halve the query count. The EET oracle's
+ALGEBRAIC_ID / EXPR_REWRITE / MULTIIF_EQUIV modes were converted to this on
+2026-06-02 (see `ClickHouseEETOracle.assertSingleSnapshotEquivalent`). NB: on
+the dev-vm the race is also masked by `mutations_sync=2` (see the config-parity
+note up top), but the single-snapshot form is correct everywhere and is the
+pattern to copy for new equivalence oracles.
 
 ## Environment quirks
 
