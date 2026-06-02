@@ -1,6 +1,14 @@
 # SQLancer fork — operational notes
 
-## Running a ClickHouse head instance for perf
+> **NEVER run sqlancer or ClickHouse locally for this repo.** All fuzz runs,
+> smoke tests, and bug reproduction happen on the **dev-vm** (see "Running on the
+> dev VM" below and the `dev-vm` skill). Do not start a local
+> `clickhouse-server` container or run the sqlancer jar against `127.0.0.1`. The
+> local-container recipe below is retained only as reference for the config-file
+> set and env vars that `run-sqlancer.sh` mounts **on the dev-vm** — not an
+> invitation to run locally.
+
+## Running a ClickHouse head instance for perf (dev-vm only — see banner above)
 
 - Image: `clickhouse/clickhouse-server:head` — pull fresh each session, current head is `26.5.1.779`. Port 18124 was already taken by `ch-querylog` so use a fresh container name/port.
 - Required env vars on first run: without `CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1` + `CLICKHOUSE_SKIP_USER_SETUP=1` the entrypoint disables network access for the `default` user (`Authentication failed: password is incorrect`). Logs print `neither CLICKHOUSE_USER nor CLICKHOUSE_PASSWORD is set, disabling network access` — that's the signal.
@@ -24,18 +32,18 @@
   sqlancer threads these three together hold the data dir + file logs under ~150 MB during a
   15-minute run versus ~1 GB without them. Drop a `-v` flag (or all three) if you specifically
   want trace_log / verbose server logs for a debugging session.
-- **Config parity with `run-sqlancer.sh` (important for local smoke tests).** The ad-hoc recipe
-  above mounts only 3 configs; `run-sqlancer.sh` mounts **five** — it adds
-  `async_insert_off.xml` (config.d) and `alter_mutation_sync.xml` (**users.d**, sets
-  `alter_sync=2` + `mutations_sync=2`). Without `alter_mutation_sync.xml`, async `ALTER … DELETE`
+- **Required config set (mounted by `run-sqlancer.sh` on the dev-vm).** Five files, not three:
+  the three disk-pressure overrides above **plus** `async_insert_off.xml` (config.d) and
+  `alter_mutation_sync.xml` (**users.d**, sets `alter_sync=2` + `mutations_sync=2`). The
+  `mutations_sync=2` mount is load-bearing for oracle soundness: without it, async `ALTER … DELETE`
   mutations issued during DB generation run in the background and can complete *between* the two
-  reads of any two-query oracle, producing local-only false positives (observed 2026-06-02: an
-  EET reverse∘reverse identity reported "16 rows vs 0" purely because a `DELETE WHERE <truthy>`
-  landed mid-iteration — does NOT repro on the dev-vm, which has the sync mount). **For a local
-  smoke that should match dev-vm behaviour, mount all five** (or just run `.claude/run-sqlancer.sh`
-  which does it for you). The two extra files: `async_insert_off.xml` →
+  reads of any two-query oracle, producing false-positive mismatches (observed 2026-06-02 when a
+  stray non-dev-vm container lacked the mount: an EET reverse∘reverse identity reported "16 rows
+  vs 0" purely because a `DELETE WHERE <truthy>` landed mid-iteration). `run-sqlancer.sh` always
+  mounts all five, so any dev-vm run is correct by construction — this is one more reason to run
+  there and never stand up an ad-hoc container. (`async_insert_off.xml` →
   `/etc/clickhouse-server/config.d/`, `alter_mutation_sync.xml` →
-  `/etc/clickhouse-server/users.d/` (profile settings load from the users tree, not config.d).
+  `/etc/clickhouse-server/users.d/`; profile settings load from the users tree, not config.d.)
 - Readiness probe: `until curl -sf http://127.0.0.1:18124/ping; do sleep 1; done`.
 - Between runs: `.claude/clickhouse-disk-cleanup.sh` truncates the system observability tables and
   in-container file logs and drops orphan sqlancer databases. Idempotent; ~87% reduction on a
