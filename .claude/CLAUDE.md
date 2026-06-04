@@ -91,6 +91,58 @@ ssh ubuntu@nik-fomichev-dev-vm-1 'cd ~/sqlancer-fork && \
 
 Scaling on c7g.4xlarge (16 vCPU / 32 GiB): cap CH at 8 cpu / 6 GiB (`--cpus=8 -m=6g`) and run sqlancer with `--num-threads 8 -Xmx24g`. Totals out at ~30 GiB used, leaving ~2 GiB for the OS and container daemon. CH-side `MEMORY_LIMIT_EXCEEDED` is now globally tolerated (commit `15b8a901`), so the squeezed `-m=6g` cap surfaces as harmless `IgnoreMe`s rather than worker deaths — that's the trade for the bigger JVM heap. The earlier 8/16 split (CH at 10 cpu / 12 GiB, sqlancer at 8/16) also worked but left less GC margin for the heaviest iterations. CH at 12 cpu / 14 GiB + sqlancer at 12 threads / 12 GiB heap **overshoots** (per-thread heap drops below the 1.3 GiB floor) — attempt-1 of the 3h run died in 13 minutes that way.
 
+## Filed ClickHouse bugs — reproducer → issue (open only)
+
+Bugs SQLancer found here that are filed and still OPEN upstream. Minimal repros so a future run can
+recognise an already-filed bug instead of re-investigating it. **Re-verify against current head
+before acting** — when an issue is fixed/closed, delete its entry from this list. (Check state:
+`gh issue view <N> --repo ClickHouse/ClickHouse --json state -q .state`.)
+
+- **[#106419](https://github.com/ClickHouse/ClickHouse/issues/106419)** — `WHERE toStartOf{Year,Month,Quarter}(Date32) < const` returns 0 rows after a merge when the column has pre-1970 values (Date32→Date narrowing overflows; monotonic-filter range poisoned). Needs a **merge-formed part**.
+  ```sql
+  CREATE TABLE t (c1 Date32) ENGINE=MergeTree ORDER BY tuple();
+  INSERT INTO t SELECT toDate32('1971-01-01')+toIntervalDay(number%18000) FROM numbers(9991);
+  INSERT INTO t SELECT toDate32('1905-01-01')+toIntervalDay(number*30)    FROM numbers(9);
+  OPTIMIZE TABLE t FINAL;
+  SELECT count() FROM t WHERE toStartOfYear(c1) < toStartOfYear(toDate('2021-06-15'));  -- 0 WRONG
+  SELECT countIf(toStartOfYear(c1) < toStartOfYear(toDate('2021-06-15'))) FROM t;       -- 9991 correct
+  ```
+- **[#106426](https://github.com/ClickHouse/ClickHouse/issues/106426)** — `LOGICAL_ERROR "Join restriction violated"` in `JoinOrderOptimizer::solveGreedy` on comma-join + LEFT JOIN with `IS NULL` in `ON` + cross-relation WHERE. Trigger = cardinality asymmetry (large comma table vs 1-row joined tables). `count()` masks it.
+  ```sql
+  CREATE TABLE t0 (c0 UInt64) ENGINE=MergeTree ORDER BY tuple();
+  CREATE TABLE t1 (c0 Int64, c1 String) ENGINE=MergeTree ORDER BY tuple();
+  CREATE TABLE t3 (c1 UInt64, c2 String) ENGINE=MergeTree ORDER BY tuple();
+  INSERT INTO t0 SELECT number FROM numbers(1000); INSERT INTO t1 VALUES (1,'a'); INSERT INTO t3 VALUES (1,'a');
+  SELECT * FROM t1, t3, t0 JOIN t3 AS right_0 ON (t1.c1=right_0.c2)
+    LEFT OUTER JOIN t3 AS right_1 ON (t1.c1=right_1.c2) AND (right_1.c2 IS NULL)
+    WHERE t1.c0 < t3.c1;   -- Code 49 LOGICAL_ERROR
+  ```
+- **[#106262](https://github.com/ClickHouse/ClickHouse/issues/106262)** — `col = const` equality drops rows when the ORDER BY key is a NaN-producing function (`sqrt`/`log` of negatives): the range KeyCondition becomes `[nan, nan]`. `IN (const)` works; range predicates work.
+  ```sql
+  CREATE TABLE t (c0 Int32) ENGINE=MergeTree ORDER BY sqrt(c0) SETTINGS allow_suspicious_indices=1, index_granularity=4;
+  INSERT INTO t SELECT number-50 FROM numbers(100);
+  SELECT countIf(c0=-30) FROM t;             -- 1 (exists)
+  SELECT count() FROM t WHERE c0=-30;        -- 0 WRONG
+  ```
+- **[#106124](https://github.com/ClickHouse/ClickHouse/issues/106124)** — partition pruning with `intDiv`/divide by a **negative** constant drops rows for range predicates (decreasing fn flips the inequality in the partition KeyCondition). *(Fix PR may be in flight — re-check state.)*
+  ```sql
+  CREATE TABLE t (c1 UInt32) ENGINE=MergeTree() ORDER BY tuple() PARTITION BY intDiv(c1,-683);
+  INSERT INTO t VALUES (0),(1),(700),(5000),(9976);
+  SELECT count() FROM t WHERE c1 < 1000;     -- 1 WRONG (expected 3)
+  ```
+- **[#106125](https://github.com/ClickHouse/ClickHouse/issues/106125)** — SummingMergeTree FINAL drops a present row when the query reads only a summation column that is 0 for that row (read-in-order + column pruning). **Measure with row output, not `count()`** (count() masks it).
+  ```sql
+  CREATE TABLE s (c0 UInt32, v_keep Int32, v_zero UInt32) ENGINE=SummingMergeTree ORDER BY c0;
+  INSERT INTO s VALUES (0,1,0),(1,1,1),(2,1,2);  INSERT INTO s VALUES (3,1,3),(4,1,4),(5,1,5);
+  SELECT c0 FROM s FINAL WHERE v_zero >= 0 ORDER BY c0;   -- c0=0 MISSING (5 rows, expected 6)
+  ```
+- **[#106099](https://github.com/ClickHouse/ClickHouse/issues/106099)** — `LOGICAL_ERROR "Duplicate column name in row policy actions output"` (Code 49) when a permissive row policy's `USING` is a bare physical column ref. 26.x regression. Any wrapper (`c0+0`, `c0!=0`, `materialize(c0)`) avoids it.
+  ```sql
+  CREATE TABLE t (c0 Int32) ENGINE=MergeTree ORDER BY tuple(); INSERT INTO t VALUES (1),(2),(3);
+  CREATE ROW POLICY pol ON t USING c0 TO ALL;
+  SELECT c0 FROM t;   -- Code 49 (reading the policy column)
+  ```
+
 ## Reproducing findings
 
 - **Version-pin everything.** CH HEAD moves fast; bugs the fuzzer caught on 26.6.x do not always reproduce on 26.5.x. The 2026-05-23 `database48` finding (DISTINCT NaN coalescence) is 26.6-exclusive — single in-pass DISTINCT collapses different NaN bit patterns starting in 26.6, while the UNION-ALL+DISTINCT path doesn't; on 26.5 both paths kept them apart consistently. Record the CH version next to every saved reproducer; if a finding doesn't replay against the local 26.5 container, pull `clickhouse/clickhouse-server:head` (or query the dev-VM's container) before declaring it a flake.
