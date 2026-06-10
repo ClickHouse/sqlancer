@@ -17,6 +17,7 @@ import sqlancer.clickhouse.oracle.join.ClickHouseJoinAlgorithmOracle;
 import sqlancer.clickhouse.oracle.keycond.ClickHouseKeyConditionOracle;
 import sqlancer.clickhouse.oracle.materialize.ClickHouseSubqueryMaterializeOracle;
 import sqlancer.clickhouse.oracle.parallelism.ClickHouseParallelismOracle;
+import sqlancer.clickhouse.oracle.mutate.ClickHouseMutationAnalyzerOracle;
 import sqlancer.clickhouse.oracle.patch.ClickHousePatchPartConsistencyOracle;
 import sqlancer.clickhouse.oracle.partition.ClickHousePartitionMirrorOracle;
 import sqlancer.clickhouse.oracle.pqs.ClickHousePivotedQuerySynthesisOracle;
@@ -336,6 +337,19 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseSubqueryMaterializeOracle(globalState);
+        }
+    },
+    MutationAnalyzer {
+        // Deterministic coverage of the PR #98884 surface (mutation analysis routed through the
+        // new analyzer in 26.6): ALTER UPDATE/DELETE, lightweight UPDATE/DELETE and MATERIALIZE
+        // COLUMN against private tables, with WHERE shapes including the #106649 joined-derived-
+        // tables IN-subquery (LOGICAL_ERROR "Column identifier ... is already registered"), the
+        // self-referencing-subquery deadlock-avoidance path, alias-column and virtual-column
+        // predicates. Narrow error tolerance (no global expression list, no TIMEOUT_EXCEEDED) plus
+        // an affected-rows consistency assertion for wrong-result coverage beyond crashes.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseMutationAnalyzerOracle(globalState);
         }
     }
 }
