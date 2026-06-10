@@ -73,9 +73,11 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
             // occasionally without dominating the per-database statement budget.
             return Randomly.fromOptions(0, 0, 0, 0, 1);
         case MUTATION:
-            // 0 or 1 mutation per database setup. Mutations have a non-trivial barrier cost
-            // (poll system.mutations until is_done=1) and over-emission inflates wall clock.
-            return Randomly.fromOptions(0, 0, 0, 0, 0, 1);
+            // 0-2 mutations per database setup (raised from 0/1-at-1-in-6 for the mutation-analyzer
+            // coverage plan U2: predicate-grade WHEREs only matter if mutations actually fire).
+            // Expectation stays modest (~0.5/setup) because mutations carry a non-trivial barrier
+            // cost (poll system.mutations until is_done=1) and over-emission inflates wall clock.
+            return Randomly.fromOptions(0, 0, 0, 0, 1, 1, 1, 2);
         default:
             throw new AssertionError(a);
         }

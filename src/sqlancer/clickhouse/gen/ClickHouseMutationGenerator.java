@@ -13,6 +13,7 @@ import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseColumn;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
 import sqlancer.clickhouse.ClickHouseVisitor;
+import sqlancer.clickhouse.ast.ClickHouseColumnReference;
 import sqlancer.clickhouse.ast.ClickHouseExpression;
 import sqlancer.common.query.ExpectedErrors;
 import sqlancer.common.query.SQLQueryAdapter;
@@ -70,6 +71,35 @@ public final class ClickHouseMutationGenerator {
         return updateCol.getName() + " = " + ClickHouseVisitor.asString(valueExpr);
     }
 
+    // Mutation-analyzer coverage plan U2: mutation WHEREs draw from three arms so the PR #98884
+    // analyzer mutation path is reachable by the general fleet, not just the dedicated oracle.
+    //   - forced #106649 trigger arm (~10%): IN-subquery joining two derived tables with colliding
+    //     projected names -- the exact filed shape, fired deterministically often;
+    //   - full predicate path (~35%): generatePredicate() brings IN-subqueries, scalar subqueries,
+    //     date transforms and typed-constant conjuncts into mutation WHEREs;
+    //   - numeric path (~55%): the original generateExpressionWithColumns descent.
+    // generatePredicate() reads the generator's internal column-ref state, which must be populated
+    // via addColumns first -- naive wiring compiles but degenerates to constant-only predicates.
+    // Probabilities are a U5-convergence tuning knob.
+    private static ClickHouseExpression generateWhere(ClickHouseExpressionGenerator gen,
+            List<ClickHouseColumnReference> colRefs) {
+        int roll = (int) Randomly.getNotCachedInteger(0, 100);
+        if (roll < 10) {
+            ClickHouseExpression forced = gen.generateJoinedDerivedInPredicate(colRefs);
+            if (forced != null) {
+                return forced;
+            }
+            // Schema can't support the joined shape (no numeric columns); use the predicate path.
+            roll = 10;
+        }
+        if (roll < 45) {
+            gen.addColumns(colRefs);
+            return gen.generatePredicate();
+        }
+        // Predicates over the table's columns; depth 3 keeps the strings tractable.
+        return gen.generateExpressionWithColumns(colRefs, 3);
+    }
+
     public static SQLQueryAdapter getQuery(ClickHouseGlobalState state) {
         List<ClickHouseTable> tables = state.getSchema().getDatabaseTables();
         if (tables.isEmpty()) {
@@ -80,9 +110,8 @@ public final class ClickHouseMutationGenerator {
 
         ClickHouseExpressionGenerator gen = new ClickHouseExpressionGenerator(state).allowAggregates(false);
         List<ClickHouseColumn> cols = table.getColumns();
-        // Predicates over the table's columns; depth 3 keeps the strings tractable.
-        ClickHouseExpression predicate = gen.generateExpressionWithColumns(
-                cols.stream().map(c -> c.asColumnReference("")).collect(Collectors.toList()), 3);
+        ClickHouseExpression predicate = generateWhere(gen,
+                cols.stream().map(c -> c.asColumnReference("")).collect(Collectors.toList()));
 
         String fqTable = state.getDatabaseName() + "." + table.getName();
         StringBuilder sb = new StringBuilder();
