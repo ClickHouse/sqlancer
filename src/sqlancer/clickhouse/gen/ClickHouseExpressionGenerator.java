@@ -265,22 +265,24 @@ public class ClickHouseExpressionGenerator
      * @return a date/interval arithmetic expression, or {@code null} if no Date / DateTime column is in scope
      */
     public ClickHouseExpression generateDateIntervalArith(List<ClickHouseColumnReference> columns) {
-        List<ClickHouseColumnReference> dateCols = new java.util.ArrayList<>();
-        for (ClickHouseColumnReference c : columns) {
-            com.clickhouse.data.ClickHouseDataType t = c.getColumn().getType().getType();
-            if (t == com.clickhouse.data.ClickHouseDataType.Date || t == com.clickhouse.data.ClickHouseDataType.Date32
-                    || t == com.clickhouse.data.ClickHouseDataType.DateTime
-                    || t == com.clickhouse.data.ClickHouseDataType.DateTime64) {
-                dateCols.add(c);
-            }
-        }
+        List<ClickHouseColumnReference> dateCols = temporalColumns(columns);
         if (dateCols.isEmpty()) {
             return null;
         }
         ClickHouseColumnReference col = Randomly.fromList(dateCols);
+        String sign = Randomly.getBoolean() ? "+" : "-";
+        // Compound INTERVAL literal branch (26.4, PR #100453) -- Unit 4 of the 2026-06-10 plan.
+        // Low probability: this method is itself gated behind getBooleanWithRatherLowProbability
+        // at the TLPBase call site, so the compound form lands on a few percent of queries overall,
+        // matching the neighbouring emission branches. Single-unit INTERVAL stays the common case.
+        if (Randomly.getBooleanWithRatherLowProbability()) {
+            CompoundIntervalKind kind = Randomly.fromOptions(CompoundIntervalKind.values());
+            int[] comps = randomCompoundIntervalComponents(kind);
+            return new sqlancer.clickhouse.ast.ClickHouseRawText(
+                    renderCompoundIntervalArith(ClickHouseToStringVisitor.asString(col), sign, kind, comps));
+        }
         String unit = Randomly.fromOptions("SECOND", "MINUTE", "HOUR", "DAY", "WEEK", "MONTH", "QUARTER", "YEAR");
         int n = 1 + (int) Randomly.getNotCachedInteger(0, 365);
-        String sign = Randomly.getBoolean() ? "+" : "-";
         boolean functionForm = Randomly.getBoolean();
         String sql;
         if (functionForm) {
@@ -290,6 +292,135 @@ public class ClickHouseExpressionGenerator
             sql = "(" + ClickHouseToStringVisitor.asString(col) + " " + sign + " INTERVAL " + n + " " + unit + ")";
         }
         return new sqlancer.clickhouse.ast.ClickHouseRawText(sql);
+    }
+
+    // Date / Date32 / DateTime / DateTime64 columns from `columns` (the temporal types interval
+    // arithmetic accepts).
+    private static List<ClickHouseColumnReference> temporalColumns(List<ClickHouseColumnReference> columns) {
+        List<ClickHouseColumnReference> dateCols = new java.util.ArrayList<>();
+        for (ClickHouseColumnReference c : columns) {
+            com.clickhouse.data.ClickHouseDataType t = c.getColumn().getType().getType();
+            if (t == com.clickhouse.data.ClickHouseDataType.Date || t == com.clickhouse.data.ClickHouseDataType.Date32
+                    || t == com.clickhouse.data.ClickHouseDataType.DateTime
+                    || t == com.clickhouse.data.ClickHouseDataType.DateTime64) {
+                dateCols.add(c);
+            }
+        }
+        return dateCols;
+    }
+
+    /**
+     * The seven compound-INTERVAL kind pairs from 26.4 (PR #100453), each with its ordered single-unit decomposition.
+     * A compound literal {@code INTERVAL '5 12:30:45' DAY TO SECOND} is by definition the sum
+     * {@code INTERVAL 5 DAY + INTERVAL 12 HOUR + INTERVAL 30 MINUTE + INTERVAL 45 SECOND}; Unit 4's EET mode asserts
+     * exactly that equivalence.
+     */
+    public enum CompoundIntervalKind {
+        YEAR_TO_MONTH("YEAR TO MONTH", "YEAR", "MONTH"), DAY_TO_HOUR("DAY TO HOUR", "DAY", "HOUR"),
+        DAY_TO_MINUTE("DAY TO MINUTE", "DAY", "HOUR", "MINUTE"),
+        DAY_TO_SECOND("DAY TO SECOND", "DAY", "HOUR", "MINUTE", "SECOND"),
+        HOUR_TO_MINUTE("HOUR TO MINUTE", "HOUR", "MINUTE"), HOUR_TO_SECOND("HOUR TO SECOND", "HOUR", "MINUTE", "SECOND"),
+        MINUTE_TO_SECOND("MINUTE TO SECOND", "MINUTE", "SECOND");
+
+        private final String sqlKindPair;
+        private final String[] units;
+
+        CompoundIntervalKind(String sqlKindPair, String... units) {
+            this.sqlKindPair = sqlKindPair;
+            this.units = units;
+        }
+
+        public String getSqlKindPair() {
+            return sqlKindPair;
+        }
+
+        public String[] getUnits() {
+            return units.clone();
+        }
+    }
+
+    // Render the compound-INTERVAL literal from already-generated integer components, e.g.
+    // [5, 12, 30, 45] for DAY TO SECOND renders `INTERVAL '5 12:30:45' DAY TO SECOND`; YEAR TO
+    // MONTH renders 'y-m'. The day/year leading field is unpadded, every time field is zero-padded
+    // to two digits (matching the PR #100453 examples). Components are generated FIRST as Java
+    // ints and shared with renderDecomposedIntervalArith, so the two compared forms are
+    // constructed -- never parsed back.
+    public static String renderCompoundIntervalLiteral(CompoundIntervalKind kind, int[] components) {
+        if (components.length != kind.units.length) {
+            throw new AssertionError("component count " + components.length + " != units " + kind.units.length);
+        }
+        StringBuilder v = new StringBuilder();
+        if (kind == CompoundIntervalKind.YEAR_TO_MONTH) {
+            v.append(components[0]).append('-').append(components[1]);
+        } else {
+            boolean leadingIsDay = kind.units[0].equals("DAY");
+            // Leading DAY is unpadded and separated by a space; leading HOUR/MINUTE are part of the
+            // time block and zero-padded like the rest ('hh:mm', 'mm:ss').
+            v.append(leadingIsDay ? Integer.toString(components[0]) : String.format("%02d", components[0]));
+            for (int k = 1; k < components.length; k++) {
+                v.append(k == 1 && leadingIsDay ? ' ' : ':').append(String.format("%02d", components[k]));
+            }
+        }
+        return "INTERVAL '" + v + "' " + kind.sqlKindPair;
+    }
+
+    // Render `(dateExpr <sign> INTERVAL '<v>' <FROM> TO <TO>)` from pre-generated components.
+    public static String renderCompoundIntervalArith(String dateExprSql, String sign, CompoundIntervalKind kind,
+            int[] components) {
+        return "(" + dateExprSql + " " + sign + " " + renderCompoundIntervalLiteral(kind, components) + ")";
+    }
+
+    // Render the decomposed single-unit sum `(dateExpr <sign> INTERVAL a U1 <sign> INTERVAL b U2
+    // ...)` from the SAME components as renderCompoundIntervalArith. For subtraction every
+    // component carries the minus: `d - INTERVAL '5 12' DAY TO HOUR` decomposes to
+    // `(d - INTERVAL 5 DAY - INTERVAL 12 HOUR)`.
+    public static String renderDecomposedIntervalArith(String dateExprSql, String sign, CompoundIntervalKind kind,
+            int[] components) {
+        if (components.length != kind.units.length) {
+            throw new AssertionError("component count " + components.length + " != units " + kind.units.length);
+        }
+        StringBuilder sb = new StringBuilder("(").append(dateExprSql);
+        for (int k = 0; k < components.length; k++) {
+            sb.append(' ').append(sign).append(" INTERVAL ").append(components[k]).append(' ').append(kind.units[k]);
+        }
+        return sb.append(')').toString();
+    }
+
+    // Random non-negative components for a compound interval: leading field 0..30 regardless of
+    // unit, non-leading MONTH 0..11, HOUR 0..23, MINUTE/SECOND 0..59. Zero components and
+    // carry-ish values (e.g. '1-11' YEAR TO MONTH) fall out of the ranges naturally.
+    // TODO(plan 2026-06-10-002, deferred): negative compound values (INTERVAL '-2-6' YEAR TO
+    // MONTH) are excluded by construction until the deferred head probe confirms they parse.
+    public static int[] randomCompoundIntervalComponents(CompoundIntervalKind kind) {
+        String[] units = kind.getUnits();
+        int[] comps = new int[units.length];
+        for (int k = 0; k < units.length; k++) {
+            int bound = k == 0 ? 31 : "MONTH".equals(units[k]) ? 12 : "HOUR".equals(units[k]) ? 24 : 60;
+            comps[k] = (int) Randomly.getNotCachedInteger(0, bound);
+        }
+        return comps;
+    }
+
+    // Unit 4 EET identity helper (mirrors renderMultiIfAndNestedIf). Picks a random temporal
+    // column, kind pair, sign, and components, then renders the SAME components two equivalent
+    // ways: the compound-literal arithmetic and its decomposed single-unit sum. Both forms are
+    // wrapped in toString(...): the result type is identical by symmetry (both sides perform the
+    // same arithmetic), but toString makes the rendering uniform and trivially wire-readable
+    // regardless of whether Date arithmetic widened to DateTime (the Date + DAY TO SECOND family).
+    // Returns [compoundSql, decomposedSql, kindName], or null when no temporal column is in scope.
+    public String[] renderCompoundAndDecomposedInterval(List<ClickHouseColumnReference> columns) {
+        List<ClickHouseColumnReference> dateCols = temporalColumns(columns);
+        if (dateCols.isEmpty()) {
+            return null;
+        }
+        ClickHouseColumnReference col = Randomly.fromList(dateCols);
+        CompoundIntervalKind kind = Randomly.fromOptions(CompoundIntervalKind.values());
+        int[] comps = randomCompoundIntervalComponents(kind);
+        String sign = Randomly.getBoolean() ? "+" : "-";
+        String d = ClickHouseToStringVisitor.asString(col);
+        String compound = "toString(" + renderCompoundIntervalArith(d, sign, kind, comps) + ")";
+        String decomposed = "toString(" + renderDecomposedIntervalArith(d, sign, kind, comps) + ")";
+        return new String[] { compound, decomposed, kind.name() };
     }
 
     /**
@@ -402,8 +533,12 @@ public class ClickHouseExpressionGenerator
         // String-returning unary functions plus a couple of length/search functions that return a
         // numeric scalar. replaceRegexpAll / extractAll exercise the regex engine path that folds
         // differently under the analyzer (the historically buggy target named in the plan).
+        // naturalSortKey (26.3, PR #90322) and the OVERLAY keyword form (26.4, PR #101681) join the
+        // pool for fleet breadth (Unit 6 of the 2026-06-10 plan); both are String->String, so no
+        // Variant common-type risk and no CAST wrap needed.
         String fn = Randomly.fromOptions("lower", "upper", "reverse", "length", "lengthUTF8", "trimLeft", "trimRight",
-                "trimBoth", "empty", "notEmpty", "substring", "replaceRegexp", "replaceOne");
+                "trimBoth", "empty", "notEmpty", "substring", "replaceRegexp", "replaceOne", "naturalSortKey",
+                "overlayKeyword");
         String sql;
         switch (fn) {
         case "substring":
@@ -415,6 +550,10 @@ public class ClickHouseExpressionGenerator
             break;
         case "replaceOne":
             sql = "replaceOne(" + s + ", 'a', 'b')";
+            break;
+        case "overlayKeyword":
+            sql = "OVERLAY(" + s + " PLACING 'ab' FROM " + (1 + Randomly.getNotCachedInteger(0, 6))
+                    + (Randomly.getBoolean() ? " FOR " + Randomly.getNotCachedInteger(0, 5) : "") + ")";
             break;
         default:
             sql = fn + "(" + s + ")";
@@ -1536,6 +1675,25 @@ public class ClickHouseExpressionGenerator
                         : ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.NOT_IN;
                 return new ClickHouseBinaryComparisonOperation(col, inSubquery, op);
             }
+        }
+        // Unit 10 (plan 2026-06-10-002): Variant predicate-side coverage -- 26.1 PR #90900 (Variant
+        // in all functions) + PR #90677 (use_variant_as_common_type default-on). WHERE-context ONLY:
+        // the client-v2 reader cannot decode a projected Variant (R4), so the fragments rendered by
+        // ClickHouseVariantPredicateFactory are self-contained Boolean expressions and the Variant
+        // value never escapes the predicate. Default-off (--variant-where-emission) until a clean
+        // convergence run; in a smoke run any reader IndexOutOfBoundsException means a Variant
+        // leaked into a fetch column -- a unit-blocking bug.
+        if (ClickHouseVariantPredicateFactory.gateOpen(globalState.getClickHouseOptions().variantWhereEmission,
+                Randomly.getBooleanWithSmallProbability())) {
+            List<String> intExprs = integerColumns(columnRefs).stream()
+                    .map(c -> "toInt64(" + ClickHouseToStringVisitor.asString(c) + ")").collect(Collectors.toList());
+            List<String> strExprs = columnRefs.stream()
+                    .map(c -> "toString(" + ClickHouseToStringVisitor.asString(c) + ")").collect(Collectors.toList());
+            ClickHouseExpression variantPred = new sqlancer.clickhouse.ast.ClickHouseRawText(
+                    ClickHouseVariantPredicateFactory.renderRandomFragment(intExprs, strExprs));
+            return Randomly.getBoolean() ? variantPred
+                    : new ClickHouseBinaryLogicalOperation(base, variantPred,
+                            ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
         }
         return base;
     }

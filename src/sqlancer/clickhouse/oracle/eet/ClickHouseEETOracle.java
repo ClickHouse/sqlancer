@@ -1,5 +1,6 @@
 package sqlancer.clickhouse.oracle.eet;
 
+import java.math.BigInteger;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -11,6 +12,8 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import com.clickhouse.data.ClickHouseDataType;
 
 import sqlancer.IgnoreMeException;
 import sqlancer.Randomly;
@@ -82,7 +85,12 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
     private static final String HAVING_SETTINGS_SUFFIX = " SETTINGS aggregate_functions_null_for_empty=1, enable_optimize_predicate_expression=0";
 
     enum Mode {
-        WHERE_INJECT, HAVING_INJECT, EXPR_REWRITE, ALGEBRAIC_ID, MULTIIF_EQUIV
+        WHERE_INJECT, HAVING_INJECT, EXPR_REWRITE, ALGEBRAIC_ID, MULTIIF_EQUIV,
+        // 26.x modes (plan 2026-06-10-002, Units 4 + 6). EET is in ALL_ORACLES, so these go live
+        // fleet-wide the moment they can be picked; they are therefore gated behind
+        // --eet-26x-modes (default off, precedent --tlp-groupby-strict) until their convergence
+        // run passes. See candidateModes().
+        COMPOUND_INTERVAL, OVERLAY_EQUIV, OVERLAY_SPLICE, NATURAL_SORT_KEY
     }
 
     enum Polarity {
@@ -131,14 +139,41 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
             // Polarity is irrelevant: the two forms are structurally equivalent regardless.
             checkMultiIfNestedIfEquivalence(table, readableColumns);
             break;
+        case COMPOUND_INTERVAL:
+            // Polarity irrelevant: compound literal vs decomposed sum is an unconditional identity.
+            checkCompoundInterval(table, readableColumns);
+            break;
+        case OVERLAY_EQUIV:
+            checkOverlayEquiv(table, readableColumns);
+            break;
+        case OVERLAY_SPLICE:
+            checkOverlaySplice(table, readableColumns);
+            break;
+        case NATURAL_SORT_KEY:
+            checkNaturalSortKey();
+            break;
         default:
             throw new AssertionError(mode);
         }
     }
 
     // Uniform mode picker -- mirrors CODDTest's three-mode picker at ClickHouseCODDTestOracle.check().
+    // The 26.x modes join the candidate list only when --eet-26x-modes is set.
     private Mode pickMode() {
-        return Randomly.fromOptions(Mode.values());
+        return Randomly.fromList(candidateModes(state.getClickHouseOptions().eet26xModes));
+    }
+
+    // Candidate-mode builder, factored out (static, package-private) so the flag gating is unit
+    // testable without a database. The legacy list is spelled out explicitly rather than via
+    // Mode.values() so a future enum constant cannot silently go live fleet-wide on merge.
+    static List<Mode> candidateModes(boolean enable26xModes) {
+        List<Mode> modes = new ArrayList<>(List.of(Mode.WHERE_INJECT, Mode.HAVING_INJECT, Mode.EXPR_REWRITE,
+                Mode.ALGEBRAIC_ID, Mode.MULTIIF_EQUIV));
+        if (enable26xModes) {
+            modes.addAll(List.of(Mode.COMPOUND_INTERVAL, Mode.OVERLAY_EQUIV, Mode.OVERLAY_SPLICE,
+                    Mode.NATURAL_SORT_KEY));
+        }
+        return modes;
     }
 
     // ----- Mode: WHERE injection -----
@@ -465,8 +500,226 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         assertSingleSnapshotEquivalent(table, forms[0], forms[1], "MULTIIF-EQUIV");
     }
 
+    // ----- Mode: compound INTERVAL literal == decomposed single-unit sum (Unit 4, 26.4 PR #100453) -----
+
+    // Identity: d + INTERVAL '<v>' <FROM> TO <TO> == d + INTERVAL a U1 + INTERVAL b U2 + ... where
+    // the components (a, b, ...) are generated FIRST as Java ints and BOTH forms are rendered from
+    // them (never parsed back). The generator helper wraps both sides in toString(...) so the
+    // rendering is uniform and reader-safe even when Date arithmetic widens to DateTime (the
+    // Date + DAY TO SECOND family widens both forms symmetrically). Both forms ride one query via
+    // assertSingleSnapshotEquivalent (single-snapshot rule). Arithmetic rejections for kind pairs
+    // that are invalid on a pure Date column are tolerated through the constructor's
+    // addExpectedExpressionErrors catalog (probing such pairs out by construction is deferred).
+    private void checkCompoundInterval(ClickHouseTable table, List<ClickHouseColumn> columns) throws SQLException {
+        List<ClickHouseColumnReference> colRefs = columns.stream().map(c -> c.asColumnReference(table.getName()))
+                .collect(Collectors.toList());
+        ClickHouseExpressionGenerator gen = new ClickHouseExpressionGenerator(state);
+        gen.addColumns(colRefs);
+        String[] forms = gen.renderCompoundAndDecomposedInterval(colRefs);
+        if (forms == null) {
+            // No Date / Date32 / DateTime / DateTime64 column on this table.
+            throw new IgnoreMeException();
+        }
+        assertSingleSnapshotEquivalent(table, forms[0], forms[1], "COMPOUND-INTERVAL-" + forms[2]);
+    }
+
+    // ----- Mode: OVERLAY keyword form == overlay() function form (Unit 6, 26.4 PR #101681) -----
+
+    // Pure parser-sugar identity: OVERLAY(s PLACING r FROM p [FOR l]) is by definition the SQL
+    // standard spelling of overlay(s, r, p[, l]); any value divergence is a parser/rewrite bug.
+    // Out-of-range and negative p/l are deliberately included -- the two forms must simply AGREE,
+    // whatever the function does with them (and since both forms ride one query, a server-side
+    // rejection hits both forms identically and is routed through the expected-error catalog).
+    private void checkOverlayEquiv(ClickHouseTable table, List<ClickHouseColumn> columns) throws SQLException {
+        String sSql = pickStringColumnSql(table, columns);
+        if (sSql == null) {
+            throw new IgnoreMeException();
+        }
+        String rLit = sqlQuote(randomShortAscii());
+        int p = (int) Randomly.getNotCachedInteger(-2, 11); // -2..10, includes 0 and out-of-range
+        Integer l = Randomly.getBoolean() ? (int) Randomly.getNotCachedInteger(-1, 9) : null; // -1..8 or absent
+        assertSingleSnapshotEquivalent(table, overlayKeywordForm(sSql, rLit, p, l),
+                overlayFunctionForm(sSql, rLit, p, l), "OVERLAY-EQUIV p=" + p + " l=" + l);
+    }
+
+    static String overlayKeywordForm(String sSql, String rLit, int p, Integer l) {
+        return "OVERLAY(" + sSql + " PLACING " + rLit + " FROM " + p + (l == null ? "" : " FOR " + l) + ")";
+    }
+
+    static String overlayFunctionForm(String sSql, String rLit, int p, Integer l) {
+        return "overlay(" + sSql + ", " + rLit + ", " + p + (l == null ? "" : ", " + l) + ")";
+    }
+
+    // ----- Mode: overlay() == substring/concat splice, ASCII-restricted (Unit 6) -----
+
+    // Metamorphic arm: overlay(sx, r, p, l) == concat(substring(sx, 1, p-1), r, substring(sx, p+l))
+    // -- the textbook splice definition -- restricted to a regime where the two are guaranteed to
+    // agree by construction:
+    // - sx is an ASCII-sanitised, length-capped derivation of the column
+    // (substring(replaceRegexpAll(s, '[^ -~]', '?'), 1, 8)): the SAME expression on both sides,
+    // so the sanitisation cannot cause divergence, and ASCII-only sidesteps byte-vs-UTF-8
+    // position semantics.
+    // - p in 1..4, l in 0..4 (positive in-range positions only; negative/out-of-range stay on the
+    // sugar-identity arm).
+    // - both forms are wrapped in if(length(sx) >= p + l - 1, <form>, 'skip') with the IDENTICAL
+    // guard: when the replaced range [p, p+l-1] is not fully inside sx, the splice definition's
+    // edge semantics (overlay clamping/appending vs substring truncation) are not obviously
+    // equivalent, so both sides structurally agree on the literal 'skip' instead. The guard is
+    // intentionally conservative (p <= length+1 would likely suffice); a degenerate
+    // 'skip' == 'skip' row is sound, just vacuous. All branches are String-typed -- no Variant
+    // common-type risk on the if().
+    private void checkOverlaySplice(ClickHouseTable table, List<ClickHouseColumn> columns) throws SQLException {
+        String sSql = pickStringColumnSql(table, columns);
+        if (sSql == null) {
+            throw new IgnoreMeException();
+        }
+        String sx = asciiCappedInput(sSql);
+        String rLit = sqlQuote(randomShortAscii());
+        int p = 1 + (int) Randomly.getNotCachedInteger(0, 4); // 1..4
+        int l = (int) Randomly.getNotCachedInteger(0, 5); // 0..4
+        assertSingleSnapshotEquivalent(table, guardedOverlayForm(sx, rLit, p, l), guardedSpliceForm(sx, rLit, p, l),
+                "OVERLAY-SPLICE p=" + p + " l=" + l);
+    }
+
+    // ASCII-sanitised, length-capped input derivation. Applied identically on both sides of the
+    // splice identity, so it is semantics-neutral for the comparison.
+    static String asciiCappedInput(String sSql) {
+        return "substring(replaceRegexpAll(" + sSql + ", '[^ -~]', '?'), 1, 8)";
+    }
+
+    // The shared in-range guard: the replaced range [p, p+l-1] must lie fully inside sx. p and l
+    // are Java ints, so the bound folds to a constant.
+    static String spliceGuard(String sxSql, int p, int l) {
+        return "(length(" + sxSql + ") >= " + (p + l - 1) + ")";
+    }
+
+    static String guardedOverlayForm(String sxSql, String rLit, int p, int l) {
+        return "if(" + spliceGuard(sxSql, p, l) + ", overlay(" + sxSql + ", " + rLit + ", " + p + ", " + l
+                + "), 'skip')";
+    }
+
+    static String guardedSpliceForm(String sxSql, String rLit, int p, int l) {
+        return "if(" + spliceGuard(sxSql, p, l) + ", concat(substring(" + sxSql + ", 1, " + (p - 1) + "), " + rLit
+                + ", substring(" + sxSql + ", " + (p + l) + ")), 'skip')";
+    }
+
+    // ----- Mode: naturalSortKey comparator consistency (Unit 6, 26.3 PR #90322) -----
+
+    // Constant-only by design: both literals are built in Java from known numeric runs, the
+    // expected natural-order comparison is computed by the Java reference comparator below, and one
+    // constant query asserts naturalSortKey agrees. Constant-only keeps the expected value exactly
+    // computable; fleet column coverage comes from the generator's naturalSortKey emission in
+    // generateStringCall, not from this mode. A SELECT without FROM is trivially single-snapshot.
+    private void checkNaturalSortKey() throws SQLException {
+        String[] pair = buildNaturalSortPair();
+        int cmp = naturalOrderCompare(pair[0], pair[1]);
+        String sqlSide = "(naturalSortKey(" + sqlQuote(pair[0]) + ") < naturalSortKey(" + sqlQuote(pair[1]) + "))";
+        String expectedSide = cmp < 0 ? "1" : "0";
+        assertConstantEquivalent(sqlSide, expectedSide,
+                "NATURAL-SORT-KEY s1=" + sqlQuote(pair[0]) + " s2=" + sqlQuote(pair[1]));
+    }
+
+    // Literal-pair shapes: version-like strings differing in digit runs (the 'v1.2' < 'v1.10'
+    // class), shared-prefix digit runs with different digit counts, no-digit strings (byte order),
+    // empty-vs-nonempty, and exact-equal strings. All shapes keep digit runs aligned against digit
+    // runs (or compare digit-free strings), so the assertion never depends on how naturalSortKey
+    // orders a digit run against a letter. Leading-zero digit runs ('007' vs '7') are EXCLUDED by
+    // construction -- Integer.toString never emits them -- because naturalSortKey's tie-break
+    // semantics for numerically-equal runs are undocumented; revisit after a head probe.
+    static String[] buildNaturalSortPair() {
+        int shape = (int) Randomly.getNotCachedInteger(0, 5);
+        switch (shape) {
+        case 0:
+            return new String[] {
+                    "v" + Randomly.getNotCachedInteger(0, 31) + "." + Randomly.getNotCachedInteger(0, 31),
+                    "v" + Randomly.getNotCachedInteger(0, 31) + "." + Randomly.getNotCachedInteger(0, 31) };
+        case 1:
+            return new String[] { "file" + Randomly.getNotCachedInteger(0, 201),
+                    "file" + Randomly.getNotCachedInteger(0, 201) };
+        case 2:
+            return new String[] { randomAsciiLetters(), randomAsciiLetters() };
+        case 3:
+            return new String[] { "", "v" + Randomly.getNotCachedInteger(0, 31) };
+        default:
+            String same = "v" + Randomly.getNotCachedInteger(0, 31) + "." + Randomly.getNotCachedInteger(0, 31);
+            return new String[] { same, same };
+        }
+    }
+
+    private static String randomAsciiLetters() {
+        int len = (int) Randomly.getNotCachedInteger(0, 6);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < len; i++) {
+            sb.append((char) ('a' + Randomly.getNotCachedInteger(0, 26)));
+        }
+        return sb.toString();
+    }
+
+    private static String randomShortAscii() {
+        return randomAsciiLetters();
+    }
+
+    // Java reference comparator for natural sort order over ASCII strings: split into digit /
+    // non-digit runs; digit runs compare numerically (BigInteger, so arbitrarily long runs are
+    // safe); non-digit runs compare bytewise (char == byte for the ASCII-only inputs this oracle
+    // constructs); a string that is an exhausted prefix of the other sorts first. Numerically-equal
+    // digit runs of different lengths (leading zeros) tie-break shorter-first here, but
+    // buildNaturalSortPair never generates them (see above).
+    static int naturalOrderCompare(String a, String b) {
+        int i = 0;
+        int j = 0;
+        while (i < a.length() && j < b.length()) {
+            boolean da = isAsciiDigit(a.charAt(i));
+            boolean db = isAsciiDigit(b.charAt(j));
+            if (da && db) {
+                int si = i;
+                int sj = j;
+                while (i < a.length() && isAsciiDigit(a.charAt(i))) {
+                    i++;
+                }
+                while (j < b.length() && isAsciiDigit(b.charAt(j))) {
+                    j++;
+                }
+                int c = new BigInteger(a.substring(si, i)).compareTo(new BigInteger(b.substring(sj, j)));
+                if (c != 0) {
+                    return c;
+                }
+                if (i - si != j - sj) {
+                    return (i - si) - (j - sj);
+                }
+            } else {
+                char ca = a.charAt(i);
+                char cb = b.charAt(j);
+                if (ca != cb) {
+                    return ca - cb;
+                }
+                i++;
+                j++;
+            }
+        }
+        return (a.length() - i) - (b.length() - j);
+    }
+
+    private static boolean isAsciiDigit(char c) {
+        return c >= '0' && c <= '9';
+    }
+
+    // Pick a plain String column (same ClickHouseDataType.String discipline as
+    // ClickHouseExpressionGenerator.generateStringCall; FixedString stays out) and render its
+    // quoted table-qualified reference, or null when the table has none.
+    private String pickStringColumnSql(ClickHouseTable table, List<ClickHouseColumn> columns) {
+        List<ClickHouseColumn> stringCols = columns.stream()
+                .filter(c -> c.getType().getType() == ClickHouseDataType.String).collect(Collectors.toList());
+        if (stringCols.isEmpty()) {
+            return null;
+        }
+        ClickHouseColumn picked = Randomly.fromList(stringCols);
+        return quote(table.getName()) + "." + quote(picked.getName());
+    }
+
     // Single-snapshot value-equivalence check shared by the ALGEBRAIC_ID, EXPR_REWRITE and
-    // MULTIIF_EQUIV modes. Both expressions are projected as two columns of ONE SELECT, so they are
+    // MULTIIF_EQUIV modes (and the 26.x COMPOUND_INTERVAL / OVERLAY modes). Both expressions are
+    // projected as two columns of ONE SELECT, so they are
     // evaluated against the same table snapshot. This is what makes the comparison sound under
     // concurrent async mutations: a previous design read the original and transformed forms as two
     // SEPARATE queries, and an in-flight `ALTER TABLE ... DELETE WHERE <truthy>` mutation completing
@@ -476,11 +729,21 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
     // same rows in the same order, and a per-row a!=b is the divergence.
     private void assertSingleSnapshotEquivalent(ClickHouseTable table, String origExpr, String transExpr, String label)
             throws SQLException {
-        String tableQ = quote(table.getName());
-        String query = "SELECT (" + origExpr + ") AS a, (" + transExpr + ") AS b FROM " + tableQ;
+        assertTwoColumnAgreement(origExpr, transExpr, " FROM " + quote(table.getName()), label);
+    }
+
+    // Constant-only variant for table-independent identities (NATURAL_SORT_KEY): a SELECT without
+    // FROM evaluates both columns once against no table at all, which is trivially single-snapshot.
+    private void assertConstantEquivalent(String origExpr, String transExpr, String label) throws SQLException {
+        assertTwoColumnAgreement(origExpr, transExpr, "", label);
+    }
+
+    private void assertTwoColumnAgreement(String origExpr, String transExpr, String fromSuffix, String label)
+            throws SQLException {
+        String query = "SELECT (" + origExpr + ") AS a, (" + transExpr + ") AS b" + fromSuffix;
         this.auxiliaryQueryString = "-- EET " + label + " (single-snapshot two-column)";
-        this.originalQueryString = "SELECT (" + origExpr + ") FROM " + tableQ;
-        this.foldedQueryString = "SELECT (" + transExpr + ") FROM " + tableQ;
+        this.originalQueryString = "SELECT (" + origExpr + ")" + fromSuffix;
+        this.foldedQueryString = "SELECT (" + transExpr + ")" + fromSuffix;
         if (state.getOptions().logEachSelect()) {
             state.getLogger().writeCurrent(query);
         }

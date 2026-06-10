@@ -97,7 +97,24 @@ public final class ClickHouseSessionSettings {
             // opt-in exercises the rewrite path against the same SELECT. `allow_statistic_optimize`
             // is the historical typo alias (still accepted by CH HEAD) and is included so SEMR
             // covers both spellings.
-            "allow_statistics_optimize", "allow_statistic_optimize");
+            "allow_statistics_optimize", "allow_statistic_optimize",
+            // Gates loading statistics objects at read time at all (26.4+, default true), while
+            // allow_statistics_optimize above gates the optimizer consuming them. The dedicated
+            // StatsToggle oracle owns the stats-staleness interplay SEMR cannot construct; this
+            // blanket toggle adds the free cross-product coverage. 26.x plan Unit 9.
+            "use_statistics",
+            // Text-index LIKE evaluation via dictionary scan (26.4 PR #98149, default on).
+            // Result-preserving by contract; the TextIndexLike oracle owns the dedicated
+            // token-corpus differential. 26.x plan Unit 1.
+            "use_text_index_like_evaluation_by_dictionary_scan",
+            // Top-k dynamic threshold filter pushed into the scan (26.5 default-on, PR #99537).
+            // Result must be invariant; the TopK oracle covers the dedicated ORDER BY+LIMIT shape.
+            "use_top_k_dynamic_filtering",
+            // minmax skip-index granule pruning against the top-k threshold (PR #104216). Sister
+            // knob of the above. 26.x plan Unit 2.
+            "use_skip_indexes_for_top_k",
+            // Push the top-k step below a join (26.5 default-on, PR #104268). 26.x plan Unit 2.
+            "query_plan_top_k_through_join");
     // Two settings deliberately NOT in SEMR_SETTINGS because they are NOT result-preserving on
     // arbitrary schemas (toggling them legitimately changes the result, so SEMR would report
     // false positives):

@@ -17,8 +17,15 @@ import sqlancer.clickhouse.oracle.join.ClickHouseJoinAlgorithmOracle;
 import sqlancer.clickhouse.oracle.keycond.ClickHouseKeyConditionOracle;
 import sqlancer.clickhouse.oracle.materialize.ClickHouseSubqueryMaterializeOracle;
 import sqlancer.clickhouse.oracle.parallelism.ClickHouseParallelismOracle;
+import sqlancer.clickhouse.oracle.cte.ClickHouseMaterializedCteOracle;
+import sqlancer.clickhouse.oracle.join.ClickHouseJoinReorderOracle;
+import sqlancer.clickhouse.oracle.jsonidx.ClickHouseJsonSkipIndexOracle;
+import sqlancer.clickhouse.oracle.join.ClickHouseNaturalJoinOracle;
 import sqlancer.clickhouse.oracle.mutate.ClickHouseMutationAnalyzerOracle;
 import sqlancer.clickhouse.oracle.patch.ClickHousePatchPartConsistencyOracle;
+import sqlancer.clickhouse.oracle.stats.ClickHouseStatsToggleOracle;
+import sqlancer.clickhouse.oracle.textindex.ClickHouseTextIndexLikeOracle;
+import sqlancer.clickhouse.oracle.topk.ClickHouseTopKOracle;
 import sqlancer.clickhouse.oracle.partition.ClickHousePartitionMirrorOracle;
 import sqlancer.clickhouse.oracle.pqs.ClickHousePivotedQuerySynthesisOracle;
 import sqlancer.clickhouse.oracle.projection.ClickHouseProjectionToggleOracle;
@@ -350,6 +357,90 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseMutationAnalyzerOracle(globalState);
+        }
+    },
+    TextIndexLike {
+        // 26.4 text-index LIKE/ILIKE acceleration (PR #98149): private token-corpus tables with
+        // INDEX ... TYPE text(tokenizer = 'splitByNonAlpha' | 'ngrams'), three arms per pattern
+        // (default / ignore_data_skipping_indices / dictionary-scan toggle flipped) compared on
+        // count + ordered key list, plus a Java-computed containment ground truth. Bug class:
+        // index drops matching rows. Vacuity guard via force_data_skipping_indices every ~10th
+        // iteration; INDEX_NOT_USED tolerated only on that probe, never globally. 26.x plan Unit 1.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseTextIndexLikeOracle(globalState);
+        }
+    },
+    TopK {
+        // ORDER BY ... LIMIT N differential over the 26.5 default-on top-k pipeline
+        // (use_top_k_dynamic_filtering PR #99537, use_skip_indexes_for_top_k PR #104216,
+        // query_plan_top_k_through_join PR #104268; var-length opt-in arm for the off-by-default
+        // path that had the regression). Key-only projection + ordered positional compare keeps
+        // it sound under ties at the LIMIT boundary; plain-MergeTree fleet tables only. Unit 2.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseTopKOracle(globalState);
+        }
+    },
+    JoinReorder {
+        // Differential over join-order optimization (26.3 PR #97498 extended swapping to
+        // ANTI/SEMI/FULL; wrong-result class proven by fix PR #101504): the same 2-3-join chain
+        // over private skew-seeded tables under query_plan_optimize_join_order_limit = {10, 0}
+        // and the randomize test knob, compared pairwise as multisets. SEMI/ANTI determinism
+        // enforced by projecting only the side the join keeps; known-open #106426 ("Join
+        // restriction violated") pinned on the SELECT arms. 26.x plan Unit 3.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseJoinReorderOracle(globalState);
+        }
+    },
+    NaturalJoin {
+        // NATURAL JOIN rewrite-equivalence (26.4, PR #99840). Three-form differential
+        // (NATURAL / USING / explicit-ON) over private tables with a known schema overlap,
+        // SELECT * column-set invariant, and the zero-shared-columns CROSS JOIN degeneration
+        // pinned. Self-disables per NATURAL variant on pre-26.4 servers. 26.x plan Unit 5.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseNaturalJoinOracle(globalState);
+        }
+    },
+    MaterializedCte {
+        // Experimental materialized CTEs (26.3, PR #94849; gate enable_materialized_cte, default
+        // false). Differential: WITH x AS MATERIALIZED (body) vs the inlined AS (body) form must
+        // agree as multisets for deterministic bodies; the outer query references the CTE 1-3
+        // times (self-join / scalar subquery / UNION ALL / chained), where materialize-once vs
+        // inline-twice semantics can diverge. Probes the gate once per JVM and self-disables on
+        // UNKNOWN_SETTING, so the suite stays runnable on pre-26.3 images. 26.x plan Unit 8.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseMaterializedCteOracle(globalState);
+        }
+    },
+    JsonSkipIndex {
+        // 26.4 JSON skip indexes: bloom_filter/tokenbf_v1/ngrambf_v1/text over JSONAllPaths(j)
+        // (PR #98886) and JSONAllValues(j) under a text index (PR #100730). Bug class:
+        // false-negative granule skipping on JSON path predicates, esp. PR #98886's absent-path
+        // skip-avoidance rule. Self-contained private JSON(p_int Int64, p_str String) tables;
+        // reads stay in the R4 envelope (count()/key/typed subcolumns/JSONAllPaths via
+        // arrayStringConcat) so no reader work is needed. Two arms (default vs
+        // ignore_data_skipping_indices) + Java ground truth for typed equality/IN and untyped
+        // path existence + force_data_skipping_indices vacuity probe (INDEX_NOT_USED tolerated
+        // on the probe only). 26.x plan Unit 7.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseJsonSkipIndexOracle(globalState);
+        }
+    },
+    StatsToggle {
+        // Statistics on/off differential (26.x plan Unit 9): same SELECT under
+        // use_statistics/allow_statistics_optimize 1 vs 0 must return the identical multiset.
+        // Fleet plain-MergeTree differential + private-table stats-staleness arm (materialize,
+        // then sync DELETE/INSERT, re-diff: stale stats may change the plan, never the result);
+        // sole consumer of ClickHouseStatisticsGenerator until the generator joins the fleet
+        // Action pool after convergence.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseStatsToggleOracle(globalState);
         }
     }
 }
