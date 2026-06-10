@@ -56,6 +56,23 @@ class ClickHouseErrorsSpecificityTest {
     }
 
     @Test
+    void knownOpenMutationAnalyzerBugPinsAreSpecificAndNarrow() {
+        // The mutation-analyzer pin list tolerates known-open, already-filed CH bugs on the mutation
+        // path (#106649). It is the one documented exception to the "never tolerate Code 49" rule,
+        // so each entry must be a specific multi-word phrase -- never the bare LOGICAL_ERROR token,
+        // never a standalone "Column identifier" (which would tolerate far more than the filed
+        // signature per the plan's Key Technical Decisions).
+        List<String> pins = ClickHouseErrors.getKnownOpenMutationAnalyzerBugs();
+        for (String pattern : pins) {
+            assertSpecific(pattern, "known-open-mutation-analyzer-bugs");
+            assertFalse(pattern.equals("LOGICAL_ERROR"), "pin must never be the bare LOGICAL_ERROR token");
+            assertFalse(pattern.equals("Code: 49"), "pin must never be the bare Code: 49 token");
+            assertFalse(pattern.equals("Column identifier"),
+                    "bare 'Column identifier' would tolerate far more than the filed #106649 signature");
+        }
+    }
+
+    @Test
     void setOpCatalogExcludesUnknownSettingFamily() {
         // The startup probe in ClickHouseTLPSetOpOracle catches UNKNOWN_SETTING separately and uses
         // it to disable the oracle for the run. Including it in the catalog would mask the probe's

@@ -79,7 +79,17 @@ public class ClickHouseMutationAnalyzerOracle implements TestOracle<ClickHouseGl
     }
 
     private final ClickHouseGlobalState state;
-    private final ExpectedErrors errors = new ExpectedErrors();
+    // Two narrow tolerance sets, deliberately scoped so the catch mechanism stays sharp:
+    //   readErrors    -- for CREATE / INSERT / SELECT / DROP (the non-mutation statements).
+    //   mutationErrors -- for the mutation execute() ONLY (ALTER/lightweight UPDATE/DELETE,
+    //                     MATERIALIZE COLUMN).
+    // They differ on exactly two axes (see the constructor): the #106649 pin and the timeout
+    // tolerance. Keeping the pin off the read path means a future "is already registered" on a
+    // CREATE/SELECT still surfaces; keeping TIMEOUT_EXCEEDED off the mutation path means shape (b)'s
+    // deadlock stays catchable, while tolerating it on reads stops a benign load-shed COUNT timeout
+    // from writing a misleading SELECT reproducer.
+    private final ExpectedErrors readErrors = new ExpectedErrors();
+    private final ExpectedErrors mutationErrors = new ExpectedErrors();
 
     public ClickHouseMutationAnalyzerOracle(ClickHouseGlobalState state) {
         this.state = state;
@@ -87,46 +97,54 @@ public class ClickHouseMutationAnalyzerOracle implements TestOracle<ClickHouseGl
         // -- every statement here is hand-built static SQL, so "Missing columns" / "Ambiguous
         // column" / "Cannot find column"-style messages can only mean an analyzer bug, and they must
         // surface. The shared getMutationErrors() bucket is NOT adopted wholesale either:
-        //   - "TIMEOUT_EXCEEDED" is excluded on purpose: shape (b)'s deadlock class manifests as a
-        //     max_execution_time timeout, and tolerating it would make that finding uncatchable. A
-        //     benign slow-mutation timeout on a loaded server becomes a triagable finding instead.
+        //   - "TIMEOUT_EXCEEDED" is kept OFF the mutation path on purpose: shape (b)'s deadlock class
+        //     manifests as a max_execution_time timeout, and tolerating it on the mutation would make
+        //     that finding uncatchable. It IS tolerated on the read path (a benign load-shed COUNT
+        //     timeout on a squeezed server must not write a misleading SELECT reproducer).
         //   - "Cannot find column" / "Cannot read from" / "Cannot UPDATE key column" / "Cannot
         //     DELETE" / "_row_exists" / "Mutation cannot be executed" / "UNFINISHED_MUTATION" /
         //     "Background mutation" / "ATTEMPT_TO_READ_AFTER_EOF" / projection-mode rejections are
-        //     excluded: none can legitimately fire against this oracle's fixed statements (the
-        //     marker target is never a key column, the tables carry no projections), and several are
-        //     exactly the analyzer-bug-shaped blind spots this oracle exists to remove.
-        // What IS tolerated, each with a reason:
-        ClickHouseErrors.addSessionSettingsErrors(errors); // unknown setting names on older builds
-        // Memory-engine arm on builds where Memory mutations are not (yet) routed/supported.
-        errors.add("Mutations are not supported by");
-        // Lightweight-UPDATE version/engine gating family -- documented limits, not bugs: the LW
-        // arm must degrade to IgnoreMe where the feature is gated (same set the generator path
-        // tolerates, minus everything analyzer-shaped).
-        errors.add("Lightweight update");
-        errors.add("lightweight update");
-        errors.add("allow_experimental_lightweight_update");
-        errors.add("SUPPORT_IS_DISABLED");
-        errors.add("is not supported for lightweight");
-        errors.add("Lightweight updates are not supported");
-        // Per-thread database drop/recreate race (same as the MV / PatchPart oracles): reads hitting
-        // a dropped namespace are not analyzer bugs.
-        errors.add("UNKNOWN_TABLE");
-        errors.add("Unknown table expression identifier");
-        // Code 241 load-shedding under the squeezed dev-vm container cap (-m=6g): any statement --
-        // including the finally-DROP -- can be rejected when CH is at its cgroup limit. Environment
-        // artifact, not an analyzer bug (first all-oracles convergence run died 13/15 on exactly
-        // this). A mutation aborted by it fails sync -> tolerated -> IgnoreMe, so it cannot fake a
-        // consistency pass.
-        errors.add("(MEMORY_LIMIT_EXCEEDED)");
-        errors.add("memory limit exceeded");
-        // Known-open filed bugs this matrix reproduces every iteration (#106649: "Column identifier
-        // ... is already registered", verified reproducing on head 26.6.1.399 on 2026-06-10).
-        // Without the pin, every JOINED_DERIVED iteration kills its worker on the already-filed
-        // bug. Same removal condition as the generator-side pin -- see
+        //     excluded everywhere: none can legitimately fire against this oracle's fixed statements
+        //     (the marker target is never a key column, the tables carry no projections), and several
+        //     are exactly the analyzer-bug-shaped blind spots this oracle exists to remove.
+        // Shared baseline tolerated on BOTH sets, each with a reason:
+        for (ExpectedErrors e : List.of(readErrors, mutationErrors)) {
+            ClickHouseErrors.addSessionSettingsErrors(e); // unknown setting names on older builds
+            // Memory-engine arm on builds where Memory mutations are not (yet) routed/supported.
+            e.add("Mutations are not supported by");
+            // Lightweight-UPDATE version/engine gating family -- documented limits, not bugs: the LW
+            // arm must degrade to IgnoreMe where the feature is gated (same set the generator path
+            // tolerates, minus everything analyzer-shaped).
+            e.add("Lightweight update");
+            e.add("lightweight update");
+            e.add("allow_experimental_lightweight_update");
+            e.add("SUPPORT_IS_DISABLED");
+            e.add("is not supported for lightweight");
+            e.add("Lightweight updates are not supported");
+            // Per-thread database drop/recreate race (same as the MV / PatchPart oracles): reads
+            // hitting a dropped namespace are not analyzer bugs.
+            e.add("UNKNOWN_TABLE");
+            e.add("Unknown table expression identifier");
+            // Code 241 load-shedding under the squeezed dev-vm container cap (-m=6g): any statement
+            // -- including the finally-DROP -- can be rejected when CH is at its cgroup limit.
+            // Environment artifact, not an analyzer bug (first all-oracles convergence run died 13/15
+            // on exactly this). A mutation aborted by it fails sync -> tolerated -> IgnoreMe, so it
+            // cannot fake a consistency pass.
+            e.add("(MEMORY_LIMIT_EXCEEDED)");
+            e.add("memory limit exceeded");
+        }
+        // Read-path-only: a benign timeout on a setup/verification query under load is not a bug.
+        // Kept OFF mutationErrors so shape (b)'s deadlock surfaces as a finding.
+        readErrors.add("TIMEOUT_EXCEEDED");
+        readErrors.add("Timeout exceeded");
+        // Mutation-path-only: known-open filed bugs this matrix reproduces every iteration (#106649:
+        // "Column identifier ... is already registered", verified reproducing on head 26.6.1.399 on
+        // 2026-06-10). Without the pin, every JOINED_DERIVED iteration kills its worker on the
+        // already-filed bug. Kept OFF readErrors so a future "is already registered" on a
+        // CREATE/SELECT still surfaces. Same removal condition as the generator-side pin -- see
         // ClickHouseErrors.getKnownOpenMutationAnalyzerBugs.
         for (String pin : ClickHouseErrors.getKnownOpenMutationAnalyzerBugs()) {
-            errors.add(pin);
+            mutationErrors.add(pin);
         }
     }
 
@@ -171,13 +189,13 @@ public class ClickHouseMutationAnalyzerOracle implements TestOracle<ClickHouseGl
         try {
             for (String stmt : List.of(createA, createB, createEdges)) {
                 logStmt(stmt);
-                if (!new SQLQueryAdapter(stmt, errors, true).execute(state)) {
+                if (!new SQLQueryAdapter(stmt, readErrors, true).execute(state)) {
                     throw new IgnoreMeException();
                 }
             }
             for (String stmt : List.of(seedA, seedB, seedEdges)) {
                 logStmt(stmt);
-                if (!new SQLQueryAdapter(stmt, errors, true).execute(state)) {
+                if (!new SQLQueryAdapter(stmt, readErrors, true).execute(state)) {
                     throw new IgnoreMeException();
                 }
             }
@@ -210,7 +228,7 @@ public class ClickHouseMutationAnalyzerOracle implements TestOracle<ClickHouseGl
 
             String mutation = renderMutation(kind, tA, pred, validateMutationQuery);
             logStmt(mutation);
-            if (!new SQLQueryAdapter(mutation, errors, false).execute(state)) {
+            if (!new SQLQueryAdapter(mutation, mutationErrors, false).execute(state)) {
                 // Tolerated rejection (feature gating, Memory-arm support, session setting):
                 // abandon the iteration without asserting. With validate_mutation_query=0 more
                 // server-side late failures are legitimate, so no assertion there either.
@@ -245,9 +263,15 @@ public class ClickHouseMutationAnalyzerOracle implements TestOracle<ClickHouseGl
         } finally {
             for (String t : List.of(tA, tB, tEdges)) {
                 try {
-                    new SQLQueryAdapter("DROP TABLE IF EXISTS " + t, errors, true).execute(state);
-                } catch (SQLException ignored) {
-                    // Best effort -- the per-thread database may be dropped between top-level runs.
+                    new SQLQueryAdapter("DROP TABLE IF EXISTS " + t, readErrors, true).execute(state);
+                } catch (Exception | AssertionError ignored) {
+                    // Best effort. Catch AssertionError too, not just SQLException:
+                    // SQLQueryAdapter.execute() throws an AssertionError (not an exception) on an
+                    // untolerated error, so a DROP that hits something outside readErrors (e.g. a
+                    // transport failure) would otherwise escape this finally and write a misleading
+                    // reproducer pointing at a DROP statement, or abort cleanup of the sibling
+                    // tables. The disk-cleanup script reaps any orphans the per-thread database may
+                    // leave when it is recreated between top-level runs.
                 }
             }
         }
@@ -255,9 +279,15 @@ public class ClickHouseMutationAnalyzerOracle implements TestOracle<ClickHouseGl
 
     private static WhereShape pickShape(boolean memoryEngine) {
         if (memoryEngine) {
-            // No parts -> no virtual part columns on Memory.
-            return Randomly.fromOptions(WhereShape.JOINED_DERIVED, WhereShape.SELF_REFERENCE, WhereShape.PLAIN_IN,
-                    WhereShape.ALIAS_COLUMN);
+            // Memory has no parts (no virtual part columns -> no VIRTUAL_COLUMN). It is also
+            // deliberately restricted to the two shapes that read OTHER tables (JOINED_DERIVED reads
+            // the MergeTree tB/tEdges, PLAIN_IN reads tB): SELF_REFERENCE on a Memory table is not
+            // guaranteed to evaluate its IN-set against a pre-mutation snapshot (Memory mutations
+            // apply synchronously in place), which would break the count-delta identity; and
+            // ALIAS_COLUMN resolution inside a Memory mutation WHERE can be rejected with a message
+            // outside this oracle's narrow tolerance. Keeping Memory to the cross-table IN shapes
+            // preserves the analyzer-routing coverage without those false-positive surfaces.
+            return Randomly.fromOptions(WhereShape.JOINED_DERIVED, WhereShape.PLAIN_IN);
         }
         return Randomly.fromOptions(WhereShape.values());
     }
@@ -278,9 +308,17 @@ public class ClickHouseMutationAnalyzerOracle implements TestOracle<ClickHouseGl
             return "k" + in + "(SELECT k FROM " + tA + " WHERE v >= " + Randomly.getNotCachedInteger(0, 13) + ")";
         case PLAIN_IN:
             return "k" + in + "(SELECT k FROM " + tB + " WHERE v % 3 = " + Randomly.getNotCachedInteger(0, 3) + ")";
-        case ALIAS_COLUMN:
-            // al ALIAS (v + 7), v in [0,13) -> al in [7,20): the bound keeps matches non-trivial.
-            return "al " + Randomly.fromOptions(">=", "<", "!=") + " " + (7 + Randomly.getNotCachedInteger(0, 13));
+        case ALIAS_COLUMN: {
+            // al ALIAS (v + 7); v = number % 13 in [0,12] -> al in [7,19]. Choose the bound per
+            // operator so the predicate is never vacuous: "< 7" would match 0 rows on every seed
+            // (a coverage hole -- the consistency check passes 0==0 without ever exercising a
+            // non-empty UPDATE/DELETE). For "<" the bound is in [8,19] (matches at least al=7);
+            // for ">=" / "!=" any bound in [7,19] is non-trivial.
+            String op = Randomly.fromOptions(">=", "<", "!=");
+            int bound = "<".equals(op) ? 8 + (int) Randomly.getNotCachedInteger(0, 12)
+                    : 7 + (int) Randomly.getNotCachedInteger(0, 13);
+            return "al " + op + " " + bound;
+        }
         case VIRTUAL_COLUMN:
             if (patchEnabled && Randomly.getBoolean()) {
                 return "_block_number % 2 = 0";
@@ -323,7 +361,7 @@ public class ClickHouseMutationAnalyzerOracle implements TestOracle<ClickHouseGl
         String mutation = "ALTER TABLE " + tA + " MATERIALIZE COLUMN " + col + " SETTINGS mutations_sync = 1, "
                 + "validate_mutation_query = " + (validate ? 1 : 0);
         logStmt(mutation);
-        if (!new SQLQueryAdapter(mutation, errors, false).execute(state)) {
+        if (!new SQLQueryAdapter(mutation, mutationErrors, false).execute(state)) {
             throw new IgnoreMeException();
         }
         // Value assertion: the materialized (now stored) values must equal the expression
@@ -341,7 +379,7 @@ public class ClickHouseMutationAnalyzerOracle implements TestOracle<ClickHouseGl
     }
 
     private String readSingleValue(String query) throws SQLException {
-        List<String> rows = ComparatorHelper.getResultSetFirstColumnAsString(query, errors, state);
+        List<String> rows = ComparatorHelper.getResultSetFirstColumnAsString(query, readErrors, state);
         if (rows.size() != 1) {
             throw new IgnoreMeException();
         }
