@@ -1,7 +1,7 @@
 ---
 title: "feat: Catch mutation-analyzer bugs (ClickHouse #106649 / PR #98884 surface)"
 type: feat
-status: active
+status: completed
 date: 2026-06-10
 ---
 
@@ -214,7 +214,7 @@ mutations (newly supported), virtual columns/subcolumns in mutation expressions,
 
 ## Implementation Units
 
-- [ ] **Unit 1: Joined-derived-tables IN-subquery shape in the expression generator**
+- [x] **Unit 1: Joined-derived-tables IN-subquery shape in the expression generator**
 
 **Goal:** `generateInSubquery` (or a sibling) can emit the #106649 trigger shape with randomized
 knobs: `col IN (SELECT a.<k> FROM (SELECT <k> FROM t1) AS a JOIN <t2> AS e ON e.<x> = a.<k> JOIN
@@ -262,7 +262,7 @@ name**, two joins minimum.
 
 ---
 
-- [ ] **Unit 2: Predicate-grade WHERE in the mutation generator**
+- [x] **Unit 2: Predicate-grade WHERE in the mutation generator**
 
 **Goal:** Mutation WHEREs draw from the full predicate path (including IN-subqueries and the
 Unit-1 shape), making the #98884 analyzer path reachable by the general fleet.
@@ -311,7 +311,7 @@ Unit-1 shape), making the #98884 analyzer path reachable by the general fleet.
 
 ---
 
-- [ ] **Unit 3: `MutationAnalyzer` oracle (deterministic #98884 matrix)**
+- [x] **Unit 3: `MutationAnalyzer` oracle (deterministic #98884 matrix)**
 
 **Goal:** A self-contained oracle that exercises the PR #98884 surface every iteration with
 narrow error tolerance and an affected-rows consistency assertion.
@@ -407,7 +407,7 @@ current head still reproduces #106649.
 
 ---
 
-- [ ] **Unit 4: Registration and run wiring**
+- [x] **Unit 4: Registration and run wiring**
 
 **Goal:** The oracle runs under `--oracles all`; wiring drift is fixed.
 
@@ -433,7 +433,7 @@ current head still reproduces #106649.
 
 ---
 
-- [ ] **Unit 5: Dev-vm validation, #106649 catch proof, and known-signature pin**
+- [x] **Unit 5: Dev-vm validation, #106649 catch proof, and known-signature pin**
 
 **Goal:** Prove the coverage catches the target bug class, converge to zero false positives, and
 make runs livable while #106649 remains open upstream.
