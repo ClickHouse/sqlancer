@@ -308,7 +308,7 @@ U10 Variant ──┘  (blocked on roadmap Unit 4.0 probe)
 
 ### Phase 1 — differential oracles on default-on 26.4/26.5 execution paths
 
-- [ ] **Unit 1: Text index `text(...)` + token-aware LIKE/ILIKE + index on/off oracle**
+- [x] **Unit 1: Text index `text(...)` + token-aware LIKE/ILIKE + index on/off oracle**
 
 **Goal:** Fuzz the 26.4 text-index LIKE/ILIKE acceleration path; bug class: index drops matching
 rows (false-negative granule skipping or dictionary-scan misses).
@@ -369,7 +369,7 @@ tables, deterministic matrix), `renderSkipIndex` existing structure.
 **Verification:** Rendering unit tests pass; convergence run clean; vacuity counter confirms the
 index path actually fires.
 
-- [ ] **Unit 2: Top-k dynamic-filtering differential oracle**
+- [x] **Unit 2: Top-k dynamic-filtering differential oracle**
 
 **Goal:** Catch missing/extra rows in `ORDER BY … LIMIT N` under `use_top_k_dynamic_filtering` /
 `use_skip_indexes_for_top_k` (default-on since 26.5).
@@ -424,7 +424,7 @@ var-length arm is complete from day one using String/FixedString fleet columns; 
 **Verification:** Unit tests on query construction + comparison soundness (tie case); clean
 convergence run.
 
-- [ ] **Unit 3: Join-reorder differential oracle for ANTI/SEMI/FULL**
+- [x] **Unit 3: Join-reorder differential oracle for ANTI/SEMI/FULL**
 
 **Goal:** Catch result-set changes introduced by join reordering (26.3 extended swapping to
 ANTI/SEMI/FULL; PR #101504 proves the wrong-result class).
@@ -473,7 +473,7 @@ algorithm axis), MutationAnalyzer (private-table lifecycle).
 
 ### Phase 2 — metamorphic identities (cheap, high-precision)
 
-- [ ] **Unit 4: Compound INTERVAL ≡ sum-of-single-unit EET mode**
+- [x] **Unit 4: Compound INTERVAL ≡ sum-of-single-unit EET mode**
 
 **Goal:** Catch parse/decomposition divergence in 26.4 compound interval literals.
 
@@ -523,7 +523,7 @@ applies to Unit 6's modes.
 
 **Verification:** EET rendering tests; convergence run with the new mode clean.
 
-- [ ] **Unit 5: NATURAL JOIN rewrite-equivalence oracle**
+- [x] **Unit 5: NATURAL JOIN rewrite-equivalence oracle**
 
 **Goal:** Catch wrong implicit-column sets / duplicate-column handling in 26.4 NATURAL JOIN.
 
@@ -569,7 +569,7 @@ known schema), MutationAnalyzer private tables.
 **Verification:** Unit tests assert the computed USING set and rendered forms; convergence run
 clean.
 
-- [ ] **Unit 6: `naturalSortKey` + `OVERLAY` emission and identities**
+- [x] **Unit 6: `naturalSortKey` + `OVERLAY` emission and identities**
 
 **Goal:** Cover the new 26.3/26.4 scalar-function surfaces (per-function wrong results).
 
@@ -620,7 +620,7 @@ clean.
 
 ### Phase 3 — net-new JSON model
 
-- [ ] **Unit 7: JSON column model + JSONAllPaths/JSONAllValues skip indexes + on/off oracle**
+- [x] **Unit 7: JSON column model + JSONAllPaths/JSONAllValues skip indexes + on/off oracle**
 
 **Goal:** Cover 26.4 JSON skip indexes (bug class: false-negative granule skipping on JSON path
 predicates) without violating the transport constraint. Largest net-new piece — SQLancer has no
@@ -684,7 +684,7 @@ convergence run clean.
 
 ### Phase 4 — gated and interplay-sensitive surfaces
 
-- [ ] **Unit 8: Materialized CTE differential oracle (probe-gated, experimental)**
+- [x] **Unit 8: Materialized CTE differential oracle (probe-gated, experimental)**
 
 **Goal:** Cover 26.3 experimental materialized CTEs; bug class: double evaluation / wrong result
 vs the inlined form.
@@ -731,7 +731,7 @@ tolerance, hand-built SQL), the probe-gating pattern from the roadmap's WS4.
 
 **Verification:** Probe-gating test; convergence run on head clean.
 
-- [ ] **Unit 9: Statistics on/off differential + wire the statistics generator**
+- [x] **Unit 9: Statistics on/off differential + wire the statistics generator**
 
 **Goal:** Catch stats-driven planning wrong results (stats wrongly prune/skip data or flip join
 decisions); make `ClickHouseStatisticsGenerator` a live fleet action.
@@ -788,7 +788,7 @@ builder).
 
 **Verification:** Convergence run clean; stats DDL visible in run logs.
 
-- [ ] **Unit 10: Variant predicate-side coverage (gated on roadmap Unit 4.0)**
+- [x] **Unit 10: Variant predicate-side coverage (gated on roadmap Unit 4.0)**
 
 **Goal:** Partially cover "Variant in all functions" (26.1) without violating R4: Variant
 expressions in WHERE only, concrete projections.

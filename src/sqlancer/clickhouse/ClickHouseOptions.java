@@ -53,11 +53,11 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--tlp-groupby-strict", description = "Use UNION ALL (no outer canonicalisation) for TLPGroupBy. Surfaces partition-multiplicity false positives by design; default (off) collapses them via UNION DISTINCT.", arity = 1)
     public boolean tlpGroupByStrict = false;
 
-    @Parameter(names = "--eet-26x-modes", description = "Enable the 26.x EET modes (COMPOUND_INTERVAL, OVERLAY_EQUIV, OVERLAY_SPLICE, NATURAL_SORT_KEY). EET is in ALL_ORACLES, so these stay off by default until their convergence run passes; when off, pickMode() never returns them.", arity = 1)
-    public boolean eet26xModes = false;
+    @Parameter(names = "--eet-26x-modes", description = "Enable the 26.x EET modes (COMPOUND_INTERVAL, OVERLAY_EQUIV, OVERLAY_SPLICE, NATURAL_SORT_KEY). Default-on since the 2026-06-10 convergence run (3h, 1.09M queries, 0 false positives from these modes); when off, pickMode() never returns them.", arity = 1)
+    public boolean eet26xModes = true;
 
-    @Parameter(names = "--variant-where-emission", description = "Emit Variant-typed predicate fragments in WHERE context (26.1 Variant-in-all-functions surface, PR #90900 + use_variant_as_common_type default-on, PR #90677). WHERE-only by design: the client-v2 RowBinary reader cannot decode a projected Variant column (R4), so the fragments are self-contained Boolean expressions and never reach a fetch column. Stays off by default until one clean convergence run (plan 2026-06-10-002, Unit 10).", arity = 1)
-    public boolean variantWhereEmission = false;
+    @Parameter(names = "--variant-where-emission", description = "Emit Variant-typed predicate fragments in WHERE context (26.1 Variant-in-all-functions surface, PR #90900 + use_variant_as_common_type default-on, PR #90677). WHERE-only by design: the client-v2 RowBinary reader cannot decode a projected Variant column (R4), so the fragments are self-contained Boolean expressions and never reach a fetch column. Default-on since the 2026-06-10 convergence run (0 reader deaths, 0 false positives; the toInt64 constant-fallback wrap is load-bearing).", arity = 1)
+    public boolean variantWhereEmission = true;
 
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
