@@ -1553,6 +1553,15 @@ public class ClickHouseExpressionGenerator
      * @return a single-column subquery expression for an {@code IN} RHS, or {@code null} if no compatible column exists
      */
     private ClickHouseExpression generateInSubquery(ClickHouseColumnReference outer) {
+        // Mutation-analyzer coverage plan U1: occasionally upgrade the RHS to the joined-derived-
+        // tables form (the ClickHouse #106649 trigger shape). Falls through to the single-table
+        // form when the schema can't support it (no numeric outer / no numeric-bearing tables).
+        if (Randomly.getBooleanWithRatherLowProbability()) {
+            ClickHouseExpression joined = generateJoinedDerivedInSubquery(outer);
+            if (joined != null) {
+                return joined;
+            }
+        }
         java.util.List<sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable> tables = globalState.getSchema()
                 .getDatabaseTables();
         if (tables.isEmpty()) {
@@ -1583,6 +1592,134 @@ public class ClickHouseExpressionGenerator
         }
         sb.append(")");
         return new sqlancer.clickhouse.ast.ClickHouseRawText(sb.toString());
+    }
+
+    /**
+     * Mutation-analyzer coverage plan U1 -- the ClickHouse #106649 trigger shape: an {@code IN}-subquery whose inner
+     * SELECT joins two subquery-wrapped derived tables that each project the <b>same column name</b>:
+     *
+     * <pre>
+     * col IN (SELECT a.k FROM (SELECT c1 AS k FROM t1) AS a
+     *         JOIN t2 AS e0 ON e0.c0 = a.k
+     *         JOIN (SELECT c0 AS k FROM t3) AS b ON b.k = e0.c2)
+     * </pre>
+     *
+     * PR #98884 routed mutation analysis through the new analyzer in 26.6; #106649 is a
+     * {@code LOGICAL_ERROR "Column identifier ... is already registered"} on exactly this shape in a mutation WHERE.
+     * The shape is also valid (and analyzer-exercising) in plain SELECT predicates, so it lives on the shared
+     * IN-subquery path. Randomized knobs: derived-vs-plain first/last sources (both-derived is the filed trigger; mixed
+     * forms broaden coverage), join count 2-3, optional inner WHERE. Everything is numeric-typed so the ON pairs and
+     * the outer membership test are always equality-comparable, and the inner query references only its own FROM
+     * sources (non-correlated -- upstream is pivoting to rejecting correlated mutation subqueries, PR #106025).
+     *
+     * <p>
+     * Deterministic given data (a membership test), so TLP / NoREC / SEMR multiset semantics hold -- same
+     * classification as the single-table U1.1 form. Rendered as {@link sqlancer.clickhouse.ast.ClickHouseRawText}: the
+     * join AST cannot express derived tables in FROM (house escape hatch, see SubqueryMaterialize).
+     *
+     * @param outer
+     *            the outer column reference; must be numeric (the inner projected set is numeric)
+     *
+     * @return the joined-derived-tables subquery expression, or {@code null} when the outer column is non-numeric or
+     *         no table has a numeric column
+     */
+    public ClickHouseExpression generateJoinedDerivedInSubquery(ClickHouseColumnReference outer) {
+        if (!isNumeric(outer.getColumn().getType().getType())) {
+            return null;
+        }
+        java.util.List<sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable> numericTables = globalState.getSchema()
+                .getDatabaseTables().stream()
+                .filter(t -> t.getColumns().stream().anyMatch(c -> isNumeric(c.getType().getType())))
+                .collect(Collectors.toList());
+        if (numericTables.isEmpty()) {
+            return null;
+        }
+        String db = globalState.getDatabaseName();
+        int joinCount = Randomly.getBoolean() ? 2 : 3;
+        // Sources are picked with replacement: a single numeric-bearing table suffices (the filed
+        // repro itself self-joins derived forms of one table).
+        java.util.List<sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable> sources = new java.util.ArrayList<>();
+        java.util.List<ClickHouseColumn> joinCols = new java.util.ArrayList<>();
+        for (int i = 0; i <= joinCount; i++) {
+            sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable t = Randomly.fromList(numericTables);
+            sources.add(t);
+            joinCols.add(Randomly.fromList(t.getColumns().stream().filter(c -> isNumeric(c.getType().getType()))
+                    .collect(Collectors.toList())));
+        }
+        // Both-derived is the #106649 trigger; keep it the dominant arm, with mixed forms for breadth.
+        boolean bothDerived = !Randomly.getBooleanWithRatherLowProbability();
+        boolean firstDerived = bothDerived || Randomly.getBoolean();
+        boolean lastDerived = bothDerived || Randomly.getBoolean();
+        // The colliding projected name is the first source's column name: the first derived table
+        // projects it naturally, and the last derived table aliases its own column to it -- both
+        // derived ends then register the same projected name (the filed collision).
+        String k = joinCols.get(0).getName();
+        StringBuilder sb = new StringBuilder("(SELECT a.").append(k).append(" FROM ");
+        if (firstDerived) {
+            sb.append("(SELECT ").append(k).append(" FROM ").append(db).append(".")
+                    .append(sources.get(0).getName()).append(") AS a");
+        } else {
+            sb.append(db).append(".").append(sources.get(0).getName()).append(" AS a");
+        }
+        // The handle column exposed by source 0 to the first join.
+        String prevHandle = "a." + k;
+        // Middle sources are plain table refs; the last source is the (usually derived) far end.
+        for (int i = 1; i <= joinCount; i++) {
+            boolean isLast = i == joinCount;
+            if (isLast && lastDerived) {
+                String lastCol = joinCols.get(i).getName();
+                sb.append(" JOIN (SELECT ").append(lastCol);
+                if (!lastCol.equals(k)) {
+                    sb.append(" AS ").append(k);
+                }
+                sb.append(" FROM ").append(db).append(".").append(sources.get(i).getName()).append(") AS b ON b.")
+                        .append(k).append(" = ").append(prevHandle);
+            } else {
+                String alias = isLast ? "b" : "e" + (i - 1);
+                sb.append(" JOIN ").append(db).append(".").append(sources.get(i).getName()).append(" AS ")
+                        .append(alias).append(" ON ").append(alias).append(".").append(joinCols.get(i).getName())
+                        .append(" = ").append(prevHandle);
+                // The next join chains off this plain source's own numeric column (any one works;
+                // reuse the join column for simplicity -- chained equality is still a valid shape).
+                prevHandle = alias + "." + joinCols.get(i).getName();
+            }
+        }
+        // Optional inner WHERE: a simple numeric bound on the projected handle, keeping the IN set
+        // a non-trivial subset without risking type mismatches (all-numeric comparison).
+        if (Randomly.getBoolean()) {
+            ClickHouseExpression bound = generateConstantFromTerm(joinCols.get(0).getType().getTypeTerm());
+            sb.append(" WHERE a.").append(k).append(Randomly.fromOptions(" >= ", " <= ", " != "))
+                    .append(ClickHouseToStringVisitor.asString(bound));
+        }
+        sb.append(")");
+        return new sqlancer.clickhouse.ast.ClickHouseRawText(sb.toString());
+    }
+
+    /**
+     * Full-predicate wrapper around {@link #generateJoinedDerivedInSubquery}: picks a numeric column from
+     * {@code columns} and returns {@code col [NOT] IN (<joined-derived subquery>)}. Used by the mutation generator's
+     * forced-trigger arm (mutation-analyzer plan U2) so mutation WHEREs hit the #106649 shape deterministically often.
+     *
+     * @param columns
+     *            the columns in scope to draw the outer membership column from
+     *
+     * @return the full IN-predicate expression, or {@code null} when no numeric column is in scope or the schema
+     *         cannot support the joined shape
+     */
+    public ClickHouseExpression generateJoinedDerivedInPredicate(List<ClickHouseColumnReference> columns) {
+        List<ClickHouseColumnReference> numeric = numericColumns(columns);
+        if (numeric.isEmpty()) {
+            return null;
+        }
+        ClickHouseColumnReference col = Randomly.fromList(numeric);
+        ClickHouseExpression rhs = generateJoinedDerivedInSubquery(col);
+        if (rhs == null) {
+            return null;
+        }
+        ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator op = Randomly.getBoolean()
+                ? ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.IN
+                : ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.NOT_IN;
+        return new ClickHouseBinaryComparisonOperation(col, rhs, op);
     }
 
     @Override
