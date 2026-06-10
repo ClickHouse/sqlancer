@@ -80,7 +80,8 @@ public class ClickHouseTLPAggregateOracle extends ClickHouseTLPBase {
         // skipped multi-row aggregate-with-GROUP BY shapes and silently passed bugs in that
         // surface; using the full comparator catches them while preserving the float tolerance.
         ComparatorHelper.assumeResultSetsAreEqual(firstResult, secondResult, originalQuery,
-                Collections.singletonList(metamorphicText), state, ComparatorHelper.ComparisonMode.ULP_TOLERANT_MULTISET);
+                Collections.singletonList(metamorphicText), state,
+                ComparatorHelper.ComparisonMode.ULP_TOLERANT_MULTISET);
     }
 
 }

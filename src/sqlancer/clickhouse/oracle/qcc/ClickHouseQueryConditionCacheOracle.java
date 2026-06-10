@@ -13,7 +13,6 @@ import sqlancer.clickhouse.ClickHouseSchema;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
 import sqlancer.clickhouse.ClickHouseVisitor;
 import sqlancer.clickhouse.ast.ClickHouseColumnReference;
-import sqlancer.clickhouse.ast.ClickHouseExpression;
 import sqlancer.clickhouse.ast.ClickHouseSelect;
 import sqlancer.clickhouse.ast.ClickHouseTableReference;
 import sqlancer.clickhouse.gen.ClickHouseExpressionGenerator;

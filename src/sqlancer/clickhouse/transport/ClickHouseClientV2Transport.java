@@ -70,9 +70,10 @@ public final class ClickHouseClientV2Transport implements ClickHouseTransport {
             // about the content, only that the server signalled completion.
             try (InputStream in = response.getInputStream()) {
                 byte[] buf = new byte[4096];
-                while (in.read(buf) > 0) {
-                    // intentional
-                }
+                int n;
+                do {
+                    n = in.read(buf);
+                } while (n > 0);
             }
         } catch (IOException e) {
             throw new SQLException("Transport I/O error: " + e.getMessage(), e);

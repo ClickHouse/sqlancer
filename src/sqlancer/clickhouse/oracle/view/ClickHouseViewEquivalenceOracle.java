@@ -28,9 +28,9 @@ import sqlancer.common.query.SQLQueryAdapter;
  *
  * <p>
  * A normal view {@code v AS SELECT <cols> FROM t WHERE p_view} composes with a query-level predicate exactly the same
- * as the inlined form. The bug class lives in the analyzer's view-expansion + filter-pushdown interaction -- see #100390
- * "view returning wrong results after DETACH/ATTACH with UNION and INTERSECT" -- and the only way to reach that code
- * path is to actually emit a CREATE VIEW and read through it.
+ * as the inlined form. The bug class lives in the analyzer's view-expansion + filter-pushdown interaction -- see
+ * #100390 "view returning wrong results after DETACH/ATTACH with UNION and INTERSECT" -- and the only way to reach that
+ * code path is to actually emit a CREATE VIEW and read through it.
  *
  * <p>
  * The view projects an explicit (possibly proper) subset of the base columns, not {@code SELECT *}. The query-level
@@ -102,12 +102,12 @@ public class ClickHouseViewEquivalenceOracle implements TestOracle<ClickHouseGlo
         // reproducers database7/11/43, e.g. "Unknown expression identifier 'c0' in scope
         // SELECT c0 FROM v_t2_399 WHERE ((c1)+(c1)). Maybe you meant: ['c2']"):
         //
-        //   * p_view runs INSIDE the view body against the BASE table, so it may reference ANY
-        //     base column (the full `columns` set).
-        //   * the view's OUTPUT schema is only `projectedCols`. The query-level predicate p_q and
-        //     the read-side projection both run against the VIEW, so they must reference ONLY
-        //     columns in `projectedCols` -- otherwise CH raises UNKNOWN_IDENTIFIER and the failing
-        //     query is a generator artefact, not a real view-expansion divergence.
+        // * p_view runs INSIDE the view body against the BASE table, so it may reference ANY
+        // base column (the full `columns` set).
+        // * the view's OUTPUT schema is only `projectedCols`. The query-level predicate p_q and
+        // the read-side projection both run against the VIEW, so they must reference ONLY
+        // columns in `projectedCols` -- otherwise CH raises UNKNOWN_IDENTIFIER and the failing
+        // query is a generator artefact, not a real view-expansion divergence.
         //
         // To keep the output schema deterministic and to actually exercise subset-projecting
         // views (the prior `SELECT *` body masked this scoping hazard by exposing every column),
@@ -178,7 +178,18 @@ public class ClickHouseViewEquivalenceOracle implements TestOracle<ClickHouseGlo
         }
 
         try {
-            new SQLQueryAdapter(createView, errors, true).execute(state);
+            // execute() returns false when the statement raised an *expected* error (one in
+            // `errors`) -- the error is swallowed, not thrown. The view body carries a generated
+            // predicate (p_view over the full base column set), so a CREATE can legitimately fail
+            // with an expected expression error (e.g. an ILLEGAL_TYPE_OF_ARGUMENT in the WHERE).
+            // When that happens the view is NOT created, and proceeding to read it raises an
+            // unexpected Code 60 UNKNOWN_TABLE that surfaces as a false-positive reproducer
+            // (database6 in the 2026-06-05 run). Bail out: a view that could not be created is
+            // simply an inapplicable iteration, not a divergence.
+            boolean created = new SQLQueryAdapter(createView, errors, true).execute(state);
+            if (!created) {
+                throw new IgnoreMeException();
+            }
         } catch (SQLException e) {
             String msg = String.valueOf(e.getMessage());
             // Permissioning rejections or analyzer-specific view restrictions surface here.

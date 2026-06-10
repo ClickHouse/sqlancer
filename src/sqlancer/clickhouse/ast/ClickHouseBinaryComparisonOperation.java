@@ -185,8 +185,7 @@ public class ClickHouseBinaryComparisonOperation extends ClickHouseExpression
         // null) -- these operators are emitted only by generatePredicate's IN-subquery branch and
         // are deliberately excluded from getRandomOperator() so a generic comparison can never
         // pick them with a scalar RHS (which would be invalid SQL).
-        IN("IN"),
-        NOT_IN("NOT IN");
+        IN("IN"), NOT_IN("NOT IN");
 
         private final String[] textRepresentation;
 

@@ -13,10 +13,10 @@ import sqlancer.clickhouse.ast.ClickHouseAccessDdlStatement;
 /**
  * Access-control DDL generator: CREATE/ALTER/DROP QUOTA / SETTINGS PROFILE / ROW POLICY.
  *
- * <p>Workstream 12 of the 2026-05-27 coverage expansion plan. Quota windows are pinned to
- * INTERVAL 24 HOUR (not TIME-based) so iteration cadence doesn't trip quota limits. Profiles
- * don't reference users (avoids UNKNOWN_USER on locked-down clusters). RowPolicy emission
- * mirrors the inline shape ClickHouseRowPolicyOracle uses today.
+ * <p>
+ * Workstream 12 of the 2026-05-27 coverage expansion plan. Quota windows are pinned to INTERVAL 24 HOUR (not
+ * TIME-based) so iteration cadence doesn't trip quota limits. Profiles don't reference users (avoids UNKNOWN_USER on
+ * locked-down clusters). RowPolicy emission mirrors the inline shape ClickHouseRowPolicyOracle uses today.
  */
 public final class ClickHouseAccessDdlGenerator {
 
@@ -65,14 +65,22 @@ public final class ClickHouseAccessDdlGenerator {
         return new ClickHouseAccessDdlStatement(ClickHouseAccessDdlStatement.Kind.CREATE_ROW_POLICY, name, sql);
     }
 
-    public static ClickHouseAccessDdlStatement dropRowPolicy(String name, String table,
-            ClickHouseGlobalState state) {
+    public static ClickHouseAccessDdlStatement dropRowPolicy(String name, String table, ClickHouseGlobalState state) {
         String fq = state.getDatabaseName() + "." + table;
         return new ClickHouseAccessDdlStatement(ClickHouseAccessDdlStatement.Kind.DROP_ROW_POLICY, name,
                 "DROP ROW POLICY IF EXISTS " + name + " ON " + fq);
     }
 
-    /** Execute an access-control DDL statement; return true on success, false on tolerated error. */
+    /**
+     * Execute an access-control DDL statement; return true on success, false on tolerated error.
+     *
+     * @param state
+     *            the global state providing the database connection
+     * @param stmt
+     *            the access-control DDL statement to execute
+     *
+     * @return {@code true} on success, {@code false} on a tolerated error
+     */
     public static boolean execute(ClickHouseGlobalState state, ClickHouseAccessDdlStatement stmt) {
         try (Statement s = state.getConnection().createStatement()) {
             s.execute(stmt.getSql());

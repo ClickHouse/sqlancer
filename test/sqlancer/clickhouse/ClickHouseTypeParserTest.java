@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 import org.junit.jupiter.api.Test;
 
+import sqlancer.clickhouse.ClickHouseType.Array;
+import sqlancer.clickhouse.ClickHouseType.Decimal;
 import sqlancer.clickhouse.ClickHouseType.Kind;
 import sqlancer.clickhouse.ClickHouseType.LowCardinality;
 import sqlancer.clickhouse.ClickHouseType.Nullable;
@@ -41,11 +43,13 @@ class ClickHouseTypeParserTest {
     }
 
     @Test
-    void unparseableParametersCascadeToUnknown() {
-        assertEquals(new Unknown("Decimal(9, 2)"), ClickHouseTypeParser.parse("Decimal(9, 2)"));
-        assertEquals(new Unknown("Array(Int32)"), ClickHouseTypeParser.parse("Array(Int32)"));
-        // Inner type unparseable cascades to whole-string unknown.
-        assertEquals(new Unknown("Nullable(Decimal(9,2))"), ClickHouseTypeParser.parse("Nullable(Decimal(9,2))"));
+    void parsesParameterizedTypes() {
+        // The parser now understands Decimal(P, S) and Array(...), and recurses into them under
+        // wrappers. These used to cascade to Unknown; they now parse to structured types.
+        assertEquals(new Decimal(9, 2), ClickHouseTypeParser.parse("Decimal(9, 2)"));
+        assertEquals(new Array(new Primitive(Kind.Int32)), ClickHouseTypeParser.parse("Array(Int32)"));
+        // Nullable around a Decimal parses through; spacing is normalised on the inner Decimal.
+        assertEquals(new Nullable(new Decimal(9, 2)), ClickHouseTypeParser.parse("Nullable(Decimal(9,2))"));
     }
 
     @Test

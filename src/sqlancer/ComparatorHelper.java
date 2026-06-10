@@ -21,12 +21,13 @@ public final class ComparatorHelper {
     /**
      * Comparison semantics for {@link #assumeResultSetsAreEqual}.
      *
-     * <p>Set-vs-multiset matters because TLP-style oracles compare a single original query against
-     * a UNION ALL of partition branches. With set semantics, a row produced K times by one side and
-     * once by the other looks equal. Multiset semantics catches the difference. SQL-result-set
-     * equality is structurally a multiset comparison; the historical {@link #SET} default exists to
-     * stay backwards-compatible with oracles whose underlying invariant is set-shaped (e.g. SELECT
-     * DISTINCT). Per-cell float normalisation handles aggregate-rendering differences in ULP modes.
+     * <p>
+     * Set-vs-multiset matters because TLP-style oracles compare a single original query against a UNION ALL of
+     * partition branches. With set semantics, a row produced K times by one side and once by the other looks equal.
+     * Multiset semantics catches the difference. SQL-result-set equality is structurally a multiset comparison; the
+     * historical {@link #SET} default exists to stay backwards-compatible with oracles whose underlying invariant is
+     * set-shaped (e.g. SELECT DISTINCT). Per-cell float normalisation handles aggregate-rendering differences in ULP
+     * modes.
      */
     public enum ComparisonMode {
         /** HashSet equality with float-canonicalization fallback. Historical default. */
@@ -46,6 +47,11 @@ public final class ComparatorHelper {
      * (`Pattern.compile`/`Matcher.replaceAll` was ~24% of execution samples in the 2026-05-19 ClickHouse baseline,
      * because it ran on every row of every oracle-emitted result set). Scanning from the end is constant-time for the
      * common case of strings that don't end in '0' (single char compare) and at most O(n) for trailing-zero runs.
+     *
+     * @param s
+     *            the string to trim
+     *
+     * @return the string with a trailing dot followed by zeros removed, or the original string if no such suffix
      */
     private static String trimTrailingDotZeros(String s) {
         int len = s.length();
@@ -167,8 +173,7 @@ public final class ComparatorHelper {
                     || floatTolerantMultisetsEqual(resultSet, secondResultSet);
             break;
         case ULP_TOLERANT_MULTISET:
-            contentMatches = multisetsEqual(canonicalizeFloatsList(resultSet),
-                    canonicalizeFloatsList(secondResultSet))
+            contentMatches = multisetsEqual(canonicalizeFloatsList(resultSet), canonicalizeFloatsList(secondResultSet))
                     || floatTolerantMultisetsEqual(resultSet, secondResultSet);
             break;
         case SET:

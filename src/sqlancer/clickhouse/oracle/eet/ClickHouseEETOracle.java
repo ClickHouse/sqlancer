@@ -493,8 +493,8 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
                 boolean bNull = rs.wasNull();
                 if (aNull != bNull || !aNull && !a.equals(b)) {
                     throw new AssertionError(String.format(
-                            "EET[mode=%s] value mismatch at row %d:%n  Q: %s%n  a (orig)=%s%n  b (trans)=%s",
-                            label, rowIdx, query, aNull ? "NULL" : a, bNull ? "NULL" : b));
+                            "EET[mode=%s] value mismatch at row %d:%n  Q: %s%n  a (orig)=%s%n  b (trans)=%s", label,
+                            rowIdx, query, aNull ? "NULL" : a, bNull ? "NULL" : b));
                 }
                 rowIdx++;
             }

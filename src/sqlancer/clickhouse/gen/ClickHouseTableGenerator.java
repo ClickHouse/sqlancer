@@ -196,8 +196,7 @@ public class ClickHouseTableGenerator {
             // the dedupe key); requires >= 2 bare scalar key columns so the prefix is strict and
             // non-empty. SAMPLE BY is skipped on this path (sampleByColumn stays null).
             if (!isDedupeEngine(engine) && Randomly.getBooleanWithSmallProbability()) {
-                java.util.List<String> bareCols = columns.stream()
-                        .filter(ClickHouseTableGenerator::isBareKeyColumn)
+                java.util.List<String> bareCols = columns.stream().filter(ClickHouseTableGenerator::isBareKeyColumn)
                         .map(ClickHouseSchema.ClickHouseColumn::getName).collect(Collectors.toList());
                 if (bareCols.size() >= 2) {
                     java.util.List<String> obCols = pickDistinct(bareCols,
@@ -216,8 +215,7 @@ public class ClickHouseTableGenerator {
                 // non-deterministically. Refuse those shapes here -- column-only ORDER BY is
                 // still permitted via isValidOrderByForDedupe.
                 java.util.function.Predicate<ClickHouseExpression> orderByValidator = isDedupeEngine(engine)
-                        ? ClickHouseTableGenerator::isValidOrderByForDedupe
-                        : ClickHouseTableGenerator::isValidOrderBy;
+                        ? ClickHouseTableGenerator::isValidOrderByForDedupe : ClickHouseTableGenerator::isValidOrderBy;
                 // GAP 3 (suspicious non-monotonic key pool). The KeyCondition / partition-pruning
                 // range analyser mis-handles ORDER BY / PARTITION BY keys built from non-monotonic
                 // or only-partially-monotonic functions; four wrong-result reports on v26.5.1.882
@@ -317,6 +315,27 @@ public class ClickHouseTableGenerator {
                 sb.append(", ratio_of_defaults_for_sparse_serialization=")
                         .append(Randomly.fromOptions(0.0, 0.5, 0.95, 1.0));
             }
+            // Patch-part eligibility (lightweight UPDATE coverage). enable_block_number_column +
+            // enable_block_offset_column materialise the hidden _block_number / _block_offset
+            // columns that lightweight UPDATE (UPDATE ... SET ...) writes patch parts against. A
+            // table without them either rejects the lightweight UPDATE or rewrites it as a heavy
+            // mutation, so without this flag SQLancer never produces unmerged patch parts and the
+            // patch-apply / lazy-materialization read path is unreachable. That path is exactly the
+            // NOT_FOUND_COLUMN_IN_BLOCK / _part_offset crash family (CH support #7912 -> upstream
+            // #98227, #99023, #102904, #103910): read-in-order + LIMIT over a table with live patch
+            // parts under query_plan_optimize_lazy_materialization. Both columns are virtual (hidden
+            // from SELECT * and DESCRIBE), so they do not perturb any other oracle's column view.
+            // Emitted at ~10% so the patch-bearing layout is well represented while the plain layout
+            // still dominates. This broadens the *generation* surface (patch parts present while the
+            // existing fleet issues ORDER BY ... LIMIT reads, exercising the patch-apply / lazy-mat
+            // code paths and catching wrong-result divergences). Note the fleet does NOT catch the
+            // NOT_FOUND_COLUMN_IN_BLOCK *crash* -- that signature is globally tolerated for
+            // generator-induced column misses (see getExpectedExpressionErrors). The dedicated
+            // ClickHousePatchPartConsistencyOracle, which omits that tolerance, is the crash
+            // detector; it also creates its own patch-eligible table so it does not depend on this.
+            if (Randomly.getBooleanWithRatherLowProbability()) {
+                sb.append(", enable_block_number_column=1, enable_block_offset_column=1");
+            }
         }
 
     }
@@ -336,7 +355,8 @@ public class ClickHouseTableGenerator {
     // column AggregatingMergeTree merges. AggregateFunction columns are not emitted by the picker
     // (opaque-read issue), so SimpleAggregateFunction is the only state shape we gate on.
     private static boolean isSimpleAggregateColumn(ClickHouseSchema.ClickHouseColumn col) {
-        return col.getType().getTypeTerm().unwrap() instanceof sqlancer.clickhouse.ClickHouseType.SimpleAggregateFunctionType;
+        return col.getType().getTypeTerm()
+                .unwrap() instanceof sqlancer.clickhouse.ClickHouseType.SimpleAggregateFunctionType;
     }
 
     // Unit 2.1: CollapsingMergeTree(sign) / VersionedCollapsingMergeTree(sign, version) require the
@@ -454,14 +474,14 @@ public class ClickHouseTableGenerator {
         }
         if (engine == ClickHouseEngine.CollapsingMergeTree) {
             // Sign arg is mandatory. pickEngine guaranteed an Int8 candidate exists.
-            List<ClickHouseSchema.ClickHouseColumn> signs = columns.stream().filter(ClickHouseTableGenerator::isValidSign)
-                    .collect(Collectors.toList());
+            List<ClickHouseSchema.ClickHouseColumn> signs = columns.stream()
+                    .filter(ClickHouseTableGenerator::isValidSign).collect(Collectors.toList());
             return Randomly.fromList(signs).getName();
         }
         if (engine == ClickHouseEngine.VersionedCollapsingMergeTree) {
             // Both sign and version are mandatory: VersionedCollapsingMergeTree(sign, version).
-            List<ClickHouseSchema.ClickHouseColumn> signs = columns.stream().filter(ClickHouseTableGenerator::isValidSign)
-                    .collect(Collectors.toList());
+            List<ClickHouseSchema.ClickHouseColumn> signs = columns.stream()
+                    .filter(ClickHouseTableGenerator::isValidSign).collect(Collectors.toList());
             List<ClickHouseSchema.ClickHouseColumn> vers = columns.stream().filter(this::isValidReplacingVer)
                     .collect(Collectors.toList());
             return Randomly.fromList(signs).getName() + ", " + Randomly.fromList(vers).getName();
@@ -817,10 +837,10 @@ public class ClickHouseTableGenerator {
     // Returns null when the table has no column of a suitable type for any pooled shape (e.g. a
     // String-only table); the caller then falls back to the generic path.
     private ClickHouseExpression buildSuspiciousKey(boolean forPartitionBy) {
-        List<ClickHouseSchema.ClickHouseColumn> intCols = columns.stream().filter(ClickHouseTableGenerator::isIntegerColumn)
-                .collect(Collectors.toList());
-        List<ClickHouseSchema.ClickHouseColumn> dateCols = columns.stream().filter(ClickHouseTableGenerator::isDateColumn)
-                .collect(Collectors.toList());
+        List<ClickHouseSchema.ClickHouseColumn> intCols = columns.stream()
+                .filter(ClickHouseTableGenerator::isIntegerColumn).collect(Collectors.toList());
+        List<ClickHouseSchema.ClickHouseColumn> dateCols = columns.stream()
+                .filter(ClickHouseTableGenerator::isDateColumn).collect(Collectors.toList());
 
         // Collect the candidate shape builders that this table's column set can actually support,
         // then pick one uniformly. Each entry is a no-arg supplier closing over a freshly picked
@@ -848,8 +868,9 @@ public class ClickHouseTableGenerator {
                         ClickHouseBinaryFunctionOperation.ClickHouseBinaryFunctionOperator.GCD);
             });
             // c % <nonzero> : sawtooth, strongly non-monotonic.
-            shapes.add(() -> ClickHouseBinaryArithmeticOperation.create(pickRef(intCols), intConst(smallNonZeroDivisor()),
-                    ClickHouseBinaryArithmeticOperation.ClickHouseBinaryArithmeticOperator.MODULO));
+            shapes.add(
+                    () -> ClickHouseBinaryArithmeticOperation.create(pickRef(intCols), intConst(smallNonZeroDivisor()),
+                            ClickHouseBinaryArithmeticOperation.ClickHouseBinaryArithmeticOperator.MODULO));
             // -c : monotonically DEcreasing -- KeyCondition must flip range bounds; the reports
             // show this alone is enough to misfire (#106084 ORDER BY -c0).
             shapes.add(() -> new ClickHouseUnaryPrefixOperation(pickRef(intCols),

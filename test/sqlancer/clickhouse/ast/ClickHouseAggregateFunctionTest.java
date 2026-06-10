@@ -39,18 +39,14 @@ class ClickHouseAggregateFunctionTest {
 
     @Test
     void newSingleArgAggregatesRenderWithCamelCaseNames() {
-        assertEquals("SELECT uniqExact(t.x)",
-                ClickHouseVisitor.asString(wrap(new ClickHouseAggregate(column("t", "x"),
-                        ClickHouseAggregateFunction.UNIQ_EXACT))));
-        assertEquals("SELECT quantileExact(t.x)",
-                ClickHouseVisitor.asString(wrap(new ClickHouseAggregate(column("t", "x"),
-                        ClickHouseAggregateFunction.QUANTILE_EXACT))));
-        assertEquals("SELECT groupBitAnd(t.x)",
-                ClickHouseVisitor.asString(wrap(new ClickHouseAggregate(column("t", "x"),
-                        ClickHouseAggregateFunction.GROUP_BIT_AND))));
-        assertEquals("SELECT groupBitXor(t.x)",
-                ClickHouseVisitor.asString(wrap(new ClickHouseAggregate(column("t", "x"),
-                        ClickHouseAggregateFunction.GROUP_BIT_XOR))));
+        assertEquals("SELECT uniqExact(t.x)", ClickHouseVisitor
+                .asString(wrap(new ClickHouseAggregate(column("t", "x"), ClickHouseAggregateFunction.UNIQ_EXACT))));
+        assertEquals("SELECT quantileExact(t.x)", ClickHouseVisitor
+                .asString(wrap(new ClickHouseAggregate(column("t", "x"), ClickHouseAggregateFunction.QUANTILE_EXACT))));
+        assertEquals("SELECT groupBitAnd(t.x)", ClickHouseVisitor
+                .asString(wrap(new ClickHouseAggregate(column("t", "x"), ClickHouseAggregateFunction.GROUP_BIT_AND))));
+        assertEquals("SELECT groupBitXor(t.x)", ClickHouseVisitor
+                .asString(wrap(new ClickHouseAggregate(column("t", "x"), ClickHouseAggregateFunction.GROUP_BIT_XOR))));
     }
 
     @Test

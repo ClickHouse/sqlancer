@@ -75,7 +75,10 @@ class ClickHouseSessionSettingsTest {
     }
 
     @Test
-    void semrAndRandomCatalogsAreDisjoint() {
+    void semrAndRandomOverlapOnlyOnCompileSettings() {
+        // The catalogs overlap deliberately on exactly the compile_* JIT settings: they are both
+        // SEMR-eligible (semantically-equivalent metamorphic relation toggles) and independently
+        // randomizable. Any overlap beyond these three would be unintentional and must fail.
         Set<String> semr = new HashSet<>(ClickHouseSessionSettings.SEMR_SETTINGS);
         Set<String> random = new HashSet<>();
         for (ClickHouseSessionSettings.RandomEntry entry : ClickHouseSessionSettings.RANDOM_SESSION_SETTINGS) {
@@ -83,7 +86,8 @@ class ClickHouseSessionSettingsTest {
         }
         Set<String> intersection = new HashSet<>(semr);
         intersection.retainAll(random);
-        assertTrue(intersection.isEmpty(), () -> "SEMR_SETTINGS and RANDOM_SESSION_SETTINGS overlap: " + intersection);
+        assertEquals(Set.of("compile_expressions", "compile_aggregate_expressions", "compile_sort_description"),
+                intersection);
     }
 
     @Test

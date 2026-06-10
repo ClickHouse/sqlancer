@@ -3,10 +3,11 @@ package sqlancer.clickhouse.ast;
 import sqlancer.clickhouse.ClickHouseToStringVisitor;
 
 /**
- * Positional tuple field access. ClickHouse renders as {@code tup.1}, {@code tup.2}, ...
- * Indices are 1-based per the CH grammar.
+ * Positional tuple field access. ClickHouse renders as {@code tup.1}, {@code tup.2}, ... Indices are 1-based per the CH
+ * grammar.
  *
- * <p>Workstream 2 of the 2026-05-27 coverage expansion plan.
+ * <p>
+ * Workstream 2 of the 2026-05-27 coverage expansion plan.
  */
 public class ClickHouseTupleAccess extends ClickHouseExpression {
 

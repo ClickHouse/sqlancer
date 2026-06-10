@@ -14,17 +14,17 @@ import sqlancer.common.oracle.TestOracle;
 import sqlancer.common.query.ExpectedErrors;
 
 /**
- * SELECT FINAL differential oracle. Asserts that on dedupe engines (Replacing/Summing/
- * Aggregating/Collapsing MergeTree) the result of {@code SELECT ... FROM t FINAL} on a multi-part
- * table equals the result of the same {@code SELECT} after a synchronous {@code OPTIMIZE TABLE t
- * FINAL}. The "merge-pending" state (the third capture in the plan) is intentionally NOT compared
- * against either of those -- merge-pending rows are server-allowed to drift; the invariant is
- * only over the two post-merge views.
+ * SELECT FINAL differential oracle. Asserts that on dedupe engines (Replacing/Summing/ Aggregating/Collapsing
+ * MergeTree) the result of {@code SELECT ... FROM t FINAL} on a multi-part table equals the result of the same
+ * {@code SELECT} after a synchronous {@code OPTIMIZE TABLE t
+ * FINAL}. The "merge-pending" state (the third capture in the plan) is intentionally NOT compared against either of
+ * those -- merge-pending rows are server-allowed to drift; the invariant is only over the two post-merge views.
  *
- * <p>Workstream 10 of the coverage expansion plan. Requires the table generator to emit
- * Replacing/Summing variants -- when only plain MergeTree is in the pool (the current default
- * pinning in {@link sqlancer.clickhouse.gen.ClickHouseTableGenerator}), every iteration short-
- * circuits via IgnoreMeException because no eligible table exists.
+ * <p>
+ * Workstream 10 of the coverage expansion plan. Requires the table generator to emit Replacing/Summing variants -- when
+ * only plain MergeTree is in the pool (the current default pinning in
+ * {@link sqlancer.clickhouse.gen.ClickHouseTableGenerator}), every iteration short- circuits via IgnoreMeException
+ * because no eligible table exists.
  */
 public class ClickHouseFinalMergeOracle implements TestOracle<ClickHouseGlobalState> {
 
@@ -78,8 +78,8 @@ public class ClickHouseFinalMergeOracle implements TestOracle<ClickHouseGlobalSt
             // not the bug the oracle is hunting (it's hunting result divergence between FINAL
             // and post-OPTIMIZE reads, both of which we re-run after OPTIMIZE fails).
             String msg = e.getMessage();
-            if (msg == null || errors.errorIsExpected(msg)
-                    || msg.contains("ORDER BY cannot be empty") || msg.contains("BAD_ARGUMENTS")) {
+            if (msg == null || errors.errorIsExpected(msg) || msg.contains("ORDER BY cannot be empty")
+                    || msg.contains("BAD_ARGUMENTS")) {
                 throw new IgnoreMeException();
             }
             throw e;

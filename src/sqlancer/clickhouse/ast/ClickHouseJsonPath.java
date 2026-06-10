@@ -5,8 +5,8 @@ import java.util.List;
 import sqlancer.clickhouse.ClickHouseToStringVisitor;
 
 /**
- * JSON v2 path access. Renders as {@code j.a} or {@code j.a.b.^Int64} (with optional type cast
- * suffix using ClickHouse's {@code .^Type} grammar). Workstream 6 of the coverage expansion plan.
+ * JSON v2 path access. Renders as {@code j.a} or {@code j.a.b.^Int64} (with optional type cast suffix using
+ * ClickHouse's {@code .^Type} grammar). Workstream 6 of the coverage expansion plan.
  */
 public class ClickHouseJsonPath extends ClickHouseExpression {
 

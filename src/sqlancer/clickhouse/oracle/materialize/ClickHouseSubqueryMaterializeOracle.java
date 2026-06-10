@@ -33,11 +33,11 @@ import sqlancer.common.query.SQLQueryAdapter;
  *
  * <p>
  * Crossing the temp-table boundary reclassifies the materialized side as a plain physical scan, which <em>disables</em>
- * the optimizer rule that is actually buggy (OR-splitting, "predicate_temp_N" predicate materialization, scalar-subquery
- * pushdown, RIGHT-JOIN default-value handling, ...). The existing {@code KeyConditionOracle} wraps columns in
- * {@code materialize()} <strong>within</strong> a single query -- that is a different transformation: it leaves those
- * optimizer passes enabled and so cannot reproduce this divergence. The boundary here is a CREATE TABLE / DROP TABLE
- * pair, not an in-query function wrap.
+ * the optimizer rule that is actually buggy (OR-splitting, "predicate_temp_N" predicate materialization,
+ * scalar-subquery pushdown, RIGHT-JOIN default-value handling, ...). The existing {@code KeyConditionOracle} wraps
+ * columns in {@code materialize()} <strong>within</strong> a single query -- that is a different transformation: it
+ * leaves those optimizer passes enabled and so cannot reproduce this divergence. The boundary here is a CREATE TABLE /
+ * DROP TABLE pair, not an in-query function wrap.
  *
  * <p>
  * The two variants compared per iteration are:
@@ -69,10 +69,10 @@ import sqlancer.common.query.SQLQueryAdapter;
  * significant; the oracle deliberately emits no ORDER BY.</li>
  * <li>Memory vs Log engine choice only changes physical storage, not row identity, so randomising it is safe and widens
  * the storage-path coverage (Log goes through the on-disk mark/granule reader, Memory does not).</li>
- * <li>All column identifiers are rendered as bare names ({@code c0}, {@code c1}, ...): the table generator names columns
- * {@code c<n>} (see {@code ClickHouseCommon.createColumnName}), and bare names resolve identically inside the inner
- * scan over {@code T}, across the derived-table boundary, and against the {@code tmp} copy -- a table-qualified name
- * ({@code T.c0}) would be invalid against {@code sub} / {@code tmp}.</li>
+ * <li>All column identifiers are rendered as bare names ({@code c0}, {@code c1}, ...): the table generator names
+ * columns {@code c<n>} (see {@code ClickHouseCommon.createColumnName}), and bare names resolve identically inside the
+ * inner scan over {@code T}, across the derived-table boundary, and against the {@code tmp} copy -- a table-qualified
+ * name ({@code T.c0}) would be invalid against {@code sub} / {@code tmp}.</li>
  * </ul>
  */
 public class ClickHouseSubqueryMaterializeOracle implements TestOracle<ClickHouseGlobalState> {

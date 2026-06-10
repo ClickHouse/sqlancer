@@ -517,9 +517,18 @@ public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHo
             ClickHouseType u = t.unwrap();
             if (u instanceof Primitive p) {
                 switch (p.kind()) {
-                case Int8: case Int16: case Int32: case Int64:
-                case UInt8: case UInt16: case UInt32: case UInt64:
-                case String: case UUID: case Date: case DateTime:
+                case Int8:
+                case Int16:
+                case Int32:
+                case Int64:
+                case UInt8:
+                case UInt16:
+                case UInt32:
+                case UInt64:
+                case String:
+                case UUID:
+                case Date:
+                case DateTime:
                     return true;
                 default:
                     return false;
@@ -558,46 +567,70 @@ public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHo
     record Ring() implements ClickHouseType {
 
         @Override
-        public boolean isNumeric() { return false; }
+        public boolean isNumeric() {
+            return false;
+        }
 
         @Override
-        public boolean supportsLiteralEmission() { return true; }
+        public boolean supportsLiteralEmission() {
+            return true;
+        }
 
         @Override
-        public boolean hasNullSemantics() { return false; }
+        public boolean hasNullSemantics() {
+            return false;
+        }
 
         @Override
-        public String toString() { return "Ring"; }
+        public String toString() {
+            return "Ring";
+        }
     }
 
     record Polygon() implements ClickHouseType {
 
         @Override
-        public boolean isNumeric() { return false; }
+        public boolean isNumeric() {
+            return false;
+        }
 
         @Override
-        public boolean supportsLiteralEmission() { return true; }
+        public boolean supportsLiteralEmission() {
+            return true;
+        }
 
         @Override
-        public boolean hasNullSemantics() { return false; }
+        public boolean hasNullSemantics() {
+            return false;
+        }
 
         @Override
-        public String toString() { return "Polygon"; }
+        public String toString() {
+            return "Polygon";
+        }
     }
 
     record MultiPolygon() implements ClickHouseType {
 
         @Override
-        public boolean isNumeric() { return false; }
+        public boolean isNumeric() {
+            return false;
+        }
 
         @Override
-        public boolean supportsLiteralEmission() { return true; }
+        public boolean supportsLiteralEmission() {
+            return true;
+        }
 
         @Override
-        public boolean hasNullSemantics() { return false; }
+        public boolean hasNullSemantics() {
+            return false;
+        }
 
         @Override
-        public String toString() { return "MultiPolygon"; }
+        public String toString() {
+            return "MultiPolygon";
+        }
     }
 
     // Nested(name1 T1, name2 T2, ...). At the storage level this is parallel arrays per subfield;
@@ -613,13 +646,19 @@ public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHo
         }
 
         @Override
-        public boolean isNumeric() { return false; }
+        public boolean isNumeric() {
+            return false;
+        }
 
         @Override
-        public boolean supportsLiteralEmission() { return false; }
+        public boolean supportsLiteralEmission() {
+            return false;
+        }
 
         @Override
-        public boolean hasNullSemantics() { return false; }
+        public boolean hasNullSemantics() {
+            return false;
+        }
 
         @Override
         public String toString() {
@@ -646,10 +685,25 @@ public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHo
     // JSON v2 (CH 24.10+). Renders as 'JSON'. Subcolumn access j.a, j.b.^Int64 is part of the
     // expression-generator surface, not the type. Workstream 6.
     record JSON() implements ClickHouseType {
-        @Override public boolean isNumeric() { return false; }
-        @Override public boolean supportsLiteralEmission() { return true; }
-        @Override public boolean hasNullSemantics() { return false; }
-        @Override public String toString() { return "JSON"; }
+        @Override
+        public boolean isNumeric() {
+            return false;
+        }
+
+        @Override
+        public boolean supportsLiteralEmission() {
+            return true;
+        }
+
+        @Override
+        public boolean hasNullSemantics() {
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return "JSON";
+        }
     }
 
     // Variant(T1, T2, ...) -- tagged union of up to N alternatives. Workstream 6.
@@ -660,10 +714,24 @@ public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHo
                 throw new IllegalArgumentException("Variant alternative count out of range: " + alternatives.size());
             }
         }
-        @Override public boolean isNumeric() { return false; }
-        @Override public boolean supportsLiteralEmission() { return true; }
-        @Override public boolean hasNullSemantics() { return false; }
-        @Override public String toString() {
+
+        @Override
+        public boolean isNumeric() {
+            return false;
+        }
+
+        @Override
+        public boolean supportsLiteralEmission() {
+            return true;
+        }
+
+        @Override
+        public boolean hasNullSemantics() {
+            return false;
+        }
+
+        @Override
+        public String toString() {
             StringBuilder sb = new StringBuilder("Variant(");
             for (int i = 0; i < alternatives.size(); i++) {
                 if (i > 0) {
@@ -678,10 +746,25 @@ public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHo
 
     // Dynamic -- runtime-typed value (CH 24.x+). Renders as 'Dynamic'. Workstream 6.
     record Dynamic() implements ClickHouseType {
-        @Override public boolean isNumeric() { return false; }
-        @Override public boolean supportsLiteralEmission() { return true; }
-        @Override public boolean hasNullSemantics() { return false; }
-        @Override public String toString() { return "Dynamic"; }
+        @Override
+        public boolean isNumeric() {
+            return false;
+        }
+
+        @Override
+        public boolean supportsLiteralEmission() {
+            return true;
+        }
+
+        @Override
+        public boolean hasNullSemantics() {
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return "Dynamic";
+        }
     }
 
     // Interval(kind) -- used only in Date/DateTime arithmetic (not as a column type per se in CH).
@@ -695,25 +778,54 @@ public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHo
         public IntervalType {
             Objects.requireNonNull(kind, "kind");
         }
-        @Override public boolean isNumeric() { return false; }
-        @Override public boolean supportsLiteralEmission() { return true; }
-        @Override public boolean hasNullSemantics() { return false; }
-        @Override public String toString() { return "Interval" + kind.name(); }
+
+        @Override
+        public boolean isNumeric() {
+            return false;
+        }
+
+        @Override
+        public boolean supportsLiteralEmission() {
+            return true;
+        }
+
+        @Override
+        public boolean hasNullSemantics() {
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return "Interval" + kind.name();
+        }
     }
 
     // AggregateFunction(name, T1, T2, ...) -- materialised intermediate state of an aggregate
     // function. Reading the column requires finalizeAggregation(col) or the -Merge combinator.
     // Workstream 5.
-    record AggregateFunctionType(String functionName, java.util.List<ClickHouseType> args)
-            implements ClickHouseType {
+    record AggregateFunctionType(String functionName, java.util.List<ClickHouseType> args) implements ClickHouseType {
         public AggregateFunctionType {
             Objects.requireNonNull(functionName, "functionName");
             Objects.requireNonNull(args, "args");
         }
-        @Override public boolean isNumeric() { return false; }
-        @Override public boolean supportsLiteralEmission() { return false; }
-        @Override public boolean hasNullSemantics() { return false; }
-        @Override public String toString() {
+
+        @Override
+        public boolean isNumeric() {
+            return false;
+        }
+
+        @Override
+        public boolean supportsLiteralEmission() {
+            return false;
+        }
+
+        @Override
+        public boolean hasNullSemantics() {
+            return false;
+        }
+
+        @Override
+        public String toString() {
             StringBuilder sb = new StringBuilder("AggregateFunction(");
             sb.append(functionName);
             for (ClickHouseType a : args) {
@@ -731,10 +843,24 @@ public sealed interface ClickHouseType permits ClickHouseType.Primitive, ClickHo
             Objects.requireNonNull(functionName, "functionName");
             Objects.requireNonNull(arg, "arg");
         }
-        @Override public boolean isNumeric() { return arg.isNumeric(); }
-        @Override public boolean supportsLiteralEmission() { return arg.supportsLiteralEmission(); }
-        @Override public boolean hasNullSemantics() { return false; }
-        @Override public String toString() {
+
+        @Override
+        public boolean isNumeric() {
+            return arg.isNumeric();
+        }
+
+        @Override
+        public boolean supportsLiteralEmission() {
+            return arg.supportsLiteralEmission();
+        }
+
+        @Override
+        public boolean hasNullSemantics() {
+            return false;
+        }
+
+        @Override
+        public String toString() {
             return "SimpleAggregateFunction(" + functionName + ", " + arg + ")";
         }
     }

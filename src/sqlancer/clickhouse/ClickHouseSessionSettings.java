@@ -101,17 +101,17 @@ public final class ClickHouseSessionSettings {
     // Two settings deliberately NOT in SEMR_SETTINGS because they are NOT result-preserving on
     // arbitrary schemas (toggling them legitimately changes the result, so SEMR would report
     // false positives):
-    //   - apply_mutations_on_fly: with it on, SELECT applies pending ALTER DELETE/UPDATE
-    //     mutations virtually; with it off, SELECT reads the pre-mutation view. With a mutation
-    //     in flight the row sets differ -- correctly. (3 SEMR reproducers in the 8.7h run.)
-    //   - do_not_merge_across_partitions_select_final (removed 2026-06-01): when the partition
-    //     key is not a prefix of the sorting key, the same ORDER BY key spans multiple
-    //     partitions; with the setting ON, FINAL skips the cross-partition merge so duplicate
-    //     keys survive, changing the deduped row COUNT. Proven on CH 26.6.1.284 with
-    //     SummingMergeTree ORDER BY c0 PARTITION BY (c1+c2): SELECT ... FROM t FINAL returned 1
-    //     row with the setting off and 4 with it on. CH documents it as safe only when the
-    //     partition key is a prefix of the sort key -- a precondition SEMR's random tables don't
-    //     meet. Surfaced as a SEMRMulti size-mismatch (1 vs 4). NOT a CH bug.
+    // - apply_mutations_on_fly: with it on, SELECT applies pending ALTER DELETE/UPDATE
+    // mutations virtually; with it off, SELECT reads the pre-mutation view. With a mutation
+    // in flight the row sets differ -- correctly. (3 SEMR reproducers in the 8.7h run.)
+    // - do_not_merge_across_partitions_select_final (removed 2026-06-01): when the partition
+    // key is not a prefix of the sorting key, the same ORDER BY key spans multiple
+    // partitions; with the setting ON, FINAL skips the cross-partition merge so duplicate
+    // keys survive, changing the deduped row COUNT. Proven on CH 26.6.1.284 with
+    // SummingMergeTree ORDER BY c0 PARTITION BY (c1+c2): SELECT ... FROM t FINAL returned 1
+    // row with the setting off and 4 with it on. CH documents it as safe only when the
+    // partition key is a prefix of the sort key -- a precondition SEMR's random tables don't
+    // meet. Surfaced as a SEMRMulti size-mismatch (1 vs 4). NOT a CH bug.
 
     // Execution-mode settings the random-session-settings layer may apply via
     // SET k = v at connect time. Each entry has discrete candidate values picked

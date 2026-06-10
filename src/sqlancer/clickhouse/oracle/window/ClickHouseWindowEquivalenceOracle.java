@@ -16,18 +16,17 @@ import sqlancer.common.oracle.TestOracle;
 import sqlancer.common.query.ExpectedErrors;
 
 /**
- * Window function equivalence oracle (workstream 19). Asserts well-known equivalences between
- * window expressions and their non-window counterparts:
+ * Window function equivalence oracle (workstream 19). Asserts well-known equivalences between window expressions and
+ * their non-window counterparts:
  *
  * <ul>
- *   <li>{@code count(*) OVER ()} (any row) == {@code count(*)} (scalar)
- *   <li>{@code sum(x) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING)} at last row ==
- *       {@code sum(x)} over the full table
- *   <li>{@code max(row_number() OVER (ORDER BY id)) == count(*)}
+ * <li>{@code count(*) OVER ()} (any row) == {@code count(*)} (scalar)
+ * <li>{@code sum(x) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING)} at last row == {@code sum(x)} over the full table
+ * <li>{@code max(row_number() OVER (ORDER BY id)) == count(*)}
  * </ul>
  *
- * <p>Selects one identity per check; iterations that find no usable column shape short-circuit
- * with IgnoreMeException.
+ * <p>
+ * Selects one identity per check; iterations that find no usable column shape short-circuit with IgnoreMeException.
  */
 public class ClickHouseWindowEquivalenceOracle implements TestOracle<ClickHouseGlobalState> {
 
@@ -74,45 +73,41 @@ public class ClickHouseWindowEquivalenceOracle implements TestOracle<ClickHouseG
             lhs = "SELECT count() OVER () FROM " + fq + " LIMIT 1";
             rhs = "SELECT count() FROM " + fq;
             break;
-        case 1: {
+        case 1:
             List<ClickHouseColumn> numericCols = table.getColumns().stream()
-                    .filter(c -> c.getType().getTypeTerm().unwrap().isNumeric())
-                    .collect(Collectors.toList());
+                    .filter(c -> c.getType().getTypeTerm().unwrap().isNumeric()).collect(Collectors.toList());
             if (numericCols.isEmpty()) {
                 throw new IgnoreMeException();
             }
             ClickHouseColumn num = Randomly.fromList(numericCols);
             // max(row_number() OVER (ORDER BY num)) == count(*)
-            lhs = "SELECT max(rn) FROM (SELECT row_number() OVER (ORDER BY " + num.getName() + ") AS rn FROM "
-                    + fq + ")";
+            lhs = "SELECT max(rn) FROM (SELECT row_number() OVER (ORDER BY " + num.getName() + ") AS rn FROM " + fq
+                    + ")";
             rhs = "SELECT count() FROM " + fq;
             break;
-        }
-        default: {
+        default:
             // Restrict the cumulative-sum identity to INTEGER columns: float arithmetic is
             // non-associative, so sum() over the full table (parallel) and sum() OVER
             // (cumulative, ORDER-BY order) can produce ULP-different float results. The 8.7h
             // run surfaced 12 WindowEquivalence reproducers all in this float-non-associativity
             // family. Same root cause as the AggregateStateRoundtripOracle fix on workstream 5.
-            List<ClickHouseColumn> numericCols = table.getColumns().stream()
-                    .filter(c -> {
-                        com.clickhouse.data.ClickHouseDataType t = c.getType().getType();
-                        return t != com.clickhouse.data.ClickHouseDataType.Float32
-                                && t != com.clickhouse.data.ClickHouseDataType.Float64
-                                && t != com.clickhouse.data.ClickHouseDataType.Decimal
-                                && c.getType().getTypeTerm().unwrap().isNumeric();
-                    }).collect(Collectors.toList());
-            if (numericCols.isEmpty()) {
+            List<ClickHouseColumn> numericColsD = table.getColumns().stream().filter(c -> {
+                com.clickhouse.data.ClickHouseDataType t = c.getType().getType();
+                return t != com.clickhouse.data.ClickHouseDataType.Float32
+                        && t != com.clickhouse.data.ClickHouseDataType.Float64
+                        && t != com.clickhouse.data.ClickHouseDataType.Decimal
+                        && c.getType().getTypeTerm().unwrap().isNumeric();
+            }).collect(Collectors.toList());
+            if (numericColsD.isEmpty()) {
                 throw new IgnoreMeException();
             }
-            ClickHouseColumn num = Randomly.fromList(numericCols);
+            ClickHouseColumn numD = Randomly.fromList(numericColsD);
             // sum(num) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) at the last row == sum(num).
-            lhs = "SELECT sum(" + num.getName() + ") OVER (ORDER BY " + num.getName()
-                    + " ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM " + fq + " ORDER BY " + num.getName()
+            lhs = "SELECT sum(" + numD.getName() + ") OVER (ORDER BY " + numD.getName()
+                    + " ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM " + fq + " ORDER BY " + numD.getName()
                     + " DESC LIMIT 1";
-            rhs = "SELECT sum(" + num.getName() + ") FROM " + fq;
+            rhs = "SELECT sum(" + numD.getName() + ") FROM " + fq;
             break;
-        }
         }
         List<String> lhsResult = ComparatorHelper.getResultSetFirstColumnAsString(lhs, errors, state);
         List<String> rhsResult = ComparatorHelper.getResultSetFirstColumnAsString(rhs, errors, state);

@@ -210,11 +210,16 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
         private static Kind pickPrimitiveKind() {
             int r = (int) Randomly.getNotCachedInteger(0, 5);
             switch (r) {
-            case 0: return Kind.Int32;
-            case 1: return Kind.String;
-            case 2: return Kind.UInt64;
-            case 3: return Kind.Float64;
-            default: return Kind.Date;
+            case 0:
+                return Kind.Int32;
+            case 1:
+                return Kind.String;
+            case 2:
+                return Kind.UInt64;
+            case 3:
+                return Kind.Float64;
+            default:
+                return Kind.Date;
             }
         }
 
@@ -524,6 +529,8 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
          * True for engines that accept the {@code FINAL} modifier in a SELECT. Plain {@code MergeTree} does not -- it
          * raises {@code ILLEGAL_FINAL} -- so this method returns false for it even though MergeTree is in the same
          * engine family.
+         *
+         * @return {@code true} if this engine accepts the {@code FINAL} modifier in a SELECT
          */
         public boolean supportsFinal() {
             return engine.equals("ReplacingMergeTree") || engine.equals("SummingMergeTree")

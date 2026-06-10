@@ -5,11 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for ClickHouseCODDTestOracle's literal rendering. The folded query substitutes an
- * auxiliary-query scalar value as a literal; for wide integers a bare decimal literal exceeding
- * (U)Int64 range is reparsed by ClickHouse as Float64 and loses precision, producing spurious
- * CODDTest mismatches (surfaced by the UInt256 column emission). Those must be cast to their exact
- * type.
+ * Unit tests for ClickHouseCODDTestOracle's literal rendering. The folded query substitutes an auxiliary-query scalar
+ * value as a literal; for wide integers a bare decimal literal exceeding (U)Int64 range is reparsed by ClickHouse as
+ * Float64 and loses precision, producing spurious CODDTest mismatches (surfaced by the UInt256 column emission). Those
+ * must be cast to their exact type.
  */
 class ClickHouseCODDTestOracleTest {
 

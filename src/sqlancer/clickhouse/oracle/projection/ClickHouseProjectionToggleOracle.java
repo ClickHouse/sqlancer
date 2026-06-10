@@ -26,17 +26,17 @@ import sqlancer.common.query.ExpectedErrors;
  *
  * <p>
  * Projection use is a pure read-time optimization: a projection-matching aggregate query must return the byte-for-byte
- * identical result whether the optimizer is allowed to serve it from a projection ({@code optimize_use_projections = 1})
- * or forced to scan the base table ({@code optimize_use_projections = 0}). This is the invariant behind the #103052 /
- * #88350 projection wrong-result family: a partially-materialized or stale projection that serves a different (wrong)
- * result than the base scan.
+ * identical result whether the optimizer is allowed to serve it from a projection
+ * ({@code optimize_use_projections = 1}) or forced to scan the base table ({@code optimize_use_projections = 0}). This
+ * is the invariant behind the #103052 / #88350 projection wrong-result family: a partially-materialized or stale
+ * projection that serves a different (wrong) result than the base scan.
  *
  * <p>
- * The oracle runs an aggregate query -- a {@code GROUP BY} over a scalar key projecting
- * {@code count()} plus one numeric aggregate, or a bare {@code count()} -- twice, once under each setting, and asserts
- * the two result multisets are equal. The invariant holds on ANY table (projection or not), so the oracle does not need
- * to know which tables carry projections; the ADD PROJECTION emission from Unit 2.2 makes the projection-serving path
- * actually fire some fraction of the time.
+ * The oracle runs an aggregate query -- a {@code GROUP BY} over a scalar key projecting {@code count()} plus one
+ * numeric aggregate, or a bare {@code count()} -- twice, once under each setting, and asserts the two result multisets
+ * are equal. The invariant holds on ANY table (projection or not), so the oracle does not need to know which tables
+ * carry projections; the ADD PROJECTION emission from Unit 2.2 makes the projection-serving path actually fire some
+ * fraction of the time.
  *
  * <p>
  * Soundness note: the result is collapsed into a single concatenated string column per row so the standard first-column
@@ -88,17 +88,17 @@ public class ClickHouseProjectionToggleOracle implements TestOracle<ClickHouseGl
         // first-column comparator can diff it.
         //
         // IMPORTANT -- only EXACT, order-insensitive aggregates and non-float group keys are used:
-        //   * sum over a Float column is order-sensitive: the projection-maintained partial sums and
-        //     the full-rescan sum round differently (the #99109 sum(Float64) GROUP BY family), which
-        //     is legitimate non-determinism, not a projection bug. Restrict sum to integer columns;
-        //     avg is dropped entirely (float division). min/max are exact on any numeric but we keep
-        //     the aggregate pool integer-only for simplicity. count() is always exact.
-        //   * a Float group KEY groups NaN / +0.0 / -0.0 non-deterministically across the two paths,
-        //     so float types are excluded from the group-key set as well.
-        List<ClickHouseColumn> scalarKeys = table.getColumns().stream().filter(c -> isScalarGroupKey(c.getType()
-                .getType())).collect(Collectors.toList());
-        List<ClickHouseColumn> intCols = table.getColumns().stream()
-                .filter(c -> isExactInteger(c.getType().getType())).collect(Collectors.toList());
+        // * sum over a Float column is order-sensitive: the projection-maintained partial sums and
+        // the full-rescan sum round differently (the #99109 sum(Float64) GROUP BY family), which
+        // is legitimate non-determinism, not a projection bug. Restrict sum to integer columns;
+        // avg is dropped entirely (float division). min/max are exact on any numeric but we keep
+        // the aggregate pool integer-only for simplicity. count() is always exact.
+        // * a Float group KEY groups NaN / +0.0 / -0.0 non-deterministically across the two paths,
+        // so float types are excluded from the group-key set as well.
+        List<ClickHouseColumn> scalarKeys = table.getColumns().stream()
+                .filter(c -> isScalarGroupKey(c.getType().getType())).collect(Collectors.toList());
+        List<ClickHouseColumn> intCols = table.getColumns().stream().filter(c -> isExactInteger(c.getType().getType()))
+                .collect(Collectors.toList());
 
         String projection;
         String groupBy = "";

@@ -1,8 +1,8 @@
 package sqlancer.clickhouse.ast;
 
 /**
- * ALTER TABLE ... MODIFY STATISTICS col TYPE ... / MATERIALIZE STATISTICS col [IN PARTITION p].
- * Workstream 11 of the plan.
+ * ALTER TABLE ... MODIFY STATISTICS col TYPE ... / MATERIALIZE STATISTICS col [IN PARTITION p]. Workstream 11 of the
+ * plan.
  */
 public class ClickHouseAlterStatistics extends ClickHouseDdlStatement {
 

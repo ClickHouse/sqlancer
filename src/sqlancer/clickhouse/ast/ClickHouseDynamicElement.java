@@ -3,8 +3,7 @@ package sqlancer.clickhouse.ast;
 import sqlancer.clickhouse.ClickHouseToStringVisitor;
 
 /**
- * Dynamic element access. Renders as {@code dyn.Int32} or {@code dynamicElement(dyn, 'Int32')}.
- * Workstream 6.
+ * Dynamic element access. Renders as {@code dyn.Int32} or {@code dynamicElement(dyn, 'Int32')}. Workstream 6.
  */
 public class ClickHouseDynamicElement extends ClickHouseExpression {
 

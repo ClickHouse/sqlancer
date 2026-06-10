@@ -82,8 +82,10 @@ class ClickHouseTypeTest {
         assertTrue(LowCardinality.canWrap(new Nullable(new Primitive(Kind.Int32))));
         assertTrue(LowCardinality.canWrap(new Nullable(new Primitive(Kind.String))));
 
-        assertFalse(LowCardinality.canWrap(new Primitive(Kind.Float32)));
-        assertFalse(LowCardinality.canWrap(new Primitive(Kind.Float64)));
+        // ClickHouse allows LowCardinality(Float32)/(Float64) (with
+        // allow_suspicious_low_cardinality_types), so canWrap accepts them.
+        assertTrue(LowCardinality.canWrap(new Primitive(Kind.Float32)));
+        assertTrue(LowCardinality.canWrap(new Primitive(Kind.Float64)));
         assertFalse(LowCardinality.canWrap(new Primitive(Kind.Bool)));
         assertFalse(LowCardinality.canWrap(new Primitive(Kind.UUID)));
         assertFalse(LowCardinality.canWrap(new Primitive(Kind.IPv4)));

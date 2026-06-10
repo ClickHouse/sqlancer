@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseLancerDataType;
+import sqlancer.clickhouse.ClickHouseType.Array;
 import sqlancer.clickhouse.ClickHouseType.Kind;
 import sqlancer.clickhouse.ClickHouseType.LowCardinality;
 import sqlancer.clickhouse.ClickHouseType.Nullable;
@@ -21,13 +22,16 @@ import sqlancer.clickhouse.ClickHouseType.Primitive;
 class ClickHouseTypeGenerationTest {
 
     @Test
-    void getRandomWithoutStateAlwaysReturnsPrimitive() {
+    void getRandomWithoutStateReturnsScalar() {
         // The no-state form is used by AST scaffolding and test fixtures; it must not emit wrapper
-        // types regardless of any package-level state.
+        // types regardless of any package-level state. The scalar may be a Primitive or an Enum
+        // (both legitimate scalars); the contract is "no WRAPPER type" -- not Nullable, not
+        // LowCardinality, not Array.
         for (int i = 0; i < 256; i++) {
             ClickHouseLancerDataType t = ClickHouseLancerDataType.getRandom();
-            assertTrue(t.getTypeTerm() instanceof Primitive,
-                    () -> "expected Primitive but got " + t.getTypeTerm().getClass().getSimpleName());
+            ClickHouseType term = t.getTypeTerm();
+            assertFalse(term instanceof Nullable || term instanceof LowCardinality || term instanceof Array,
+                    () -> "expected a scalar (non-wrapper) type but got " + term.getClass().getSimpleName());
         }
     }
 
@@ -39,8 +43,9 @@ class ClickHouseTypeGenerationTest {
     }
 
     @Test
-    void lowCardinalityCanWrapRejectsFloat() {
-        assertFalse(LowCardinality.canWrap(new Primitive(Kind.Float64)));
+    void lowCardinalityCanWrapAllowsFloat() {
+        // ClickHouse allows LowCardinality(Float64), so canWrap now accepts it.
+        assertTrue(LowCardinality.canWrap(new Primitive(Kind.Float64)));
         assertTrue(LowCardinality.canWrap(new Primitive(Kind.String)));
         assertTrue(LowCardinality.canWrap(new Nullable(new Primitive(Kind.Int32))));
     }

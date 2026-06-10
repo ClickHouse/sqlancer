@@ -74,8 +74,8 @@ public class TestComparatorHelper {
     @Test
     public void testIsEqualDoubleHandlesUlpDifferences() {
         // Two slightly different representations of the same logical double.
-        org.junit.jupiter.api.Assertions.assertTrue(
-                ComparatorHelper.isEqualDouble("0.123456789012345678", "0.12345678901234568"));
+        org.junit.jupiter.api.Assertions
+                .assertTrue(ComparatorHelper.isEqualDouble("0.123456789012345678", "0.12345678901234568"));
         org.junit.jupiter.api.Assertions.assertTrue(ComparatorHelper.isEqualDouble("100.0", "100.0"));
         org.junit.jupiter.api.Assertions.assertTrue(ComparatorHelper.isEqualDouble("100.0001", "100.0002"));
     }
@@ -106,8 +106,7 @@ public class TestComparatorHelper {
     public void testCanonicalizeResultValuePreservesOtherValues() {
         org.junit.jupiter.api.Assertions.assertEquals("42", ComparatorHelper.canonicalizeResultValue("42"));
         org.junit.jupiter.api.Assertions.assertEquals("NaN", ComparatorHelper.canonicalizeResultValue("NaN"));
-        org.junit.jupiter.api.Assertions.assertEquals("Infinity",
-                ComparatorHelper.canonicalizeResultValue("Infinity"));
+        org.junit.jupiter.api.Assertions.assertEquals("Infinity", ComparatorHelper.canonicalizeResultValue("Infinity"));
         org.junit.jupiter.api.Assertions.assertNull(ComparatorHelper.canonicalizeResultValue(null));
     }
 
@@ -117,7 +116,8 @@ public class TestComparatorHelper {
         java.util.Set<ComparatorHelper.ComparisonMode> set = new java.util.HashSet<>(java.util.Arrays.asList(modes));
         org.junit.jupiter.api.Assertions.assertTrue(set.contains(ComparatorHelper.ComparisonMode.SET));
         org.junit.jupiter.api.Assertions.assertTrue(set.contains(ComparatorHelper.ComparisonMode.MULTISET));
-        org.junit.jupiter.api.Assertions.assertTrue(set.contains(ComparatorHelper.ComparisonMode.ULP_TOLERANT_MULTISET));
+        org.junit.jupiter.api.Assertions
+                .assertTrue(set.contains(ComparatorHelper.ComparisonMode.ULP_TOLERANT_MULTISET));
     }
 
     @Test

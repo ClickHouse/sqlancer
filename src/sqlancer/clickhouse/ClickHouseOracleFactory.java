@@ -5,38 +5,39 @@ import java.sql.SQLException;
 import sqlancer.OracleFactory;
 import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
 import sqlancer.clickhouse.gen.ClickHouseExpressionGenerator;
+import sqlancer.clickhouse.oracle.aggstate.ClickHouseAggregateStateRoundtripOracle;
+import sqlancer.clickhouse.oracle.cast.ClickHouseCastOracle;
 import sqlancer.clickhouse.oracle.cert.ClickHouseCERTOracle;
 import sqlancer.clickhouse.oracle.coddtest.ClickHouseCODDTestOracle;
-import sqlancer.clickhouse.oracle.cast.ClickHouseCastOracle;
-import sqlancer.clickhouse.oracle.eet.ClickHouseEETOracle;
-import sqlancer.clickhouse.oracle.aggstate.ClickHouseAggregateStateRoundtripOracle;
 import sqlancer.clickhouse.oracle.dict.ClickHouseDictGetVsJoinOracle;
 import sqlancer.clickhouse.oracle.dynamicsub.ClickHouseDynamicSubcolumnOracle;
+import sqlancer.clickhouse.oracle.eet.ClickHouseEETOracle;
 import sqlancer.clickhouse.oracle.final_.ClickHouseFinalMergeOracle;
-import sqlancer.clickhouse.oracle.window.ClickHouseWindowEquivalenceOracle;
 import sqlancer.clickhouse.oracle.join.ClickHouseJoinAlgorithmOracle;
 import sqlancer.clickhouse.oracle.keycond.ClickHouseKeyConditionOracle;
 import sqlancer.clickhouse.oracle.materialize.ClickHouseSubqueryMaterializeOracle;
 import sqlancer.clickhouse.oracle.parallelism.ClickHouseParallelismOracle;
+import sqlancer.clickhouse.oracle.patch.ClickHousePatchPartConsistencyOracle;
 import sqlancer.clickhouse.oracle.partition.ClickHousePartitionMirrorOracle;
-import sqlancer.clickhouse.oracle.projection.ClickHouseProjectionToggleOracle;
-import sqlancer.clickhouse.oracle.schema.ClickHouseSchemaRoundtripOracle;
 import sqlancer.clickhouse.oracle.pqs.ClickHousePivotedQuerySynthesisOracle;
+import sqlancer.clickhouse.oracle.projection.ClickHouseProjectionToggleOracle;
 import sqlancer.clickhouse.oracle.qcc.ClickHouseQueryConditionCacheOracle;
 // TEMPORARILY DISABLED with the RowPolicy enum constant below (2026-05-31):
 // import sqlancer.clickhouse.oracle.rowpolicy.ClickHouseRowPolicyOracle;
+import sqlancer.clickhouse.oracle.schema.ClickHouseSchemaRoundtripOracle;
 import sqlancer.clickhouse.oracle.semr.ClickHouseSEMRMultiOracle;
 import sqlancer.clickhouse.oracle.semr.ClickHouseSEMROracle;
 import sqlancer.clickhouse.oracle.setop_limit.ClickHouseSortedUnionLimitByOracle;
 import sqlancer.clickhouse.oracle.tablefn.ClickHouseTableFunctionINOracle;
-import sqlancer.clickhouse.oracle.view.ClickHouseMaterializedViewConsistencyOracle;
-import sqlancer.clickhouse.oracle.view.ClickHouseViewEquivalenceOracle;
 import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPAggregateOracle;
 import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPCombinatorOracle;
 import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPDistinctOracle;
 import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPGroupByOracle;
 import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPHavingOracle;
 import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPSetOpOracle;
+import sqlancer.clickhouse.oracle.view.ClickHouseMaterializedViewConsistencyOracle;
+import sqlancer.clickhouse.oracle.view.ClickHouseViewEquivalenceOracle;
+import sqlancer.clickhouse.oracle.window.ClickHouseWindowEquivalenceOracle;
 import sqlancer.common.oracle.NoRECOracle;
 import sqlancer.common.oracle.TLPWhereOracle;
 import sqlancer.common.oracle.TestOracle;
@@ -257,7 +258,7 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
     },
     AggregateStateRoundtrip {
         // Asserts the AggregateFunction round-trip identity:
-        //   finalizeAggregation(arrayReduce('sumState', groupArray(c))) == sum(c)
+        // finalizeAggregation(arrayReduce('sumState', groupArray(c))) == sum(c)
         // Workstream 5 of the coverage expansion plan. Most iterations short-circuit until
         // AggregateFunction columns are emitted by the type picker.
         @Override
@@ -283,6 +284,19 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseProjectionToggleOracle(globalState);
+        }
+    },
+    PatchPartConsistency {
+        // Self-contained lightweight-UPDATE patch-part oracle. Creates a patch-eligible table
+        // (enable_block_number_column / enable_block_offset_column), fires lightweight UPDATEs to
+        // leave live patch parts, then asserts (1) a read-in-order + LIMIT read over the wide
+        // non-key column returns the same result with query_plan_optimize_lazy_materialization on
+        // vs off -- a regression surfaces as the untolerated NOT_FOUND_COLUMN_IN_BLOCK /
+        // _part_offset crash -- and (2) on-the-fly patch apply == result after OPTIMIZE FINAL.
+        // Targets CH support #7912 -> upstream #98227 / #99023 / #102904 / #103910.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHousePatchPartConsistencyOracle(globalState);
         }
     },
     DictGetVsJoin {

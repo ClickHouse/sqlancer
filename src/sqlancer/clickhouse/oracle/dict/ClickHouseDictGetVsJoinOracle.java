@@ -18,16 +18,18 @@ import sqlancer.common.query.ExpectedErrors;
 
 /**
  * Dictionary differential oracle. Asserts:
+ *
  * <pre>
  *   SELECT dictGet('d', 'col', t.k) FROM t  ==  SELECT src.col FROM t LEFT JOIN src ON t.k = src.k
  * </pre>
- * for a transient CLICKHOUSE-sourced dictionary {@code d} mapping {@code src.k -> src.col}.
- * Creates the dictionary in setup, runs both queries, drops the dictionary in teardown.
  *
- * <p>Workstream 14 of the 2026-05-27 coverage expansion plan. Picks a source table with an
- * integer-typed column to serve as the key; the dictionary's value column is any other column.
- * LIFETIME is pinned to 0 (static) to make replays deterministic; SEMR-style randomization of
- * LIFETIME is left for a follow-up sweep.
+ * for a transient CLICKHOUSE-sourced dictionary {@code d} mapping {@code src.k -> src.col}. Creates the dictionary in
+ * setup, runs both queries, drops the dictionary in teardown.
+ *
+ * <p>
+ * Workstream 14 of the 2026-05-27 coverage expansion plan. Picks a source table with an integer-typed column to serve
+ * as the key; the dictionary's value column is any other column. LIFETIME is pinned to 0 (static) to make replays
+ * deterministic; SEMR-style randomization of LIFETIME is left for a follow-up sweep.
  */
 public class ClickHouseDictGetVsJoinOracle implements TestOracle<ClickHouseGlobalState> {
 
@@ -43,8 +45,8 @@ public class ClickHouseDictGetVsJoinOracle implements TestOracle<ClickHouseGloba
 
     @Override
     public void check() throws SQLException {
-        List<ClickHouseTable> tables = state.getSchema().getDatabaseTables().stream()
-                .filter(t -> !t.isView()).collect(Collectors.toList());
+        List<ClickHouseTable> tables = state.getSchema().getDatabaseTables().stream().filter(t -> !t.isView())
+                .collect(Collectors.toList());
         if (tables.isEmpty()) {
             throw new IgnoreMeException();
         }
@@ -92,8 +94,8 @@ public class ClickHouseDictGetVsJoinOracle implements TestOracle<ClickHouseGloba
         try (Statement s = state.getConnection().createStatement()) {
             s.execute(createDict);
         } catch (SQLException e) {
-            if (errors.errorIsExpected(e.getMessage()) || (e.getMessage() != null
-                    && e.getMessage().contains("DICTIONARY"))) {
+            if (errors.errorIsExpected(e.getMessage())
+                    || (e.getMessage() != null && e.getMessage().contains("DICTIONARY"))) {
                 throw new IgnoreMeException();
             }
             throw e;
@@ -106,9 +108,8 @@ public class ClickHouseDictGetVsJoinOracle implements TestOracle<ClickHouseGloba
             // different row, producing spurious mismatches. Pre-check uniqueness and skip the
             // iteration when duplicates exist.
             boolean uniqueKey;
-            try (Statement s = state.getConnection().createStatement();
-                    java.sql.ResultSet rs = s.executeQuery("SELECT count() = count(DISTINCT " + keyCol.getName()
-                            + ") FROM " + fqSrc)) {
+            try (Statement s = state.getConnection().createStatement(); java.sql.ResultSet rs = s
+                    .executeQuery("SELECT count() = count(DISTINCT " + keyCol.getName() + ") FROM " + fqSrc)) {
                 uniqueKey = rs.next() && rs.getBoolean(1);
             } catch (SQLException e) {
                 throw new IgnoreMeException();
@@ -120,11 +121,9 @@ public class ClickHouseDictGetVsJoinOracle implements TestOracle<ClickHouseGloba
             // Sound shape: count the rows for which the dictGet result equals the source's
             // value, vs total source rows. If the dictionary correctly mirrors the source,
             // those counts should match.
-            String lhs = String.format(
-                    "SELECT dictGet('%s', '%s', toUInt64(%s)) FROM %s ORDER BY %s",
-                    fqDict, valCol.getName(), keyCol.getName(), fqSrc, keyCol.getName());
-            String rhs = String.format(
-                    "SELECT src.%s FROM %s t ANY LEFT JOIN %s src ON t.%s = src.%s ORDER BY src.%s",
+            String lhs = String.format("SELECT dictGet('%s', '%s', toUInt64(%s)) FROM %s ORDER BY %s", fqDict,
+                    valCol.getName(), keyCol.getName(), fqSrc, keyCol.getName());
+            String rhs = String.format("SELECT src.%s FROM %s t ANY LEFT JOIN %s src ON t.%s = src.%s ORDER BY src.%s",
                     valCol.getName(), fqSrc, fqSrc, keyCol.getName(), keyCol.getName(), keyCol.getName());
             List<String> lhsResult = ComparatorHelper.getResultSetFirstColumnAsString(lhs, errors, state);
             List<String> rhsResult = ComparatorHelper.getResultSetFirstColumnAsString(rhs, errors, state);

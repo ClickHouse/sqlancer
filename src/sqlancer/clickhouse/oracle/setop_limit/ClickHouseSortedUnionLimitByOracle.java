@@ -132,15 +132,38 @@ public class ClickHouseSortedUnionLimitByOracle extends ClickHouseTLPBase {
         // Prefer a column from the SELECT's fetchColumns if any of them are bare column references;
         // otherwise fall back to the table's columns. Either way the projection must be a single
         // simple identifier so the outer LIMIT BY / DISTINCT analyses it correctly.
+        //
+        // Float columns are excluded: the oracle's invariant is that an inner ORDER BY cannot change
+        // the outer DISTINCT / LIMIT BY value set. That is false for floating-point columns on CH
+        // 26.6 -- a single-pass DISTINCT coalesces NaN bit-patterns (and ±0.0) differently than the
+        // plan the inner ORDER BY induces, so the distinct set legitimately differs between the
+        // sorted and plain forms. This is implementation-defined float behaviour, not a UNION/LIMIT
+        // BY regression (the bug class this oracle targets), and produced a false positive on a
+        // Float64 grouping column (database1 in the 2026-06-05 run).
         for (ClickHouseExpression expr : select.getFetchColumns()) {
-            if (expr instanceof ClickHouseColumnReference) {
+            if (expr instanceof ClickHouseColumnReference && !isFloat((ClickHouseColumnReference) expr)) {
                 return (ClickHouseColumnReference) expr;
             }
         }
         if (columns == null || columns.isEmpty()) {
             return null;
         }
-        return columns.get((int) Randomly.getNotCachedInteger(0, columns.size()));
+        List<ClickHouseColumnReference> nonFloat = new java.util.ArrayList<>();
+        for (ClickHouseColumnReference c : columns) {
+            if (!isFloat(c)) {
+                nonFloat.add(c);
+            }
+        }
+        if (nonFloat.isEmpty()) {
+            return null;
+        }
+        return nonFloat.get((int) Randomly.getNotCachedInteger(0, nonFloat.size()));
+    }
+
+    private static boolean isFloat(ClickHouseColumnReference ref) {
+        com.clickhouse.data.ClickHouseDataType t = ref.getColumn().getType().getType();
+        return t == com.clickhouse.data.ClickHouseDataType.Float32
+                || t == com.clickhouse.data.ClickHouseDataType.Float64;
     }
 
     private String renderArm(ClickHouseColumnReference groupingCol, ClickHouseExpression where, boolean sorted) {

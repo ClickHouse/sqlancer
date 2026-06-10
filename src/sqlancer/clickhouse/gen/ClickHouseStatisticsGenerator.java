@@ -11,8 +11,8 @@ import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
 import sqlancer.clickhouse.ast.ClickHouseAlterStatistics;
 
 /**
- * Statistics ALTER generator. Emits ALTER TABLE ... MODIFY STATISTICS / MATERIALIZE STATISTICS /
- * DROP STATISTICS. Workstream 11 of the 2026-05-27 coverage expansion plan.
+ * Statistics ALTER generator. Emits ALTER TABLE ... MODIFY STATISTICS / MATERIALIZE STATISTICS / DROP STATISTICS.
+ * Workstream 11 of the 2026-05-27 coverage expansion plan.
  */
 public final class ClickHouseStatisticsGenerator {
 

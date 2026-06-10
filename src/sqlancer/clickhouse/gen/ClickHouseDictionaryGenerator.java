@@ -18,17 +18,18 @@ import sqlancer.clickhouse.ast.ClickHouseDictionaryDdlStatement;
 /**
  * CREATE/DROP/ALTER DICTIONARY generator. Workstream 14 of the plan.
  *
- * <p>Emits one of:
+ * <p>
+ * Emits one of:
  * <ul>
- *   <li>CREATE DICTIONARY d (k UInt64, v String) PRIMARY KEY k SOURCE(CLICKHOUSE(...))
- *       LIFETIME(0) LAYOUT(HASHED())
- *   <li>DROP DICTIONARY d
- *   <li>ALTER DICTIONARY d LIFETIME(0)
+ * <li>CREATE DICTIONARY d (k UInt64, v String) PRIMARY KEY k SOURCE(CLICKHOUSE(...)) LIFETIME(0) LAYOUT(HASHED())
+ * <li>DROP DICTIONARY d
+ * <li>ALTER DICTIONARY d LIFETIME(0)
  * </ul>
  *
- * <p>LIFETIME is pinned to 0 (static) per the plan's recommendation -- variable LIFETIME causes
- * test-iteration timing flakes that mask real bugs. LAYOUT is picked from
- * {HASHED, FLAT, COMPLEX_KEY_HASHED, RANGE_HASHED} at uniform probability.
+ * <p>
+ * LIFETIME is pinned to 0 (static) per the plan's recommendation -- variable LIFETIME causes test-iteration timing
+ * flakes that mask real bugs. LAYOUT is picked from {HASHED, FLAT, COMPLEX_KEY_HASHED, RANGE_HASHED} at uniform
+ * probability.
  */
 public final class ClickHouseDictionaryGenerator {
 
@@ -53,8 +54,8 @@ public final class ClickHouseDictionaryGenerator {
             throw new IgnoreMeException();
         }
         ClickHouseColumn keyCol = Randomly.fromList(intCols);
-        ClickHouseColumn valCol = Randomly.fromList(srcTable.getColumns().stream().filter(c -> c != keyCol)
-                .collect(Collectors.toList()));
+        ClickHouseColumn valCol = Randomly
+                .fromList(srcTable.getColumns().stream().filter(c -> c != keyCol).collect(Collectors.toList()));
 
         String dictName = "d" + DICT_COUNTER.incrementAndGet();
         String fqDict = state.getDatabaseName() + "." + dictName;
@@ -65,24 +66,33 @@ public final class ClickHouseDictionaryGenerator {
                         + "SOURCE(CLICKHOUSE(TABLE '%s' DB '%s')) LIFETIME(0) LAYOUT(%s)",
                 fqDict, keyCol.getName(), valCol.getName(), keyCol.getName(), srcTable.getName(),
                 state.getDatabaseName(), layout);
-        return new ClickHouseDictionaryDdlStatement(ClickHouseDictionaryDdlStatement.Kind.CREATE_DICTIONARY,
-                dictName, sql);
+        return new ClickHouseDictionaryDdlStatement(ClickHouseDictionaryDdlStatement.Kind.CREATE_DICTIONARY, dictName,
+                sql);
     }
 
     public static ClickHouseDictionaryDdlStatement dropDictionary(String dictName, ClickHouseGlobalState state) {
         String sql = "DROP DICTIONARY IF EXISTS " + state.getDatabaseName() + "." + dictName;
-        return new ClickHouseDictionaryDdlStatement(ClickHouseDictionaryDdlStatement.Kind.DROP_DICTIONARY,
-                dictName, sql);
+        return new ClickHouseDictionaryDdlStatement(ClickHouseDictionaryDdlStatement.Kind.DROP_DICTIONARY, dictName,
+                sql);
     }
 
     public static ClickHouseDictionaryDdlStatement alterDictionaryLifetime(String dictName,
             ClickHouseGlobalState state) {
         String sql = "ALTER DICTIONARY " + state.getDatabaseName() + "." + dictName + " LIFETIME(0)";
-        return new ClickHouseDictionaryDdlStatement(ClickHouseDictionaryDdlStatement.Kind.ALTER_DICTIONARY,
-                dictName, sql);
+        return new ClickHouseDictionaryDdlStatement(ClickHouseDictionaryDdlStatement.Kind.ALTER_DICTIONARY, dictName,
+                sql);
     }
 
-    /** Execute a CREATE/DROP/ALTER DICTIONARY statement against the active connection. */
+    /**
+     * Execute a CREATE/DROP/ALTER DICTIONARY statement against the active connection.
+     *
+     * @param state
+     *            the global state providing the database connection
+     * @param stmt
+     *            the dictionary DDL statement to execute
+     *
+     * @return {@code true} on success, {@code false} on a tolerated error
+     */
     public static boolean execute(ClickHouseGlobalState state, ClickHouseDictionaryDdlStatement stmt) {
         try (Statement s = state.getConnection().createStatement()) {
             s.execute(stmt.getSql());

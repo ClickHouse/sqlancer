@@ -22,10 +22,10 @@ import sqlancer.common.query.ExpectedErrors;
  *                                   cross-type rejections (workstreams 2/3/4/5/6/7)
  * </pre>
  *
- * <p>Workstream-1 risk note: globally tolerating a substring can mask a real bug for an
- * unrelated oracle. Per-oracle scoped allowlists are tracked separately in the triage-automation
- * plan; until that lands, additions to this catalogue should err on the side of multi-word
- * patterns so they don't absorb unrelated messages.
+ * <p>
+ * Workstream-1 risk note: globally tolerating a substring can mask a real bug for an unrelated oracle. Per-oracle
+ * scoped allowlists are tracked separately in the triage-automation plan; until that lands, additions to this catalogue
+ * should err on the side of multi-word patterns so they don't absorb unrelated messages.
  */
 public final class ClickHouseErrors {
 
@@ -61,6 +61,16 @@ public final class ClickHouseErrors {
                 "is not under aggregate function and not in GROUP BY", "is not under aggregate function",
                 "is violated at row 1. Expression:", // TODO: check constraint on table creation
                 "is violated, because it is a constant expression returning 0. It is most likely an error in table definition",
+                // CAVEAT: these tolerate generator-induced column misses (JOIN/alias gaps where the
+                // analyzer can't resolve a referenced column -- a SQLancer-side gap, not a CH bug).
+                // They ALSO match the lightweight-update patch-part read crash (CH support #7912 ->
+                // upstream #98227: "Not found column _block_number in block ... There are only
+                // columns: ... (NOT_FOUND_COLUMN_IN_BLOCK)") and the sibling _part_offset
+                // LOGICAL_ERROR. That crash is a REAL bug, so it must NOT be swallowed here -- which
+                // is why ClickHousePatchPartConsistencyOracle deliberately omits this whole list
+                // (getExpectedExpressionErrors) and tolerates only session/mutation/UNKNOWN_TABLE,
+                // letting a regression surface there. Do not add these patterns to that oracle, and
+                // do not widen this list to a bare "_block_number"/"_part_offset" substring.
                 "there are only columns", "there are columns", "(NOT_FOUND_COLUMN_IN_BLOCK)", "Missing columns",
                 "Ambiguous column", "Must be one unsigned integer type. (ILLEGAL_TYPE_OF_COLUMN_FOR_FILTER)",
                 "Floating point partition key is not supported", "Cannot get JOIN keys from JOIN ON section",
@@ -91,7 +101,7 @@ public final class ClickHouseErrors {
                 // these on responses ≥ ~100 KB under concurrent thread load. Compression is
                 // already disabled via compress=false on the URL; the underlying chunked-transfer
                 // corruption remains. Absorb so a transport-layer flake doesn't poison the
-                // oracle.  Observed 12 + 2 times in the 2026-05-19 48-min run, in stack chains
+                // oracle. Observed 12 + 2 times in the 2026-05-19 48-min run, in stack chains
                 // wrapped at the JDBC layer as `SQLException: Failed to read value for column X`
                 // → `ClientException: Failed to read value for column X` → either of these:
                 "MalformedChunkCodingException", "CRLF expected at end of chunk", "TruncatedChunkException",
@@ -104,8 +114,7 @@ public final class ClickHouseErrors {
                 // socket occasionally trips its read timeout before the response completes. The
                 // server-side cap is max_execution_time=30 (set on the URL), so this should be
                 // rare, but it can still happen if the response body itself is slow to drain.
-                "SocketTimeoutException", "Read timed out", "Query request failed (attempt:",
-                "DataTransferException",
+                "SocketTimeoutException", "Read timed out", "Query request failed (attempt:", "DataTransferException",
                 // PQS pivot rows containing legitimate UInt64 values above Long.MAX_VALUE. The
                 // sqlancer-side ClickHouseSchema.getConstant currently widens via ResultSet.getLong
                 // and overflows. Mark as expected until that path is widened to BigInteger.
@@ -165,8 +174,8 @@ public final class ClickHouseErrors {
                 // (CANNOT_PARSE_IPV4/IPV6, code 675/676). Same sqlancer-side typing gap as the
                 // Int/Date/Bool cases above; the whole subexpression is invalid by CH's rules, not a
                 // bug to file.
-                "Cannot parse IPv4", "Cannot parse IPv6", "CANNOT_PARSE_IPV4", "CANNOT_PARSE_IPV6",
-                "Cannot parse uuid", "Cannot parse UUID", "CANNOT_PARSE_UUID",
+                "Cannot parse IPv4", "Cannot parse IPv6", "CANNOT_PARSE_IPV4", "CANNOT_PARSE_IPV6", "Cannot parse uuid",
+                "Cannot parse UUID", "CANNOT_PARSE_UUID",
                 // Generator may compose `'' < (true)` or similar `String <op> Bool` comparisons.
                 // ClickHouse rejects with `CANNOT_PARSE_BOOL: Expected boolean value but get EOF`
                 // (code 467). The whole comparison subexpression is invalid SQL by CH's typing
@@ -208,8 +217,7 @@ public final class ClickHouseErrors {
                 // notEquals(avgOrNull(...), 'literal'). 'i'/'N' are the first chars of 'inf'/'nan'
                 // and CH's float parser dies mid-token with CANNOT_PARSE_INPUT_ASSERTION_FAILED.
                 // Generator-side gap, not a CH bug. Observed 3 of 43 times in the same run.
-                "Cannot parse infinity", "Cannot parse NaN",
-                "CANNOT_PARSE_INPUT_ASSERTION_FAILED",
+                "Cannot parse infinity", "Cannot parse NaN", "CANNOT_PARSE_INPUT_ASSERTION_FAILED",
                 // MATERIALIZED expression type-mismatch with declared column type. The expression
                 // generator emits expressions over other columns without checking the target
                 // column's type, so e.g. `c1 FixedString(1) MATERIALIZED (c2)` where c2 is UInt32
@@ -220,8 +228,7 @@ public final class ClickHouseErrors {
                 // result type. The picker now emits only valid (func, T) pairs, but keep this narrow
                 // substring as a defense so a future func/type addition that violates the rule is
                 // absorbed at CREATE time rather than tearing down a worker.
-                "Incompatible data types between aggregate function",
-                "NOT_IMPLEMENTED");
+                "Incompatible data types between aggregate function", "NOT_IMPLEMENTED");
     }
 
     public static void addExpectedExpressionErrors(ExpectedErrors errors) {
@@ -321,9 +328,9 @@ public final class ClickHouseErrors {
     public static List<String> getAlterErrors() {
         return List.of("BAD_ARGUMENTS", "Cannot drop column", "Cannot rename column", "Cannot remove column",
                 "Column with name", "is part of primary key", "Cannot alter column", "ALTER of key column",
-                "Algorithm not implemented", "CANNOT_DROP_INDEX", "ALTER_OF_COLUMN_IS_FORBIDDEN",
-                "DUPLICATE_COLUMN", "NO_SUCH_COLUMN_IN_TABLE", "UNFINISHED",
-                "Cannot convert column", "is currently locked for", "EMPTY_LIST_OF_COLUMNS_QUERIED",
+                "Algorithm not implemented", "CANNOT_DROP_INDEX", "ALTER_OF_COLUMN_IS_FORBIDDEN", "DUPLICATE_COLUMN",
+                "NO_SUCH_COLUMN_IN_TABLE", "UNFINISHED", "Cannot convert column", "is currently locked for",
+                "EMPTY_LIST_OF_COLUMNS_QUERIED",
                 // Unit 2.2: ADD/MATERIALIZE PROJECTION rejections -- duplicate name, unsupported
                 // engine (views / non-MergeTree), or a projection definition the analyzer refuses.
                 "Projection with name", "NO_SUCH_PROJECTION_IN_TABLE", "ILLEGAL_PROJECTION",
@@ -341,16 +348,25 @@ public final class ClickHouseErrors {
     // ATTEMPT_TO_READ_AFTER_EOF.
     // Workstream 9 of the coverage expansion plan.
     public static List<String> getMutationErrors() {
-        return List.of("TIMEOUT_EXCEEDED", "Cannot UPDATE key column", "Cannot DELETE",
-                "Mutation cannot be executed", "Mutations are not supported by", "UNFINISHED_MUTATION",
-                "Cannot read from", "Lightweight DELETE", "_row_exists", "Background mutation",
-                "ATTEMPT_TO_READ_AFTER_EOF", "Cannot find column",
+        return List.of("TIMEOUT_EXCEEDED", "Cannot UPDATE key column", "Cannot DELETE", "Mutation cannot be executed",
+                "Mutations are not supported by", "UNFINISHED_MUTATION", "Cannot read from", "Lightweight DELETE",
+                "_row_exists", "Background mutation", "ATTEMPT_TO_READ_AFTER_EOF", "Cannot find column",
                 // A lightweight DELETE on a table that carries projections is rejected (Code 344)
                 // under the default lightweight_mutation_projection_mode=throw. Now that create-time
                 // projections succeed (column-list ORDER BY fix) and ALTER ADD PROJECTION runs,
                 // projection-bearing tables are common, so this CH restriction surfaces -- it is a
                 // documented restriction, not a bug.
-                "DELETE query is not allowed", "lightweight_mutation_projection_mode");
+                "DELETE query is not allowed", "lightweight_mutation_projection_mode",
+                // Lightweight UPDATE (UPDATE ... SET, the patch-part producer) restrictions that are
+                // documented engine/version limits, not bugs: the feature is gated/unsupported on
+                // some engines or builds, or the experimental flag is required instead of
+                // enable_lightweight_update. These are tolerated for the MUTATION generator action
+                // (lightweight UPDATE on a non-patch-eligible table). NB: none of these substrings
+                // match the NOT_FOUND_COLUMN_IN_BLOCK / _part_offset read crash -- that stays
+                // untolerated (see ClickHousePatchPartConsistencyOracle and the caveat in
+                // getExpectedExpressionErrors).
+                "Lightweight update", "lightweight update", "allow_experimental_lightweight_update", "SUPPORT_IS_DISABLED",
+                "is not supported for lightweight", "Lightweight updates are not supported");
     }
 
     public static void addMutationErrors(ExpectedErrors errors) {
@@ -358,15 +374,21 @@ public final class ClickHouseErrors {
     }
 
     /**
-     * Walk an exception cause chain and return true if any frame's message matches a baseline-
-     * tolerated CH error. Use this from oracle code paths that invoke {@link
-     * java.sql.Statement#executeQuery} or {@code execute} directly (bypassing SQLQueryAdapter),
-     * to absorb the same family of expected errors that SQLQueryAdapter.checkException would.
+     * Walk an exception cause chain and return true if any frame's message matches a baseline- tolerated CH error. Use
+     * this from oracle code paths that invoke {@link java.sql.Statement#executeQuery} or {@code execute} directly
+     * (bypassing SQLQueryAdapter), to absorb the same family of expected errors that SQLQueryAdapter.checkException
+     * would.
      *
-     * <p>Without this helper, direct-Statement errors propagate as raw SQLException up through
-     * the oracle's throws clause, becoming reproducer files for runs where CH trips its memory
-     * limit, drops a table mid-run, or otherwise produces a benign error during oracle setup.
-     * The 2026-05-28 6h run surfaced 344 MEMORY_LIMIT_EXCEEDED reproducers from this exact path.
+     * <p>
+     * Without this helper, direct-Statement errors propagate as raw SQLException up through the oracle's throws clause,
+     * becoming reproducer files for runs where CH trips its memory limit, drops a table mid-run, or otherwise produces
+     * a benign error during oracle setup. The 2026-05-28 6h run surfaced 344 MEMORY_LIMIT_EXCEEDED reproducers from
+     * this exact path.
+     *
+     * @param e
+     *            the throwable to inspect (its cause chain is walked)
+     *
+     * @return {@code true} if the throwable matches an expected/tolerated ClickHouse error, {@code false} otherwise
      */
     public static boolean isToleratedException(Throwable e) {
         ExpectedErrors errors = ExpectedErrors.newErrors().with(getExpectedExpressionErrors())
@@ -388,17 +410,11 @@ public final class ClickHouseErrors {
     public static List<String> getTypeExpansionErrors() {
         return List.of(
                 // Composite / geo / nested / JSON / Variant / Dynamic / AggregateFunction
-                "no overload", "is not supported for arguments of types",
-                "Argument at index", "TYPE_MISMATCH",
-                "NO_COMMON_TYPE", "is experimental, please set",
-                "Cannot read array",
-                "Map key cannot be Nullable", "Map keys must be",
-                "Variant types are different in",
-                "Dynamic types must be",
-                "Cannot convert to JSON",
+                "no overload", "is not supported for arguments of types", "Argument at index", "TYPE_MISMATCH",
+                "NO_COMMON_TYPE", "is experimental, please set", "Cannot read array", "Map key cannot be Nullable",
+                "Map keys must be", "Variant types are different in", "Dynamic types must be", "Cannot convert to JSON",
                 // Tuple
-                "Tuple type cannot be passed directly",
-                "Wrong tuple",
+                "Tuple type cannot be passed directly", "Wrong tuple",
                 // Geo functions
                 "Required cleanup", "geometry",
                 // Nested
@@ -418,8 +434,8 @@ public final class ClickHouseErrors {
     // (e.g. `enum_col + 1`, `cast(enum_col AS Int32)`) can fail. Workstream 2 of the plan.
     public static List<String> getEnumErrors() {
         return List.of("Unknown element", "UNKNOWN_ELEMENT_OF_ENUM", "Element of set in IN, VALUES or LIMIT",
-                "Cannot convert NULL to Enum", "Cannot convert string", "is not a valid Enum",
-                "Bad get: has Int", "Type mismatch in IN or VALUES section",
+                "Cannot convert NULL to Enum", "Cannot convert string", "is not a valid Enum", "Bad get: has Int",
+                "Type mismatch in IN or VALUES section",
                 // Cast targets that don't accept Enum8/Enum16 as a source -- accurateCast,
                 // accurateCastOrNull, etc., reject Enum->DateTime / Enum->FixedString. The
                 // Cast oracle emits these blindly over every column type.
@@ -427,9 +443,8 @@ public final class ClickHouseErrors {
                 "Conversion from string with leading or trailing",
                 // MATERIALIZED column auto-cast to Enum from DateTime / Date / numeric source --
                 // rejected with 'Conversion from DateTime to Enum16(...) is not supported'.
-                "Conversion from DateTime to Enum", "Conversion from Date to Enum",
-                "Conversion from Int", "Conversion from UInt", "Conversion from Float",
-                "Conversion from String to Enum",
+                "Conversion from DateTime to Enum", "Conversion from Date to Enum", "Conversion from Int",
+                "Conversion from UInt", "Conversion from Float", "Conversion from String to Enum",
                 // Sister error from the CAST-OR-DEFAULT family when a MATERIALIZED expression
                 // doesn't have a viable cast to the declared column type.
                 "is not supported: In scope _CAST");

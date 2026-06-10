@@ -31,10 +31,10 @@ import sqlancer.clickhouse.ast.ClickHouseAggregate.ClickHouseAggregateFunction;
 import sqlancer.clickhouse.ast.ClickHouseAggregateCombinator;
 import sqlancer.clickhouse.ast.ClickHouseAliasOperation;
 import sqlancer.clickhouse.ast.ClickHouseBinaryArithmeticOperation;
-import sqlancer.clickhouse.ast.ClickHouseCastOperation;
 import sqlancer.clickhouse.ast.ClickHouseBinaryComparisonOperation;
 import sqlancer.clickhouse.ast.ClickHouseBinaryFunctionOperation;
 import sqlancer.clickhouse.ast.ClickHouseBinaryLogicalOperation;
+import sqlancer.clickhouse.ast.ClickHouseCastOperation;
 import sqlancer.clickhouse.ast.ClickHouseColumnReference;
 import sqlancer.clickhouse.ast.ClickHouseExpression;
 import sqlancer.clickhouse.ast.ClickHouseExpression.ClickHouseJoin;
@@ -150,12 +150,17 @@ public class ClickHouseExpressionGenerator
     }
 
     /**
-     * Generate one access expression over a composite-typed column from {@code columns}:
-     * tuple positional access (tup.1), map key access (m['k']), JSON path (j.a or j.a.^Int64),
-     * Variant element (variantElement(v, 'Int32')), Dynamic element (dynamicElement(d, 'Int32')).
-     * Returns null if no composite columns are in scope.
+     * Generate one access expression over a composite-typed column from {@code columns}: tuple positional access
+     * (tup.1), map key access (m['k']), JSON path (j.a or j.a.^Int64), Variant element (variantElement(v, 'Int32')),
+     * Dynamic element (dynamicElement(d, 'Int32')). Returns null if no composite columns are in scope.
      *
-     * <p>Workstreams 2 / 6 of the 2026-05-27 coverage expansion plan.
+     * <p>
+     * Workstreams 2 / 6 of the 2026-05-27 coverage expansion plan.
+     *
+     * @param columns
+     *            the columns in scope to draw from
+     *
+     * @return a composite-access expression, or {@code null} if no composite columns are in scope
      */
     public ClickHouseExpression generateCompositeAccess(List<ClickHouseColumnReference> columns) {
         List<ClickHouseColumnReference> candidates = new java.util.ArrayList<>();
@@ -185,9 +190,7 @@ public class ClickHouseExpressionGenerator
         if (t instanceof sqlancer.clickhouse.ClickHouseType.JSON) {
             // Pick 1-2 path segments; the inserted JSON literal uses keys 'a' and 'b' so emit
             // those names. Optional type cast suffix selected at random.
-            java.util.List<String> path = Randomly.fromOptions(
-                    java.util.List.of("a"),
-                    java.util.List.of("b"));
+            java.util.List<String> path = Randomly.fromOptions(java.util.List.of("a"), java.util.List.of("b"));
             String typeCast = Randomly.getBoolean() ? null : Randomly.fromOptions("Int64", "String");
             return new sqlancer.clickhouse.ast.ClickHouseJsonPath(col, path, typeCast);
         }
@@ -204,8 +207,13 @@ public class ClickHouseExpressionGenerator
     }
 
     /**
-     * Generate a geo function call over a Point or Polygon column. Returns null if no geo column
-     * is in scope. Workstream 4.
+     * Generate a geo function call over a Point or Polygon column. Returns null if no geo column is in scope.
+     * Workstream 4.
+     *
+     * @param columns
+     *            the columns in scope to draw from
+     *
+     * @return a geo function-call expression, or {@code null} if no geo column is in scope
      */
     public ClickHouseExpression generateGeoCall(List<ClickHouseColumnReference> columns) {
         List<ClickHouseColumnReference> candidates = new java.util.ArrayList<>();
@@ -242,13 +250,19 @@ public class ClickHouseExpressionGenerator
     /**
      * Date / DateTime + Interval arithmetic. Workstream 3 of the 2026-05-27 plan.
      *
-     * <p>Returns one of:
+     * <p>
+     * Returns one of:
      * <ul>
-     *   <li>{@code dateCol + INTERVAL N DAY}
-     *   <li>{@code dateCol - INTERVAL N HOUR}
-     *   <li>{@code dateAdd(YEAR, N, dateCol)} / {@code dateSub(...)} -- the function-form alias
+     * <li>{@code dateCol + INTERVAL N DAY}
+     * <li>{@code dateCol - INTERVAL N HOUR}
+     * <li>{@code dateAdd(YEAR, N, dateCol)} / {@code dateSub(...)} -- the function-form alias
      * </ul>
      * or null when no Date / DateTime column is in scope.
+     *
+     * @param columns
+     *            the columns in scope to draw from
+     *
+     * @return a date/interval arithmetic expression, or {@code null} if no Date / DateTime column is in scope
      */
     public ClickHouseExpression generateDateIntervalArith(List<ClickHouseColumnReference> columns) {
         List<ClickHouseColumnReference> dateCols = new java.util.ArrayList<>();
@@ -279,18 +293,22 @@ public class ClickHouseExpressionGenerator
     }
 
     /**
-     * Unit 6.1 -- {@code multiIf} / {@code CASE WHEN} conditional over the in-scope numeric
-     * columns. Returns a 2-condition conditional that selects among three numeric branch values,
-     * rendered either as {@code multiIf(c1, a, c2, b, d)} or the equivalent
-     * {@code CASE WHEN c1 THEN a WHEN c2 THEN b ELSE d END}. Returns null when there is no numeric
-     * column to build the branch values from.
+     * Unit 6.1 -- {@code multiIf} / {@code CASE WHEN} conditional over the in-scope numeric columns. Returns a
+     * 2-condition conditional that selects among three numeric branch values, rendered either as
+     * {@code multiIf(c1, a, c2, b, d)} or the equivalent {@code CASE WHEN c1 THEN a WHEN c2 THEN b ELSE d END}. Returns
+     * null when there is no numeric column to build the branch values from.
      *
-     * <p>multiIf/CASE exercises the optimizer's branch type-unification and short-circuit
-     * (`short_circuit_function_evaluation`) machinery. The conditions are real comparison
-     * predicates and the branch values are arbitrary numeric expressions, so the result is a
-     * deterministic scalar that every multiset oracle can compare directly. Emitted as a
-     * pre-rendered fragment following the generateDateIntervalArith / generateScalarSubquery
-     * precedent (no dedicated AST node, to avoid visitor churn for an additive surface).
+     * <p>
+     * multiIf/CASE exercises the optimizer's branch type-unification and short-circuit
+     * (`short_circuit_function_evaluation`) machinery. The conditions are real comparison predicates and the branch
+     * values are arbitrary numeric expressions, so the result is a deterministic scalar that every multiset oracle can
+     * compare directly. Emitted as a pre-rendered fragment following the generateDateIntervalArith /
+     * generateScalarSubquery precedent (no dedicated AST node, to avoid visitor churn for an additive surface).
+     *
+     * @param columns
+     *            the columns in scope to draw from
+     *
+     * @return a {@code multiIf}/{@code CASE} conditional expression, or {@code null} if no numeric column is in scope
      */
     public ClickHouseExpression generateMultiIf(List<ClickHouseColumnReference> columns) {
         List<ClickHouseColumnReference> numeric = numericColumns(columns);
@@ -317,11 +335,15 @@ public class ClickHouseExpressionGenerator
     }
 
     /**
-     * Unit 6.1 EET identity helper. Renders the SAME {@code (c1, a, c2, b, d)} components two
-     * equivalent ways: {@code multiIf(c1, a, c2, b, d)} and the nested
-     * {@code if(c1, a, if(c2, b, d))}. The pair must produce identical results on every row; any
-     * divergence is a branch-folding / type-unification bug. Returns {@code [multiIfSql,
+     * Unit 6.1 EET identity helper. Renders the SAME {@code (c1, a, c2, b, d)} components two equivalent ways:
+     * {@code multiIf(c1, a, c2, b, d)} and the nested {@code if(c1, a, if(c2, b, d))}. The pair must produce identical
+     * results on every row; any divergence is a branch-folding / type-unification bug. Returns {@code [multiIfSql,
      * nestedIfSql]}, or null when there is no numeric column to build the branch values from.
+     *
+     * @param columns
+     *            the columns in scope to draw from
+     *
+     * @return a two-element array {@code [multiIfSql, nestedIfSql]}, or {@code null} if no numeric column is in scope
      */
     public String[] renderMultiIfAndNestedIf(List<ClickHouseColumnReference> columns) {
         List<ClickHouseColumnReference> numeric = numericColumns(columns);
@@ -355,10 +377,15 @@ public class ClickHouseExpressionGenerator
     }
 
     /**
-     * Unit 6.2 -- a String / regex / search scalar function applied to an in-scope String column.
-     * Returns null when no plain String column is in scope (FixedString excluded: its fixed-width
-     * NUL padding renders unstably through these functions). The result is either a String or a
-     * numeric scalar, both deterministic, so every multiset oracle compares it directly.
+     * Unit 6.2 -- a String / regex / search scalar function applied to an in-scope String column. Returns null when no
+     * plain String column is in scope (FixedString excluded: its fixed-width NUL padding renders unstably through these
+     * functions). The result is either a String or a numeric scalar, both deterministic, so every multiset oracle
+     * compares it directly.
+     *
+     * @param columns
+     *            the columns in scope to draw from
+     *
+     * @return a String/regex/search function-call expression, or {@code null} if no plain String column is in scope
      */
     public ClickHouseExpression generateStringCall(List<ClickHouseColumnReference> columns) {
         List<ClickHouseColumnReference> stringCols = new java.util.ArrayList<>();
@@ -398,22 +425,28 @@ public class ClickHouseExpressionGenerator
 
     /**
      * Unit 6.3 -- a Date/time scalar-transform predicate over an in-scope Date / DateTime column:
-     * {@code <transform>(col) <cmp> <transform>(<date-literal>)}. The same transform is applied to
-     * both sides so the comparison is always well-typed regardless of which transform was chosen.
-     * Returns null when no temporal column is in scope.
+     * {@code <transform>(col) <cmp> <transform>(<date-literal>)}. The same transform is applied to both sides so the
+     * comparison is always well-typed regardless of which transform was chosen. Returns null when no temporal column is
+     * in scope.
      *
-     * <p>Monotonic transforms (toYYYYMM, toStartOf*, toYear, toRelative*Num, ...) drive partition
-     * pruning and KeyCondition range analysis -- the exact class behind the filed negative-divisor
-     * intDiv pruning bug. Feeding them on the predicate side widens CODDTest / KeyCondition coverage
-     * to the transform-on-key surface, which previously only existed in partition-key position.
+     * <p>
+     * Monotonic transforms (toYYYYMM, toStartOf*, toYear, toRelative*Num, ...) drive partition pruning and KeyCondition
+     * range analysis -- the exact class behind the filed negative-divisor intDiv pruning bug. Feeding them on the
+     * predicate side widens CODDTest / KeyCondition coverage to the transform-on-key surface, which previously only
+     * existed in partition-key position.
+     *
+     * @param columns
+     *            the columns in scope to draw from
+     *
+     * @return a date-transform expression, or {@code null} if no Date / DateTime column is in scope
      */
     public ClickHouseExpression generateDateTransform(List<ClickHouseColumnReference> columns) {
         List<ClickHouseColumnReference> dateCols = new java.util.ArrayList<>();
         boolean dateTimeResolution = false;
         for (ClickHouseColumnReference c : columns) {
             ClickHouseDataType t = c.getColumn().getType().getType();
-            if (t == ClickHouseDataType.Date || t == ClickHouseDataType.Date32
-                    || t == ClickHouseDataType.DateTime || t == ClickHouseDataType.DateTime64) {
+            if (t == ClickHouseDataType.Date || t == ClickHouseDataType.Date32 || t == ClickHouseDataType.DateTime
+                    || t == ClickHouseDataType.DateTime64) {
                 dateCols.add(c);
             }
         }
@@ -424,9 +457,10 @@ public class ClickHouseExpressionGenerator
         ClickHouseDataType colType = col.getColumn().getType().getType();
         dateTimeResolution = colType == ClickHouseDataType.DateTime || colType == ClickHouseDataType.DateTime64;
         // Transforms valid for any date/datetime resolution.
-        List<String> transforms = new java.util.ArrayList<>(List.of("toYYYYMM", "toYYYYMMDD", "toYear", "toMonth",
-                "toDayOfMonth", "toDayOfWeek", "toISOWeek", "toQuarter", "toStartOfMonth", "toStartOfYear",
-                "toStartOfQuarter", "toRelativeMonthNum", "toRelativeYearNum", "toRelativeWeekNum", "toRelativeDayNum"));
+        List<String> transforms = new java.util.ArrayList<>(
+                List.of("toYYYYMM", "toYYYYMMDD", "toYear", "toMonth", "toDayOfMonth", "toDayOfWeek", "toISOWeek",
+                        "toQuarter", "toStartOfMonth", "toStartOfYear", "toStartOfQuarter", "toRelativeMonthNum",
+                        "toRelativeYearNum", "toRelativeWeekNum", "toRelativeDayNum"));
         if (dateTimeResolution) {
             // Sub-day transforms require a DateTime (a bare Date has no time component).
             transforms.addAll(List.of("toStartOfDay", "toStartOfHour", "toStartOfMinute", "toHour", "toMinute",
@@ -441,21 +475,23 @@ public class ClickHouseExpressionGenerator
     }
 
     /**
-     * Scalar subquery: a self-contained {@code (SELECT ...)} renderable as an expression.
-     * Workstream 16. Returns null if there are no tables to read from.
+     * Scalar subquery: a self-contained {@code (SELECT ...)} renderable as an expression. Workstream 16. Returns null
+     * if there are no tables to read from.
      *
-     * <p>Two families are emitted at random:
+     * <p>
+     * Two families are emitted at random:
      * <ul>
-     *   <li>aggregate-over-table forms {@code (SELECT count()|min(1)|max(1) FROM t)} -- the
-     *       original Workstream-16 shape, always single-row and type-stable;
-     *   <li>value-returning ordered-LIMIT-1 forms
-     *       {@code (SELECT <col> FROM <db>.<t> [WHERE <pred>] ORDER BY <col> LIMIT 1)} -- a single
-     *       column value of a real numeric/string column. This second family is exactly the shape
-     *       behind #106082 / #106083 (filed 2026-05-24 on v26.5.1.882): a
-     *       {@code WHERE col = (SELECT c0 FROM t ORDER BY <key> LIMIT 1)} that drops the only
-     *       matching row. The original aggregate-only generator never produced an
-     *       ORDER BY ... LIMIT 1 single-column value, so the bug class was unreachable.
+     * <li>aggregate-over-table forms {@code (SELECT count()|min(1)|max(1) FROM t)} -- the original Workstream-16 shape,
+     * always single-row and type-stable;
+     * <li>value-returning ordered-LIMIT-1 forms
+     * {@code (SELECT <col> FROM <db>.<t> [WHERE <pred>] ORDER BY <col> LIMIT 1)} -- a single column value of a real
+     * numeric/string column. This second family is exactly the shape behind #106082 / #106083 (filed 2026-05-24 on
+     * v26.5.1.882): a {@code WHERE col = (SELECT c0 FROM t ORDER BY <key> LIMIT 1)} that drops the only matching row.
+     * The original aggregate-only generator never produced an ORDER BY ... LIMIT 1 single-column value, so the bug
+     * class was unreachable.
      * </ul>
+     *
+     * @return a scalar-subquery expression, or {@code null} if no suitable table/column is available
      */
     public ClickHouseExpression generateScalarSubquery() {
         java.util.List<sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable> tables = globalState.getSchema()
@@ -499,11 +535,17 @@ public class ClickHouseExpressionGenerator
     }
 
     /**
-     * Higher-order function call over an Array column with a synthesised lambda body.
-     * arrayMap / arrayFilter / arrayCount / arrayExists / arrayAll / arraySort / arrayFirst /
-     * arrayLast / arrayFold / arrayMin / arrayMax / arraySum / arrayAvg. Workstream 22.
+     * Higher-order function call over an Array column with a synthesised lambda body. arrayMap / arrayFilter /
+     * arrayCount / arrayExists / arrayAll / arraySort / arrayFirst / arrayLast / arrayFold / arrayMin / arrayMax /
+     * arraySum / arrayAvg. Workstream 22.
      *
-     * <p>Returns null if no Array(T) column is in scope.
+     * <p>
+     * Returns null if no Array(T) column is in scope.
+     *
+     * @param columns
+     *            the columns in scope to draw from
+     *
+     * @return a higher-order array function-call expression, or {@code null} if no {@code Array(T)} column is in scope
      */
     public ClickHouseExpression generateHigherOrderArrayCall(List<ClickHouseColumnReference> columns) {
         List<ClickHouseColumnReference> arrayCols = new java.util.ArrayList<>();
@@ -521,8 +563,8 @@ public class ClickHouseExpressionGenerator
         // op for arithmetic higher-orders (arrayMap, arrayFilter, etc.) -- in practice CH
         // accepts any well-typed body, so the bare-x identity body works for arrayMap and
         // arrayFilter alike. lambdaParamType propagation through Nullable is deferred.
-        String fnName = Randomly.fromOptions("arrayMap", "arrayFilter", "arrayCount", "arrayExists",
-                "arrayAll", "arrayFirst", "arrayLast", "arraySort", "arrayMin", "arrayMax", "arraySum");
+        String fnName = Randomly.fromOptions("arrayMap", "arrayFilter", "arrayCount", "arrayExists", "arrayAll",
+                "arrayFirst", "arrayLast", "arraySort", "arrayMin", "arrayMax", "arraySum");
         // Body: half the time bare x, half the time x + 1 (arithmetic for numeric inner types).
         sqlancer.clickhouse.ast.ClickHouseExpression body;
         if (Randomly.getBoolean()) {
@@ -530,8 +572,8 @@ public class ClickHouseExpressionGenerator
         } else {
             body = new sqlancer.clickhouse.ast.ClickHouseRawText("x + 1");
         }
-        sqlancer.clickhouse.ast.ClickHouseLambda lambda = new sqlancer.clickhouse.ast.ClickHouseLambda(
-                List.of("x"), body);
+        sqlancer.clickhouse.ast.ClickHouseLambda lambda = new sqlancer.clickhouse.ast.ClickHouseLambda(List.of("x"),
+                body);
         StringBuilder sb = new StringBuilder(fnName).append("(");
         sb.append(ClickHouseToStringVisitor.asString(lambda));
         sb.append(", ");
@@ -541,8 +583,13 @@ public class ClickHouseExpressionGenerator
     }
 
     /**
-     * Emit a window-function expression of the form {@code func() OVER (PARTITION BY ... ORDER BY ...)}
-     * over the in-scope columns. Workstream 19.
+     * Emit a window-function expression of the form {@code func() OVER (PARTITION BY ... ORDER BY ...)} over the
+     * in-scope columns. Workstream 19.
+     *
+     * @param columns
+     *            the columns in scope to draw from
+     *
+     * @return a window-function expression, or {@code null} if the columns are insufficient to build one
      */
     public ClickHouseExpression generateWindowCall(List<ClickHouseColumnReference> columns) {
         if (columns.isEmpty()) {
@@ -566,15 +613,19 @@ public class ClickHouseExpressionGenerator
                 sqlancer.clickhouse.ast.ClickHouseWindowFunction.Kind.AVG);
         ClickHouseExpression argument = null;
         switch (kind) {
-        case SUM: case COUNT: case MIN: case MAX: case AVG:
-        case FIRST_VALUE: case LAST_VALUE: {
+        case SUM:
+        case COUNT:
+        case MIN:
+        case MAX:
+        case AVG:
+        case FIRST_VALUE:
+        case LAST_VALUE:
             List<ClickHouseColumnReference> numeric = numericColumns(columns);
             if (numeric.isEmpty()) {
                 return null;
             }
             argument = numeric.get((int) Randomly.getNotCachedInteger(0, numeric.size()));
             break;
-        }
         default:
             break;
         }
@@ -589,20 +640,31 @@ public class ClickHouseExpressionGenerator
     }
 
     /**
-     * dictGet over a dictionary name and key column. Workstream 14. The dictionary's column
-     * shape isn't visible to the generator, so the emitted dictGet uses a generic 'col' value
-     * field name -- the oracle paths that need a specific shape construct dictGet inline.
+     * dictGet over a dictionary name and key column. Workstream 14. The dictionary's column shape isn't visible to the
+     * generator, so the emitted dictGet uses a generic 'col' value field name -- the oracle paths that need a specific
+     * shape construct dictGet inline.
+     *
+     * @param dictName
+     *            the dictionary name to look up
+     * @param keyCol
+     *            the column reference used as the dictionary key
+     *
+     * @return a {@code dictGet} expression over the given dictionary and key column
      */
     public ClickHouseExpression generateDictGet(String dictName, ClickHouseColumnReference keyCol) {
-        String sql = "dictGet('" + dictName + "', 'col', toUInt64(" + ClickHouseToStringVisitor.asString(keyCol)
-                + "))";
+        String sql = "dictGet('" + dictName + "', 'col', toUInt64(" + ClickHouseToStringVisitor.asString(keyCol) + "))";
         return new sqlancer.clickhouse.ast.ClickHouseRawText(sql);
     }
 
     /**
-     * True iff `type` cannot appear in a scalar context without a subcolumn-access wrapper.
-     * JSON/Variant/Dynamic columns must be projected via a path/element accessor before being
-     * compared, arithmetised, or aggregated. Workstream 6.
+     * True iff `type` cannot appear in a scalar context without a subcolumn-access wrapper. JSON/Variant/Dynamic
+     * columns must be projected via a path/element accessor before being compared, arithmetised, or aggregated.
+     * Workstream 6.
+     *
+     * @param type
+     *            the type to test
+     *
+     * @return {@code true} if the type requires a subcolumn-access wrapper in a scalar context
      */
     public static boolean requiresSubcolumnAccess(sqlancer.clickhouse.ClickHouseType type) {
         sqlancer.clickhouse.ClickHouseType u = type.unwrap();
@@ -1223,15 +1285,13 @@ public class ClickHouseExpressionGenerator
             // Pick one alternative type and emit its literal directly; ClickHouse coerces the
             // scalar into the variant. Without the cast we can't disambiguate alternatives.
             ClickHouseType pickedAlt = Randomly.fromList(v.alternatives());
-            return new ClickHouseCastOperation(generateConstantFromTerm(pickedAlt),
-                    new ClickHouseLancerDataType(term));
+            return new ClickHouseCastOperation(generateConstantFromTerm(pickedAlt), new ClickHouseLancerDataType(term));
         }
         if (term instanceof sqlancer.clickhouse.ClickHouseType.Dynamic) {
             // Cast a primitive scalar to Dynamic. The runtime-typed wrapper preserves the scalar's
             // type via type tags so the variant family can read it back.
             ClickHouseType inner = new Primitive(Kind.Int32);
-            return new ClickHouseCastOperation(generateConstantFromTerm(inner),
-                    new ClickHouseLancerDataType(term));
+            return new ClickHouseCastOperation(generateConstantFromTerm(inner), new ClickHouseLancerDataType(term));
         }
         if (term instanceof sqlancer.clickhouse.ClickHouseType.IntervalType i) {
             // INTERVAL N <unit>. Pick a small positive value.
@@ -1437,10 +1497,8 @@ public class ClickHouseExpressionGenerator
             // One of the four typed wrappers from the bug reports. ClickHouseRawText follows the
             // generateScalarSubquery precedent: no typed AST node carries a LowCardinality /
             // Nullable CAST wrapper, so the pre-rendered fragment is the minimal faithful surface.
-            String wrapped = Randomly.fromOptions(
-                    "toNullable(" + inner + ")",
-                    "CAST(" + inner + " AS LowCardinality(Nullable(UInt8)))",
-                    "CAST(" + inner + " AS Nullable(UInt8))",
+            String wrapped = Randomly.fromOptions("toNullable(" + inner + ")",
+                    "CAST(" + inner + " AS LowCardinality(Nullable(UInt8)))", "CAST(" + inner + " AS Nullable(UInt8))",
                     "toLowCardinality(toNullable(" + inner + "))");
             ClickHouseExpression typedConjunct = new sqlancer.clickhouse.ast.ClickHouseRawText(wrapped);
             return new ClickHouseBinaryLogicalOperation(base, typedConjunct,
@@ -1484,11 +1542,15 @@ public class ClickHouseExpressionGenerator
 
     /**
      * Build the RHS of an {@code IN} / {@code NOT IN} predicate: a single-column subquery
-     * {@code (SELECT c FROM db.t [WHERE c <op> const])} that projects a column whose type category
-     * matches {@code outer} so the set-membership test stays well-typed. Unlike
-     * {@link #generateScalarSubquery()} this projects a multi-row set (no {@code LIMIT 1}) because
-     * {@code IN} tests membership across the whole inner result. Returns null when no table has a
-     * type-compatible column to project, so the caller can fall back to the base predicate.
+     * {@code (SELECT c FROM db.t [WHERE c <op> const])} that projects a column whose type category matches
+     * {@code outer} so the set-membership test stays well-typed. Unlike {@link #generateScalarSubquery()} this projects
+     * a multi-row set (no {@code LIMIT 1}) because {@code IN} tests membership across the whole inner result. Returns
+     * null when no table has a type-compatible column to project, so the caller can fall back to the base predicate.
+     *
+     * @param outer
+     *            the outer column reference whose type the projected subquery column must match
+     *
+     * @return a single-column subquery expression for an {@code IN} RHS, or {@code null} if no compatible column exists
      */
     private ClickHouseExpression generateInSubquery(ClickHouseColumnReference outer) {
         java.util.List<sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable> tables = globalState.getSchema()

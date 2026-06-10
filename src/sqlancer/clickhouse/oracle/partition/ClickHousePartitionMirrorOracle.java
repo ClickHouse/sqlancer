@@ -132,8 +132,7 @@ public class ClickHousePartitionMirrorOracle implements TestOracle<ClickHouseGlo
             if (!created) {
                 throw new IgnoreMeException();
             }
-            boolean inserted = new SQLQueryAdapter(insertMirror, errors,
-                    false).execute(state, false);
+            boolean inserted = new SQLQueryAdapter(insertMirror, errors, false).execute(state, false);
             if (!inserted) {
                 safeDrop(dropMirror);
                 throw new IgnoreMeException();

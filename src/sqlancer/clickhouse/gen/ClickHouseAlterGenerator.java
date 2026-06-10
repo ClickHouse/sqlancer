@@ -13,13 +13,13 @@ import sqlancer.common.query.ExpectedErrors;
 import sqlancer.common.query.SQLQueryAdapter;
 
 /**
- * Emits ALTER TABLE ... ADD/DROP/MODIFY/RENAME/COMMENT COLUMN at low probability so the schema
- * mutates across the lifetime of a single database. The schema-affecting flag on every emitted
- * adapter forces {@code SQLGlobalState.updateSchema()} to re-read {@code system.columns} before the
- * next oracle iteration -- otherwise oracle workers reference stale column lists and produce
- * spurious UNKNOWN_IDENTIFIER reproducers.
+ * Emits ALTER TABLE ... ADD/DROP/MODIFY/RENAME/COMMENT COLUMN at low probability so the schema mutates across the
+ * lifetime of a single database. The schema-affecting flag on every emitted adapter forces
+ * {@code SQLGlobalState.updateSchema()} to re-read {@code system.columns} before the next oracle iteration -- otherwise
+ * oracle workers reference stale column lists and produce spurious UNKNOWN_IDENTIFIER reproducers.
  *
- * <p>Workstream 8 of {@code docs/plans/2026-05-27-001-feat-clickhouse-coverage-expansion-plan.md}.
+ * <p>
+ * Workstream 8 of {@code docs/plans/2026-05-27-001-feat-clickhouse-coverage-expansion-plan.md}.
  */
 public final class ClickHouseAlterGenerator {
 
@@ -76,10 +76,14 @@ public final class ClickHouseAlterGenerator {
     }
 
     /**
-     * Build an AST-typed ALTER COLUMN statement. The returned object carries the same rendered
-     * SQL but is exposed as a typed AST node, satisfying the plan's
-     * ClickHouseAlterColumnStatement requirement (workstream 8). Callers that don't need the
-     * type can continue using {@link #getQuery(ClickHouseGlobalState)}.
+     * Build an AST-typed ALTER COLUMN statement. The returned object carries the same rendered SQL but is exposed as a
+     * typed AST node, satisfying the plan's ClickHouseAlterColumnStatement requirement (workstream 8). Callers that
+     * don't need the type can continue using {@link #getQuery(ClickHouseGlobalState)}.
+     *
+     * @param state
+     *            the global state used to pick a table and render the statement
+     *
+     * @return a typed AST node for the generated ALTER COLUMN statement
      */
     public static sqlancer.clickhouse.ast.ClickHouseAlterColumnStatement buildAst(ClickHouseGlobalState state) {
         SQLQueryAdapter adapter = getQuery(state);
@@ -155,8 +159,8 @@ public final class ClickHouseAlterGenerator {
             // Column-subset projection. A normal (column-list) projection requires its own ORDER BY
             // (CH Code 36 otherwise); order by the projected columns themselves.
             int subsetSize = Math.min(cols.size(), 1 + (int) Randomly.getNotCachedInteger(0, 2));
-            String colList = Randomly.extractNrRandomColumns(cols, subsetSize).stream()
-                    .map(ClickHouseColumn::getName).collect(java.util.stream.Collectors.joining(", "));
+            String colList = Randomly.extractNrRandomColumns(cols, subsetSize).stream().map(ClickHouseColumn::getName)
+                    .collect(java.util.stream.Collectors.joining(", "));
             sb.append("SELECT ").append(colList).append(" ORDER BY ").append(colList);
         }
         sb.append(")");

@@ -54,8 +54,7 @@ public class ClickHouseColumnBuilder {
         // Unit 3.2: (Simple)AggregateFunction columns reject DEFAULT / MATERIALIZED / ALIAS /
         // STATISTICS (they have aggregate-state semantics, not an ordinary value domain). Emit the
         // bare `name Type` form for them -- skip the constraint roll entirely.
-        boolean isStateColumn = dataType.getTypeTerm()
-                .unwrap() instanceof ClickHouseType.SimpleAggregateFunctionType
+        boolean isStateColumn = dataType.getTypeTerm().unwrap() instanceof ClickHouseType.SimpleAggregateFunctionType
                 || dataType.getTypeTerm().unwrap() instanceof ClickHouseType.AggregateFunctionType;
         if (!isStateColumn && Randomly.getBooleanWithSmallProbability()) {
             constraints = Randomly.subset(Constraints.values());

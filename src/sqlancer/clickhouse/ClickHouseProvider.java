@@ -24,8 +24,6 @@ import sqlancer.clickhouse.gen.ClickHouseCommon;
 import sqlancer.clickhouse.gen.ClickHouseInsertGenerator;
 import sqlancer.clickhouse.gen.ClickHouseMutationGenerator;
 import sqlancer.clickhouse.gen.ClickHouseTableGenerator;
-import sqlancer.clickhouse.oracle.ClickHouseOptimizingOracle;
-import sqlancer.common.oracle.TestOracle;
 import sqlancer.common.query.SQLQueryAdapter;
 import sqlancer.common.query.SQLQueryProvider;
 
@@ -44,10 +42,13 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         // is refreshed before oracle iteration. Probability is gated via mapActions returning a
         // small count.
         ALTER(ClickHouseAlterGenerator::getQuery),
-        // Row-mutating actions: ALTER UPDATE/DELETE (background, async) + lightweight DELETE
-        // FROM (synchronous, mark-only). Mutation × projection × MV × lightweight-delete is the
-        // single highest historical bug density in CH; gate at very low probability so each run
-        // exercises the surface without dominating the statement pool.
+        // Row-mutating actions: ALTER UPDATE/DELETE (background, async), lightweight DELETE FROM
+        // (synchronous, mark-only), and lightweight UPDATE ... SET (synchronous, patch-part).
+        // Mutation × projection × MV × lightweight-update/delete is the single highest historical
+        // bug density in CH; gate at very low probability so each run exercises the surface without
+        // dominating the statement pool. No barrier runs after these, so lightweight-UPDATE patch
+        // parts stay unmerged into the oracle loop -- the live-patch read window that the
+        // NOT_FOUND_COLUMN_IN_BLOCK crash family depends on.
         MUTATION(ClickHouseMutationGenerator::getQuery);
 
         private final SQLQueryProvider<ClickHouseGlobalState> sqlQueryProvider;
@@ -153,7 +154,7 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
     // ReplacingMergeTree / SummingMergeTree are re-introduced into the engine pool.
     // @Override
     // protected TestOracle<ClickHouseGlobalState> getTestOracle(ClickHouseGlobalState globalState) throws Exception {
-    //     return new ClickHouseOptimizingOracle(globalState, super.getTestOracle(globalState));
+    // return new ClickHouseOptimizingOracle(globalState, super.getTestOracle(globalState));
     // }
 
     @Override
@@ -182,8 +183,7 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
     // 2164 reproducers in the 2026-05-25 8h run came from this exact escape path. Tolerated
     // errors here mean "iteration uninformative; skip", not "ClickHouse misbehaved".
     private static void runSetupCommandsWithTolerance(sqlancer.clickhouse.transport.ClickHouseTransport transport,
-            String dropDatabaseCommand, String createDatabaseCommand, String useDatabaseCommand)
-            throws SQLException {
+            String dropDatabaseCommand, String createDatabaseCommand, String useDatabaseCommand) throws SQLException {
         try {
             transport.executeUpdate(dropDatabaseCommand);
             transport.executeUpdate(createDatabaseCommand);
@@ -238,8 +238,8 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         // First create against the `default` database, then switch the transport's database
         // pointer so subsequent oracle queries land in the freshly-created schema.
         sqlancer.clickhouse.transport.ClickHouseClientV2Transport transport = new sqlancer.clickhouse.transport.ClickHouseClientV2Transport(
-                host, port, globalState.getOptions().getUserName(), globalState.getOptions().getPassword(),
-                "default", settings, 5_000L, 60_000L);
+                host, port, globalState.getOptions().getUserName(), globalState.getOptions().getPassword(), "default",
+                settings, 5_000L, 60_000L);
         // `DROP DATABASE ... SYNC` forces the Atomic engine to detach metadata synchronously
         // (instead of the default async hex-rename cleanup); paired with the immediately-following
         // CREATE on the same transport this avoids the pre-2026 race-avoidance Thread.sleep(1000)

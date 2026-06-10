@@ -12,13 +12,12 @@ import sqlancer.clickhouse.ClickHouseTypeParser;
 class ClickHouseCERTGeneratorTest {
 
     @Test
-    void primitiveIntDispatchesToInt32() {
-        assertEquals("toInt32(number - 25000)",
+    void primitiveIntDispatchesPerType() {
+        assertEquals("toInt8(toInt32(number % 200) - 100)",
                 ClickHouseCERTOracle.generatorExprFor(ClickHouseTypeParser.parse("Int8")));
-        assertEquals("toInt32(number - 25000)",
+        assertEquals("toInt32(toInt64(number) - 25000)",
                 ClickHouseCERTOracle.generatorExprFor(ClickHouseTypeParser.parse("Int32")));
-        assertEquals("toInt32(number - 25000)",
-                ClickHouseCERTOracle.generatorExprFor(ClickHouseTypeParser.parse("UInt64")));
+        assertEquals("toUInt64(number)", ClickHouseCERTOracle.generatorExprFor(ClickHouseTypeParser.parse("UInt64")));
     }
 
     @Test
@@ -27,16 +26,16 @@ class ClickHouseCERTGeneratorTest {
     }
 
     @Test
-    void primitiveFloatDispatchesToToFloat64() {
+    void primitiveFloatDispatchesPerType() {
         assertEquals("toFloat64(number)", ClickHouseCERTOracle.generatorExprFor(ClickHouseTypeParser.parse("Float64")));
-        assertEquals("toFloat64(number)", ClickHouseCERTOracle.generatorExprFor(ClickHouseTypeParser.parse("Float32")));
+        assertEquals("toFloat32(number)", ClickHouseCERTOracle.generatorExprFor(ClickHouseTypeParser.parse("Float32")));
     }
 
     @Test
     void lowCardinalityIsTransparent() {
         assertEquals("toString(number)",
                 ClickHouseCERTOracle.generatorExprFor(ClickHouseTypeParser.parse("LowCardinality(String)")));
-        assertEquals("toInt32(number - 25000)",
+        assertEquals("toInt32(toInt64(number) - 25000)",
                 ClickHouseCERTOracle.generatorExprFor(ClickHouseTypeParser.parse("LowCardinality(Int32)")));
     }
 
@@ -44,7 +43,7 @@ class ClickHouseCERTGeneratorTest {
     void nullableWrapsWithSmallProbabilityNull() {
         String expr = ClickHouseCERTOracle.generatorExprFor(ClickHouseTypeParser.parse("Nullable(Int32)"));
         assertTrue(expr.contains("NULL"));
-        assertTrue(expr.contains("toInt32(number - 25000)"));
+        assertTrue(expr.contains("toInt32(toInt64(number) - 25000)"));
     }
 
     @Test

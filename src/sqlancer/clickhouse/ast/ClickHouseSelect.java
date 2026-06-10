@@ -38,10 +38,9 @@ public class ClickHouseSelect extends ClickHouseExpression implements
     private List<ClickHouseExpression> arrayJoinExprs = Collections.emptyList();
     private boolean arrayJoinLeft;
     /**
-     * Optional {@code WITH ...} CTE clause. Each entry is an alias-CTE of the form
-     * {@code expr AS alias}. Subquery-CTEs (the more common WITH form for analyzer-bound bug
-     * shapes) are out of scope for this minimal scaffolding -- they need FROM-target binding
-     * which would require restructuring the FROM list type. Workstream 17.
+     * Optional {@code WITH ...} CTE clause. Each entry is an alias-CTE of the form {@code expr AS alias}. Subquery-CTEs
+     * (the more common WITH form for analyzer-bound bug shapes) are out of scope for this minimal scaffolding -- they
+     * need FROM-target binding which would require restructuring the FROM list type. Workstream 17.
      */
     private List<ClickHouseExpression> withClauses = Collections.emptyList();
     /**
