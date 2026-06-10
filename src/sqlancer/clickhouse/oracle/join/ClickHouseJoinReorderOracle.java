@@ -110,6 +110,33 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
         boolean isSemiOrAnti() {
             return this == LEFT_SEMI || this == LEFT_ANTI || this == RIGHT_SEMI || this == RIGHT_ANTI;
         }
+
+        boolean isAnti() {
+            return this == LEFT_ANTI || this == RIGHT_ANTI;
+        }
+
+        boolean isSemi() {
+            return this == LEFT_SEMI || this == RIGHT_SEMI;
+        }
+    }
+
+    // The #107073 trigger shape: a chain that contains BOTH an ANTI and a SEMI join. The ANTI
+    // default-fills the other side's key, a subsequent SEMI drops the carrying side, and a later
+    // join then reads the stale (pre-SEMI) key under some reorderings -- the join-order-dependent
+    // wrong result filed as ClickHouse#107073 (LEFT ANTI / RIGHT SEMI / INNER, count() flips 0 vs 1).
+    // Until that is fixed on head this combination re-fires on essentially every run (no narrow
+    // server-error message exists to pin on -- it surfaces only as a count-mismatch AssertionError),
+    // masking any OTHER reorder bug those chains might carry. We therefore avoid generating it by
+    // default (resample the kinds), keeping full coverage of INNER/LEFT/FULL and single-family
+    // SEMI-only / ANTI-only chains. REMOVE the gate (or flip the flag) when #107073 is fixed.
+    static boolean containsAntiSemiMix(List<JoinKind> kinds) {
+        boolean anti = false;
+        boolean semi = false;
+        for (JoinKind k : kinds) {
+            anti |= k.isAnti();
+            semi |= k.isSemi();
+        }
+        return anti && semi;
     }
 
     private final ClickHouseGlobalState state;
@@ -209,6 +236,23 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
             List<JoinKind> kinds = new ArrayList<>();
             for (int i = 0; i < numJoins; i++) {
                 kinds.add(Randomly.fromOptions(JoinKind.values()));
+            }
+            // Avoid the known-open #107073 ANTI+SEMI mix (see containsAntiSemiMix) unless the
+            // operator explicitly opts back in to re-confirm the filed bug. Bounded resample so
+            // throughput is preserved; the combinatorics make >8 consecutive mixes vanishingly
+            // unlikely, and if it somehow persists we skip the iteration rather than re-report
+            // the filed bug.
+            if (!state.getClickHouseOptions().joinReorderAntiSemiMix) {
+                int tries = 0;
+                while (containsAntiSemiMix(kinds) && tries++ < 8) {
+                    kinds.clear();
+                    for (int i = 0; i < numJoins; i++) {
+                        kinds.add(Randomly.fromOptions(JoinKind.values()));
+                    }
+                }
+                if (containsAntiSemiMix(kinds)) {
+                    throw new IgnoreMeException();
+                }
             }
             List<Integer> onLeft = new ArrayList<>();
             for (int i = 0; i < numJoins; i++) {

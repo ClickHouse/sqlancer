@@ -1,6 +1,7 @@
 package sqlancer.clickhouse.oracle.join;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static sqlancer.clickhouse.oracle.join.ClickHouseJoinReorderOracle.JoinKind.FULL;
 import static sqlancer.clickhouse.oracle.join.ClickHouseJoinReorderOracle.JoinKind.INNER;
@@ -166,5 +167,18 @@ class ClickHouseJoinReorderOracleTest {
         List<String> withNull = new ArrayList<>(Arrays.asList((String) null));
         List<String> diff = ClickHouseJoinReorderOracle.multisetDiff(withNull, Collections.emptyList(), 20);
         assertEquals(List.of("\\N (+1 first)"), diff);
+    }
+
+    @Test
+    void antiSemiMixDetectsKnown107073Shape() {
+        // The filed #107073 shapes (LEFT ANTI / RIGHT SEMI / {INNER|RIGHT SEMI}) mix ANTI and SEMI.
+        assertTrue(ClickHouseJoinReorderOracle.containsAntiSemiMix(List.of(LEFT_ANTI, RIGHT_SEMI, INNER)));
+        assertTrue(ClickHouseJoinReorderOracle.containsAntiSemiMix(List.of(LEFT_ANTI, RIGHT_SEMI, RIGHT_SEMI)));
+        assertTrue(ClickHouseJoinReorderOracle.containsAntiSemiMix(List.of(RIGHT_ANTI, LEFT_SEMI)));
+        // Single-family and reorder-safe chains are NOT the gated shape -- they stay testable.
+        assertFalse(ClickHouseJoinReorderOracle.containsAntiSemiMix(List.of(INNER, LEFT, FULL)));
+        assertFalse(ClickHouseJoinReorderOracle.containsAntiSemiMix(List.of(LEFT_ANTI, RIGHT_ANTI))); // anti-only
+        assertFalse(ClickHouseJoinReorderOracle.containsAntiSemiMix(List.of(LEFT_SEMI, RIGHT_SEMI))); // semi-only
+        assertFalse(ClickHouseJoinReorderOracle.containsAntiSemiMix(List.of(LEFT_SEMI, LEFT)));
     }
 }

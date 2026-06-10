@@ -59,6 +59,9 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--variant-where-emission", description = "Emit Variant-typed predicate fragments in WHERE context (26.1 Variant-in-all-functions surface, PR #90900 + use_variant_as_common_type default-on, PR #90677). WHERE-only by design: the client-v2 RowBinary reader cannot decode a projected Variant column (R4), so the fragments are self-contained Boolean expressions and never reach a fetch column. Default-on since the 2026-06-10 convergence run (0 reader deaths, 0 false positives; the toInt64 constant-fallback wrap is load-bearing).", arity = 1)
     public boolean variantWhereEmission = true;
 
+    @Parameter(names = "--join-reorder-anti-semi-mix", description = "Let the JoinReorder oracle generate chains that mix ANTI and SEMI joins. Default false: that combination is the known-open ClickHouse#107073 wrong-result (join-order-dependent count), which has no narrow server-error message to pin on and would otherwise re-fire on every run, masking other reorder bugs. Set true to re-confirm #107073; remove the gate once it is fixed on head.", arity = 1)
+    public boolean joinReorderAntiSemiMix = false;
+
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;
