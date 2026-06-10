@@ -224,6 +224,14 @@ public class ClickHouseJsonSkipIndexOracle implements TestOracle<ClickHouseGloba
             e.add("TIMEOUT_EXCEEDED");
             e.add("Timeout exceeded");
         }
+        // Belt for residual Dynamic type-unification rejections on untyped-path predicates: the
+        // mixed-type path is excluded from equality by construction (see generatePredicate), but
+        // Dynamic comparison semantics on head can still reject a literal-vs-stored-type combo per
+        // part. Both arms read under this set, so a tolerated rejection abandons the iteration
+        // (IgnoreMe) and can never fake an agreement. 2026-06-10 smoke: Codes 386/53.
+        readErrors.add("There is no supertype");
+        readErrors.add("NO_COMMON_TYPE");
+        readErrors.add("Cannot convert string");
         // --- CREATE-only gating, each string narrow and message-anchored. The exact set of index
         // type x JSONAllPaths/JSONAllValues combos head accepts is probe-pending; every string here
         // is reviewed for tightening (or removal) after the first convergence run. ---
@@ -239,6 +247,9 @@ public class ClickHouseJsonSkipIndexOracle implements TestOracle<ClickHouseGloba
         createErrors.add("Unknown Index type");
         createErrors.add("Unknown index type");
         createErrors.add("Unknown tokenizer");
+        // Argument-validation rejection for tokenizer grammar drift (Unit 1 precedent; the
+        // 2026-06-10 smoke surfaced the named-arg form rejection as worker deaths).
+        createErrors.add("Unexpected text index arguments");
         createErrors.add("Unknown function JSONAllPaths");
         createErrors.add("Unknown function JSONAllValues");
         // Experimental/beta gating family for the text-index variants (enable_full_text_index
@@ -496,7 +507,13 @@ public class ClickHouseJsonSkipIndexOracle implements TestOracle<ClickHouseGloba
             return typedIntIn(values, corpus);
         }
         case UNTYPED_EQ: {
-            String path = pickUntypedPath(r, untypedPaths, false);
+            // Equality only against single-typed untyped paths (u1.. are always String, the
+            // nested path always String). The mixed-type path u0 stores Int64 in some parts and
+            // String in others, and Dynamic equality against ANY literal then fails server-side
+            // with NO_COMMON_TYPE / "Cannot convert string ... to type Int64" depending on which
+            // part is scanned first (2026-06-10 smoke: 90 worker deaths). u0 keeps its coverage
+            // through UNTYPED_IS_NOT_NULL and PATH_EXISTS, which are type-agnostic.
+            String path = pickUntypedEqualityPath(r, untypedPaths);
             Leaf known = findKnownLeafFrom(r, corpus, path);
             if (known == null) {
                 // No document carries the path: a literal that matches nothing (still well-typed).
@@ -589,6 +606,15 @@ public class ClickHouseJsonSkipIndexOracle implements TestOracle<ClickHouseGloba
 
     // Existence predicates additionally draw the nested path and the never-emitted phantom path
     // (the 0-rows end of the 0/some/all selectivity span).
+    // Equality-eligible pool: every untyped path except the mixed-type one (see UNTYPED_EQ above),
+    // plus the nested path (always String by construction).
+    static String pickUntypedEqualityPath(Randomly r, List<String> untypedPaths) {
+        List<String> pool = new ArrayList<>(untypedPaths);
+        pool.remove(ClickHouseJsonDocumentGenerator.MIXED_TYPE_PATH);
+        pool.add(ClickHouseJsonDocumentGenerator.NESTED_PATH);
+        return pool.get(r.getInteger(0, pool.size()));
+    }
+
     static String pickUntypedPath(Randomly r, List<String> untypedPaths, boolean includePhantom) {
         List<String> pool = new ArrayList<>(untypedPaths);
         pool.add(ClickHouseJsonDocumentGenerator.NESTED_PATH);

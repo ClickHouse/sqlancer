@@ -154,6 +154,17 @@ public class ClickHouseStatsToggleOracle implements TestOracle<ClickHouseGlobalS
         // catalogue above carries only the older message forms.
         statsDdlErrors.add("ILLEGAL_STATISTICS");
         statsDdlErrors.add("already contains statistics");
+        // Stats DDL is itself a mutation, and alter_sync=2 (dev-vm users.d config) makes it wait
+        // on -- and surface -- failures of UNRELATED earlier mutations stuck on the same fleet
+        // table (2026-06-10 smoke: MATERIALIZE STATISTICS died with "Exception happened during
+        // execution of mutations ... Code: 153" from a pre-existing broken fleet mutation).
+        // Equally, metadata re-validation at ALTER time rejects fleet tables CREATEd with
+        // duplicate skip-index expressions under allow_suspicious_indices=1 ("Primary key or
+        // secondary index contains a duplicate expression", 8 deaths in the same smoke). Both are
+        // environment/fleet artifacts, not stats bugs: skip the DDL step, never fake a pass.
+        statsDdlErrors.add("Exception happened during execution of mutation");
+        statsDdlErrors.add("UNFINISHED");
+        statsDdlErrors.add("contains a duplicate expression");
     }
 
     @Override

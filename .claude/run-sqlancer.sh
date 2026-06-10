@@ -23,6 +23,9 @@ ORACLES="TLPWhere"
 PULL=1
 REBUILD=0
 KEEP=0
+# Extra args appended to the `clickhouse` subcommand (DBMS-specific JCommander flags,
+# e.g. --extra-ch-args "--eet-26x-modes true --variant-where-emission true").
+EXTRA_CH_ARGS=""
 
 # RowPolicy temporarily removed (2026-05-31): it dominates all-oracle run noise (Code 49/162/306)
 # and is commented out in ClickHouseOracleFactory, so passing it would fail enum parsing.
@@ -41,6 +44,7 @@ Usage: $(basename "$0") [options]
   --port PORT         CH HTTP port on host (default $PORT)
   --name NAME         CH container name (default $NAME)
   --oracles LIST      comma-separated oracle list (default $ORACLES); "all" = 25 oracles
+  --extra-ch-args S   extra DBMS-specific flags appended after 'clickhouse --oracle ...'
   --no-pull           skip 'docker pull clickhouse/clickhouse-server:head'
   --rebuild           force-rebuild the jar
   --keep-container    don't tear down the CH container at the end
@@ -58,6 +62,7 @@ while [[ $# -gt 0 ]]; do
     --port)           PORT="$2"; shift 2 ;;
     --name)           NAME="$2"; shift 2 ;;
     --oracles)        ORACLES="$2"; shift 2 ;;
+    --extra-ch-args)  EXTRA_CH_ARGS="$2"; shift 2 ;;
     --no-pull)        PULL=0; shift ;;
     --rebuild)        REBUILD=1; shift ;;
     --keep-container) KEEP=1; shift ;;
@@ -153,7 +158,7 @@ java "-Xmx${HEAP}" -jar "$JAR" \
   --print-progress-summary true \
   --host 127.0.0.1 --port "$PORT" \
   --username default --password "" \
-  clickhouse --oracle "$ORACLES" \
+  clickhouse --oracle "$ORACLES" $EXTRA_CH_ARGS \
   2>&1 | tee "$LOG"
 RC=${PIPESTATUS[0]}
 set -e

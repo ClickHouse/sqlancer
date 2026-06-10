@@ -173,6 +173,11 @@ public class ClickHouseTextIndexLikeOracle implements TestOracle<ClickHouseGloba
             //   name / named-arg grammar differs on the running build (the exact `tokenizer = ...`
             //   grammar is probe-pending against head, see renderSkipIndex).
             e.add("Unknown tokenizer");
+            // - "Unexpected text index arguments": the argument-validation rejection for grammar
+            //   drift (the 2026-06-10 smoke hit exactly this with the named-arg ngram_size form;
+            //   the grammar is fixed to the probed `ngrams(3)` form, the tolerance stays as the
+            //   belt so a future head-side grammar change degrades to IgnoreMe, not worker death).
+            e.add("Unexpected text index arguments");
             // - experimental/beta gating family: enable_full_text_index defaults to true on head,
             //   but older 25.x/26.x builds gate the type behind an experimental flag and reject the
             //   CREATE with a SUPPORT_IS_DISABLED-class message naming the full-text index feature.
@@ -362,10 +367,10 @@ public class ClickHouseTextIndexLikeOracle implements TestOracle<ClickHouseGloba
     }
 
     static String renderCreateTable(String table, boolean ngramsTokenizer, int indexGranularity) {
-        // Tokenizer-arg grammar (named `tokenizer = '...'` / `ngram_size = N` form) follows the
-        // 26.4+ docs; exact grammar is probe-pending against head -- see the renderSkipIndex note.
-        String indexType = ngramsTokenizer ? "text(tokenizer = 'ngrams', ngram_size = 3)"
-                : "text(tokenizer = 'splitByNonAlpha')";
+        // Grammar probed against head 26.6.1.599 (2026-06-10): ngrams takes its size
+        // function-style and unquoted (`tokenizer = ngrams(3)`); the named-arg `ngram_size = N`
+        // form is rejected with BAD_ARGUMENTS. splitByNonAlpha accepts both quoted and unquoted.
+        String indexType = ngramsTokenizer ? "text(tokenizer = ngrams(3))" : "text(tokenizer = 'splitByNonAlpha')";
         return "CREATE TABLE " + table + " (k UInt32, s String, INDEX " + INDEX_NAME + " (s) TYPE " + indexType
                 + " GRANULARITY 1) ENGINE = MergeTree ORDER BY k SETTINGS index_granularity = " + indexGranularity;
     }

@@ -152,7 +152,7 @@ class ClickHouseTextIndexLikeOracleTest {
         assertTrue(ddl.contains("SETTINGS index_granularity = 6"), ddl);
 
         String ngrams = ClickHouseTextIndexLikeOracle.renderCreateTable("db.txtidx_2_t", true, 4);
-        assertTrue(ngrams.contains("TYPE text(tokenizer = 'ngrams', ngram_size = 3)"), ngrams);
+        assertTrue(ngrams.contains("TYPE text(tokenizer = ngrams(3))"), ngrams);
     }
 
     @Test

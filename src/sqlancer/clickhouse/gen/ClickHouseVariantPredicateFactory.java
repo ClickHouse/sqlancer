@@ -79,7 +79,13 @@ public final class ClickHouseVariantPredicateFactory {
      * @return a self-contained, parenthesized Boolean-valued predicate fragment
      */
     static String renderRandomFragment(List<String> intExprs, List<String> strExprs) {
-        String intExpr = intExprs.isEmpty() ? "42" : Randomly.fromList(intExprs);
+        // The constant fallback MUST be toInt64-wrapped like the column arms: a bare `42` parses
+        // as UInt8, which is not a member of Variant(Int64, String), and CAST to Variant accepts
+        // only exact member types -- Code 70 CANNOT_CONVERT_TYPE on every statement carrying the
+        // fragment (2 worker deaths in the 2026-06-10 smoke; probed on head 26.6.1.599:
+        // toInt64(42) passes in SELECT and mutation WHERE, bare 42 fails in both).
+        String fallback = "toInt64(42)";
+        String intExpr = intExprs.isEmpty() ? fallback : Randomly.fromList(intExprs);
         switch ((int) Randomly.getNotCachedInteger(0, 4)) {
         case 0:
             return renderVariantElementEquals(intExpr, String.valueOf(Randomly.getNotCachedInteger(-128, 128)));
@@ -88,7 +94,7 @@ public final class ClickHouseVariantPredicateFactory {
             return renderVariantTypeEquals(strArm ? Randomly.fromList(strExprs) : intExpr,
                     strArm ? "String" : "Int64");
         case 2:
-            return renderVariantEquality(intExpr, intExprs.isEmpty() ? "42" : Randomly.fromList(intExprs));
+            return renderVariantEquality(intExpr, intExprs.isEmpty() ? fallback : Randomly.fromList(intExprs));
         default:
             return renderNullVariantIsNull();
         }

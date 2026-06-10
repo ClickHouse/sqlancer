@@ -597,13 +597,12 @@ public class ClickHouseTableGenerator {
             // 26.4 text index (PR #98149): tokenized dictionary accelerating LIKE/ILIKE (and
             // hasToken/equality). Emitting it here gives the general fleet free text-index
             // coverage under TLP/NoREC -- their LIKE predicates now sometimes hit a text index.
-            // The exact tokenizer-arg grammar (`tokenizer = '...'`, `ngram_size = N` named-arg
-            // form) is probe-pending against head; the dev-vm smoke run will confirm it, and a
-            // rejected CREATE is already tolerated by this generator path (the caller drops to a
-            // plain CREATE on server-side rejection), so a grammar drift degrades to lost
-            // coverage, not noise.
+            // Grammar probed against head 26.6.1.599 (2026-06-10): the ngrams tokenizer takes its
+            // size function-style and unquoted -- `tokenizer = ngrams(3)`; the named-arg
+            // `'ngrams', ngram_size = 3` form is rejected with BAD_ARGUMENTS ("Unexpected text
+            // index arguments: ngram_size", 931 worker deaths in the first smoke).
             typeChoices.add("text(tokenizer = 'splitByNonAlpha')");
-            typeChoices.add("text(tokenizer = 'ngrams', ngram_size = 3)");
+            typeChoices.add("text(tokenizer = ngrams(3))");
         }
         String type = Randomly.fromList(typeChoices);
         int granularity = Randomly.fromOptions(1, 2, 4);

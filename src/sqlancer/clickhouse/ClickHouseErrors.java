@@ -38,6 +38,14 @@ public final class ClickHouseErrors {
                 "Attempt to read after eof: while converting", "Bad get: has Int64, requested UInt64",
                 "Cannot convert string", "Cannot insert NULL value into a column of type",
                 "Cannot parse Int32 from String, because value is too short", "Cannot parse NaN.: while converting", // https://github.com/ClickHouse/ClickHouse/issues/22710
+                // Width-agnostic sibling of the Int32 entry above: the cast-extension emission can
+                // CAST a short/empty String value to any integer width ("Cannot parse UInt64 from
+                // String, because value is too short", Code 32 in the 2026-06-10 smoke).
+                "from String, because value is too short",
+                // CAST of a String column value to an Enum whose labels don't contain it ("Unknown
+                // element '' for enum", Codes 691/6) -- same generator-induced cast-noise family
+                // as the parse errors above (the CLAUDE.md Code-27 class), not a CH bug.
+                "Unknown element '",
                 "Cannot parse infinity.", "Cannot parse number with a sign character but without any numeric character",
                 "Cannot parse number with multiple sign (+/-) characters or intermediate sign character",
                 "Cannot parse string", "Cannot read floating point value",
@@ -349,6 +357,11 @@ public final class ClickHouseErrors {
     // Workstream 9 of the coverage expansion plan.
     public static List<String> getMutationErrors() {
         return List.of("TIMEOUT_EXCEEDED", "Cannot UPDATE key column", "Cannot DELETE", "Mutation cannot be executed",
+                // Variant of the key-column rejection: updating a column that a MATERIALIZED key
+                // column derives from ("Updated column `x` affects MATERIALIZED column `y`, which
+                // is a key column. Cannot UPDATE it.", Code 420). Documented restriction, not a
+                // bug; surfaced by the predicate-grade mutation WHEREs (2026-06-10 smoke).
+                "affects MATERIALIZED column",
                 "Mutations are not supported by", "UNFINISHED_MUTATION", "Cannot read from", "Lightweight DELETE",
                 "_row_exists", "Background mutation", "ATTEMPT_TO_READ_AFTER_EOF", "Cannot find column",
                 // A lightweight DELETE on a table that carries projections is rejected (Code 344)

@@ -155,6 +155,12 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
         // older images, unsupported kind/type) just skip the stats step.
         ClickHouseErrors.addStatisticsErrors(statsErrors);
         statsErrors.add("already contains statistics");
+        // Sync stats DDL surfaces failures of unrelated stuck mutations plus metadata
+        // re-validation rejections (StatsToggle precedent, 2026-06-10 smoke); both just skip the
+        // best-effort stats step. Private tables make these unlikely here, but the belt is cheap.
+        statsErrors.add("Exception happened during execution of mutation");
+        statsErrors.add("UNFINISHED");
+        statsErrors.add("contains a duplicate expression");
     }
 
     @Override
