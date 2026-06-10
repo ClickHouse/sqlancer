@@ -98,6 +98,17 @@ recognise an already-filed bug instead of re-investigating it. **Re-verify again
 before acting** — when an issue is fixed/closed, delete its entry from this list. (Check state:
 `gh issue view <N> --repo ClickHouse/ClickHouse --json state -q .state`.)
 
+- **[#107073](https://github.com/ClickHouse/ClickHouse/issues/107073)** — join reordering returns a **different result** for a `LEFT ANTI` / `RIGHT SEMI` / `INNER` chain: `count()` flips between 0 (correct) and 1 (wrong) on identical single-part data under `query_plan_optimize_join_order_randomize=1` (the bad order joins `m3` against `m0`'s pre-`RIGHT SEMI` `a0.k`). Found by the `JoinReorder` oracle; assigned upstream to @vdimir (randomize-setting author). Surviving instance of the PR #97498 / #101504 class. **NOT pinned** — no narrow wrong-result message to pin on; if it re-floods runs before the fix lands, gate JoinReorder's randomize arm / ANTI+SEMI mixed-chain shape (TLPGroupBy strict-mode precedent). Verified on head 26.6.1.603 (2026-06-10).
+  ```sql
+  CREATE TABLE m0 (k Nullable(Int32)) ENGINE=MergeTree ORDER BY tuple();
+  CREATE TABLE m1 (k Int32) ENGINE=MergeTree ORDER BY tuple();
+  CREATE TABLE m2 (k Nullable(Int32)) ENGINE=MergeTree ORDER BY tuple();
+  CREATE TABLE m3 (k Int32) ENGINE=MergeTree ORDER BY tuple();
+  INSERT INTO m0 VALUES (NULL),(3); INSERT INTO m1 VALUES (0); INSERT INTO m2 VALUES (0); INSERT INTO m3 VALUES (3);
+  SELECT count() FROM m0 AS a0 LEFT ANTI JOIN m1 AS a1 ON a0.k=a1.k
+    RIGHT SEMI JOIN m2 AS a2 ON a1.k=a2.k INNER JOIN m3 AS a3 ON a0.k=a3.k
+    SETTINGS query_plan_optimize_join_order_limit=10, query_plan_optimize_join_order_randomize=1;  -- 0 or 1 across runs
+  ```
 - **[#106649](https://github.com/ClickHouse/ClickHouse/issues/106649)** — `LOGICAL_ERROR "Column identifier <c> is already registered"` (Code 49) when a mutation's WHERE has an `IN (subquery)` whose inner SELECT joins two subquery-wrapped derived tables projecting the **same column name** (26.6 regression from PR #98884 routing mutations through the new analyzer; fix in flight as PR #106025). Mutation form required; empty tables suffice (analysis-time). **PINNED** via the substring `"is already registered"` in `ClickHouseErrors.getKnownOpenMutationAnalyzerBugs()` (consumed only by the mutation generator + `MutationAnalyzer` oracle) — **remove the pin when #106025 merges and head no longer reproduces.** Verified reproducing on head 26.6.1.399 (2026-06-10).
   ```sql
   CREATE TABLE a (k Int32, m Int64) ENGINE=MergeTree ORDER BY k;
