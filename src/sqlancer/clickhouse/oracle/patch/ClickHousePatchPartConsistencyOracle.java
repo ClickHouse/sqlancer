@@ -75,6 +75,13 @@ public class ClickHousePatchPartConsistencyOracle implements TestOracle<ClickHou
         // patch-part consistency bug. Abandon the iteration rather than report it.
         errors.add("UNKNOWN_TABLE");
         errors.add("Unknown table expression identifier");
+        // Code 241 load-shedding under the squeezed dev-vm container cap (-m=6g): any statement --
+        // including the finally-DROP -- can be rejected when CH is at its cgroup limit. Environment
+        // artifact, not a patch-part bug (2026-06-10 all-oracles run: 7 worker deaths on the DROP
+        // alone). The crash signature this oracle hunts (NOT_FOUND_COLUMN_IN_BLOCK / _part_offset)
+        // shares no substring with these, so the catch mechanism is intact.
+        errors.add("(MEMORY_LIMIT_EXCEEDED)");
+        errors.add("memory limit exceeded");
     }
 
     @Override

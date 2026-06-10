@@ -113,6 +113,13 @@ public class ClickHouseMutationAnalyzerOracle implements TestOracle<ClickHouseGl
         // a dropped namespace are not analyzer bugs.
         errors.add("UNKNOWN_TABLE");
         errors.add("Unknown table expression identifier");
+        // Code 241 load-shedding under the squeezed dev-vm container cap (-m=6g): any statement --
+        // including the finally-DROP -- can be rejected when CH is at its cgroup limit. Environment
+        // artifact, not an analyzer bug (first all-oracles convergence run died 13/15 on exactly
+        // this). A mutation aborted by it fails sync -> tolerated -> IgnoreMe, so it cannot fake a
+        // consistency pass.
+        errors.add("(MEMORY_LIMIT_EXCEEDED)");
+        errors.add("memory limit exceeded");
         // Known-open filed bugs this matrix reproduces every iteration (#106649: "Column identifier
         // ... is already registered", verified reproducing on head 26.6.1.399 on 2026-06-10).
         // Without the pin, every JOINED_DERIVED iteration kills its worker on the already-filed

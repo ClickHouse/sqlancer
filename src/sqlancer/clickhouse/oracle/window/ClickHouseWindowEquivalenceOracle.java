@@ -102,9 +102,14 @@ public class ClickHouseWindowEquivalenceOracle implements TestOracle<ClickHouseG
                 throw new IgnoreMeException();
             }
             ClickHouseColumn numD = Randomly.fromList(numericColsD);
-            // sum(num) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) at the last row == sum(num).
+            // sum(num) OVER (ORDER BY num RANGE UNBOUNDED PRECEDING) at a max-key row == sum(num).
+            // RANGE, not ROWS: with duplicate values of num, ORDER BY num DESC LIMIT 1 picks an
+            // arbitrary tied row, and a ROWS frame at that row excludes an arbitrary subset of its
+            // tied peers -- the identity is unsound and false-positives (2026-06-10 convergence
+            // run, database10). A RANGE frame includes all peers of the current key, so at any
+            // max-key row the frame covers every row regardless of tie order.
             lhs = "SELECT sum(" + numD.getName() + ") OVER (ORDER BY " + numD.getName()
-                    + " ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM " + fq + " ORDER BY " + numD.getName()
+                    + " RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM " + fq + " ORDER BY " + numD.getName()
                     + " DESC LIMIT 1";
             rhs = "SELECT sum(" + numD.getName() + ") FROM " + fq;
             break;
