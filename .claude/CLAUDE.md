@@ -98,6 +98,13 @@ recognise an already-filed bug instead of re-investigating it. **Re-verify again
 before acting** — when an issue is fixed/closed, delete its entry from this list. (Check state:
 `gh issue view <N> --repo ClickHouse/ClickHouse --json state -q .state`.)
 
+- **[#106649](https://github.com/ClickHouse/ClickHouse/issues/106649)** — `LOGICAL_ERROR "Column identifier <c> is already registered"` (Code 49) when a mutation's WHERE has an `IN (subquery)` whose inner SELECT joins two subquery-wrapped derived tables projecting the **same column name** (26.6 regression from PR #98884 routing mutations through the new analyzer; fix in flight as PR #106025). Mutation form required; empty tables suffice (analysis-time). **PINNED** via the substring `"is already registered"` in `ClickHouseErrors.getKnownOpenMutationAnalyzerBugs()` (consumed only by the mutation generator + `MutationAnalyzer` oracle) — **remove the pin when #106025 merges and head no longer reproduces.** Verified reproducing on head 26.6.1.399 (2026-06-10).
+  ```sql
+  CREATE TABLE a (k Int32, m Int64) ENGINE=MergeTree ORDER BY k;
+  CREATE TABLE b (k Int32) ENGINE=MergeTree ORDER BY k;
+  ALTER TABLE a UPDATE m = 1 WHERE k IN (SELECT x.k FROM (SELECT k FROM b) AS x
+    JOIN b AS e ON e.k = x.k JOIN (SELECT k FROM b) AS y ON y.k = e.k);  -- Code 49 LOGICAL_ERROR
+  ```
 - **[#106419](https://github.com/ClickHouse/ClickHouse/issues/106419)** — `WHERE toStartOf{Year,Month,Quarter}(Date32) < const` returns 0 rows after a merge when the column has pre-1970 values (Date32→Date narrowing overflows; monotonic-filter range poisoned). Needs a **merge-formed part**.
   ```sql
   CREATE TABLE t (c1 Date32) ENGINE=MergeTree ORDER BY tuple();
@@ -296,6 +303,23 @@ it abandons the iteration -- under a memory-starved CH (`-m=6g`) an INSERT's MV
 push can partially fail while the source commits and the INSERT still returns
 success, leaving src > MV; that is an environment artifact, not a wrong-result
 (proven: the same case replays identical on an unloaded CH).
+
+## MutationAnalyzer oracle (2026-06-10)
+
+`MutationAnalyzer` deterministically exercises the PR #98884 surface (mutation
+analysis routed through the new analyzer in 26.6): per iteration one cell of
+{ALTER UPDATE/DELETE, lightweight UPDATE/DELETE, MATERIALIZE COLUMN} ×
+{#106649 joined-derived-tables IN-subquery, self-referencing IN-subquery
+(deadlock-avoidance path — `max_execution_time` timeout here is a FINDING, the
+oracle deliberately does not tolerate TIMEOUT_EXCEEDED), plain IN, alias-column
+predicate, virtual-column predicate (crash-only arm)} ×
+`validate_mutation_query` 0/1, against private AtomicLong-suffixed tables.
+Narrow tolerance per the PatchPartConsistency precedent (no global expression
+list), plus an affected-rows consistency assertion (sentinel `countIf` for
+UPDATE, count-delta for DELETE; integer counts only). The general fleet reaches
+the same bug class via the mutation generator's predicate-grade WHEREs (forced
+#106649 arm ~10%, `generatePredicate()` arm ~35%) — both delivery vehicles are
+intentional, breadth + depth.
 
 ## TLPGroupBy oracle correctness
 

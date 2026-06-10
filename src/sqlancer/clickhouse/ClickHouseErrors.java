@@ -373,6 +373,26 @@ public final class ClickHouseErrors {
         errors.addAll(getMutationErrors());
     }
 
+    // TEMPORARY pins for known-open, already-filed ClickHouse bugs on the mutation-analyzer path.
+    // Consumed ONLY by the mutation generator's expected-error build and by
+    // ClickHouseMutationAnalyzerOracle's narrow set -- deliberately NOT part of getMutationErrors(),
+    // which the PatchPartConsistency / FinalMerge oracles also consume on their *read* paths (the
+    // pin must never leak beyond mutation statements).
+    //
+    // - "is already registered": ClickHouse#106649 (LOGICAL_ERROR "Column identifier <c> is already
+    //   registered" when a mutation WHERE has an IN-subquery joining two derived tables that
+    //   project the same column name; 26.6 regression from PR #98884). Verified still reproducing
+    //   on head 26.6.1.399 on 2026-06-10 before pinning. The fix is in flight as PR #106025.
+    //   REMOVAL CONDITION: delete this entry when #106025 merges and head no longer reproduces
+    //   (re-check: gh issue view 106649 --repo ClickHouse/ClickHouse). The substring is the
+    //   message's stable tail -- the column name sits mid-message, and a standalone
+    //   "Column identifier" entry would tolerate far more than the filed signature. This is a
+    //   deliberate, narrow, documented exception to the "never tolerate Code 49" rule: one filed
+    //   signature, mutation path only, never the bare LOGICAL_ERROR token.
+    public static List<String> getKnownOpenMutationAnalyzerBugs() {
+        return List.of("is already registered");
+    }
+
     /**
      * Walk an exception cause chain and return true if any frame's message matches a baseline- tolerated CH error. Use
      * this from oracle code paths that invoke {@link java.sql.Statement#executeQuery} or {@code execute} directly

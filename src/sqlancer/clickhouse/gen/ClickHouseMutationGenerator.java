@@ -151,7 +151,11 @@ public final class ClickHouseMutationGenerator {
         }
 
         ExpectedErrors errors = ExpectedErrors.newErrors().with(ClickHouseErrors.getExpectedExpressionErrors())
-                .with(ClickHouseErrors.getMutationErrors()).build();
+                .with(ClickHouseErrors.getMutationErrors())
+                // Known-open filed bugs on the mutation-analyzer path (#106649 et al.) -- without
+                // the pin every run floods with already-filed reproducers. See the removal
+                // conditions on getKnownOpenMutationAnalyzerBugs.
+                .with(ClickHouseErrors.getKnownOpenMutationAnalyzerBugs()).build();
         // couldAffectSchema=false: mutations alter row contents, not column shape. The barrier
         // helper (invoked separately from the action handler) is what serialises observability.
         return new SQLQueryAdapter(sb.toString(), errors, false);
