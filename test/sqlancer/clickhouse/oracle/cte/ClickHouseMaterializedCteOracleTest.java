@@ -11,11 +11,6 @@ import org.junit.jupiter.api.Test;
 import sqlancer.clickhouse.oracle.cte.ClickHouseMaterializedCteOracle.BodyShape;
 import sqlancer.clickhouse.oracle.cte.ClickHouseMaterializedCteOracle.OuterShape;
 
-/**
- * DB-free rendering tests for the materialized-CTE differential oracle (Unit 8). Covers: exact body SQL per shape;
- * form A (materialized) vs form B (inlined) structural difference -- MATERIALIZED keyword + gate SETTINGS clause on A
- * only; CTE reference multiplicity per outer shape; and the chained shape declaring both CTEs.
- */
 class ClickHouseMaterializedCteOracleTest {
 
     private static int countOccurrences(String haystack, String needle) {
@@ -27,8 +22,6 @@ class ClickHouseMaterializedCteOracleTest {
         }
         return count;
     }
-
-    // --- (a) CTE body rendering, exact SQL per shape ---
 
     @Test
     void groupCountBodyRendersExactly() {
@@ -50,15 +43,13 @@ class ClickHouseMaterializedCteOracleTest {
 
     @Test
     void bodiesAreLimitFree() {
-        // LIMIT without ORDER BY is nondeterministic; bodies must never carry one.
+
         for (BodyShape body : BodyShape.values()) {
             String sql = ClickHouseMaterializedCteOracle.renderBody(body, "t0", "c0", 3, 1);
             assertFalse(sql.contains("LIMIT"), () -> "body must be LIMIT-free: " + sql);
             assertFalse(sql.contains("ORDER BY"), () -> "body must be ORDER-BY-free: " + sql);
         }
     }
-
-    // --- (b) form A carries MATERIALIZED + SETTINGS, form B has neither ---
 
     @Test
     void materializedFormCarriesKeywordAndGateSettings() {
@@ -81,8 +72,7 @@ class ClickHouseMaterializedCteOracleTest {
 
     @Test
     void formsDifferOnlyInMaterializedKeywordAndSettingsClause() {
-        // Structural invariant across the whole shape matrix: stripping the MATERIALIZED keyword
-        // and the trailing gate-SETTINGS clause from form A must yield form B byte-for-byte.
+
         for (OuterShape outer : OuterShape.values()) {
             for (BodyShape body : BodyShape.values()) {
                 String a = ClickHouseMaterializedCteOracle.renderStatement(outer, body, "t9", "c3", 4, 2, true);
@@ -93,8 +83,6 @@ class ClickHouseMaterializedCteOracleTest {
             }
         }
     }
-
-    // --- (c) outer-shape rendering: reference multiplicity ---
 
     @Test
     void selfJoinOuterReferencesCteAliasTwice() {
@@ -113,8 +101,7 @@ class ClickHouseMaterializedCteOracleTest {
         String union = ClickHouseMaterializedCteOracle.renderOuter(OuterShape.UNION_ALL, BodyShape.PLAIN_FILTER);
         assertEquals(2, countOccurrences(union, "mcte_x"), union);
         assertTrue(union.contains("UNION ALL"), union);
-        // The union is wrapped in a subquery so the materialized form's trailing SETTINGS clause
-        // binds to the single top-level SELECT, not to the second union branch.
+
         assertTrue(union.startsWith("SELECT r FROM ("), union);
     }
 
@@ -150,8 +137,6 @@ class ClickHouseMaterializedCteOracleTest {
         assertFalse(b.contains("enable_materialized_cte"), b);
     }
 
-    // --- bounded multiset diff used in the AssertionError message ---
-
     @Test
     void boundedDiffReportsBothSidesAndRespectsLimit() {
         List<String> mat = List.of("(1)", "(2)", "(2)", "(5)");
@@ -165,8 +150,7 @@ class ClickHouseMaterializedCteOracleTest {
 
     @Test
     void probeQueryUsesPerQuerySettingsClause() {
-        // Per-query SETTINGS, not a standalone SET: client-v2 pools connections, so a SET on one
-        // pooled connection would not bind to later requests.
+
         assertEquals("SELECT 1 SETTINGS enable_materialized_cte = 1", ClickHouseMaterializedCteOracle.PROBE_QUERY);
     }
 

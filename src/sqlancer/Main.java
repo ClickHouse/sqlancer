@@ -245,13 +245,7 @@ public final class Main {
             }
             try {
                 getCurrentFileWriter().write(loggable.getLogString());
-                // Intentionally not flushing per write. The current-database log file is closed
-                // (and therefore implicitly flushed) on both the success and failure paths of
-                // DBMSExecutor.run, so reproducer integrity for an AssertionError is preserved.
-                // A per-write flush was costing one OS write() syscall per logged query and
-                // showed up under heavy oracle workloads -- the only behaviour we lose is the
-                // very last few queries being durable if the JVM is hard-killed (SIGKILL/native
-                // crash) before the finally-block close runs.
+
             } catch (IOException e) {
                 throw new AssertionError();
             }
@@ -283,7 +277,7 @@ public final class Main {
                 try {
                     reduceFileWriter.flush();
                 } catch (IOException e) {
-                    // TODO Auto-generated catch block
+
                     e.printStackTrace();
                 }
             }
@@ -305,7 +299,7 @@ public final class Main {
                 try {
                     reduceFileWriter.flush();
                 } catch (IOException e) {
-                    // TODO Auto-generated catch block
+
                     e.printStackTrace();
                 }
             }
@@ -351,9 +345,9 @@ public final class Main {
 
         private String removeNamesFromQueryPlans(String queryPlan) {
             String result = queryPlan;
-            result = result.replaceAll("t[0-9]+", "t0"); // Avoid duplicate tables
-            result = result.replaceAll("v[0-9]+", "v0"); // Avoid duplicate views
-            result = result.replaceAll("i[0-9]+", "i0"); // Avoid duplicate indexes
+            result = result.replaceAll("t[0-9]+", "t0");
+            result = result.replaceAll("v[0-9]+", "v0");
+            result = result.replaceAll("i[0-9]+", "i0");
             return result + "\n";
         }
 
@@ -459,7 +453,7 @@ public final class Main {
                 try {
                     stateToRepro.databaseVersion = con.getDatabaseVersion();
                 } catch (Exception e) {
-                    // ignore
+
                 }
                 state.setConnection(con);
                 state.setStateLogger(logger);
@@ -603,12 +597,6 @@ public final class Main {
             return options.getErrorExitCode();
         }
 
-        // ClickHouse pre-flight: --random-session-settings and --oracle SEMR are mutually exclusive
-        // in a single run. SEMR varies one setting per check() via a per-query SETTINGS suffix; the
-        // randomization layer applies a chosen profile once at connect time and inherits across all
-        // oracles. Mixing them in one run would silently mask SEMR's failure attribution. Catch the
-        // combination once here, before the thread pool spawns, so the operator sees one clear
-        // message instead of N per-thread stack traces and N reproducer artifacts under logs/.
         Object parsedCommand = nameToProvider.get(jc.getParsedCommand()).getCommand();
         if (parsedCommand instanceof ClickHouseOptions chOptions && chOptions.randomSessionSettings
                 && chOptions.oracle.contains(ClickHouseOracleFactory.SEMR)) {
@@ -682,7 +670,7 @@ public final class Main {
                     Randomly r = new Randomly(seed);
                     try {
                         int maxNrDbs = options.getMaxGeneratedDatabases();
-                        // run without a limit if maxNrDbs == -1
+
                         for (int i = 0; i < maxNrDbs || maxNrDbs == -1; i++) {
                             Boolean continueRunning = run(options, execService, executorFactory, r, databaseName);
                             if (!continueRunning) {
@@ -712,7 +700,7 @@ public final class Main {
                         executor.getLogger().logFileWriter = null;
                         executor.getLogger().logException(reduce, executor.getStateToReproduce());
                         if (options.serializeReproduceState()) {
-                            executor.getStateToReproduce().logStatement(reduce.getMessage()); // add the error statement
+                            executor.getStateToReproduce().logStatement(reduce.getMessage());
                             executor.getStateToReproduce().serialize(executor.getLogger().getReproduceFilePath());
                         }
                         return false;
@@ -744,14 +732,6 @@ public final class Main {
         return someOneFails.get() ? options.getErrorExitCode() : 0;
     }
 
-    /**
-     * To register a new provider, it is necessary to implement the DatabaseProvider interface and add an additional
-     * configuration file, see https://docs.oracle.com/javase/9/docs/api/java/util/ServiceLoader.html. Currently, we use
-     * an @AutoService annotation to create the configuration file automatically. This allows SQLancer to pick up
-     * providers in other JARs on the classpath.
-     *
-     * @return The list of service providers on the classpath
-     */
     static List<DatabaseProvider<?, ?, ?>> getDBMSProviders() {
         List<DatabaseProvider<?, ?, ?>> providers = new ArrayList<>();
         @SuppressWarnings("rawtypes")
@@ -763,7 +743,6 @@ public final class Main {
         return providers;
     }
 
-    // see https://github.com/sqlancer/sqlancer/issues/799
     private static void checkForIssue799(List<DatabaseProvider<?, ?, ?>> providers) {
         if (providers.isEmpty()) {
             System.err.println(
@@ -794,10 +773,7 @@ public final class Main {
 
     private static synchronized void startProgressMonitor() {
         if (progressMonitorStarted) {
-            /*
-             * it might be already started if, for example, the main method is called multiple times in a test (see
-             * https://github.com/sqlancer/sqlancer/issues/90).
-             */
+
             return;
         } else {
             progressMonitorStarted = true;

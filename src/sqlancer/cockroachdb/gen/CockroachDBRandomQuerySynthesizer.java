@@ -62,7 +62,7 @@ public final class CockroachDBRandomQuerySynthesizer {
             select.setGroupByExpressions(gen.generateExpressions(Randomly.smallNumber() + 1));
         }
 
-        if (Randomly.getBoolean()) { // TODO expression
+        if (Randomly.getBoolean()) {
             select.setLimitClause(gen.generateConstant(CockroachDBDataType.INT.get()));
         }
         if (Randomly.getBoolean()) {

@@ -5,8 +5,7 @@ import sqlancer.Randomly;
 public class ClickHouseBinaryFunctionOperation extends ClickHouseExpression {
 
     public enum ClickHouseBinaryFunctionOperator {
-        // ClickHouse intDiv/gcd/lcm reject Float operands with ILLEGAL_TYPE_OF_ARGUMENT.
-        // The generator routes integer-only ops through getRandomIntegerOnly().
+
         INT_DIV("intDiv", true), GCD("gcd", true), LCM("lcm", true), MAX2("max2", false), MIN2("min2", false),
         POW("pow", false);
 

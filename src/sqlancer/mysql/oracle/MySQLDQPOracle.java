@@ -36,7 +36,7 @@ public class MySQLDQPOracle implements TestOracle<MySQLGlobalState> {
 
     @Override
     public void check() throws Exception {
-        // Randomly generate a query
+
         MySQLTables tables = state.getSchema().getRandomTableNonEmptyTables();
         gen = new MySQLExpressionGenerator(state).setColumns(tables.getColumns());
         List<MySQLExpression> fetchColumns = new ArrayList<>();
@@ -57,21 +57,17 @@ public class MySQLDQPOracle implements TestOracle<MySQLGlobalState> {
             }
         }
 
-        // Set the join.
         List<MySQLJoin> joinExpressions = MySQLJoin.getRandomJoinClauses(tables.getTables(), state);
         select.setJoinList(joinExpressions.stream().map(j -> (MySQLExpression) j).collect(Collectors.toList()));
 
-        // Set the from clause from the tables that are not used in the join.
         List<MySQLExpression> tableList = tables.getTables().stream().map(t -> new MySQLTableReference(t))
                 .collect(Collectors.toList());
         select.setFromList(tableList);
 
-        // Get the result of the first query
         String originalQueryString = MySQLVisitor.asString(select);
         List<String> originalResult = ComparatorHelper.getResultSetFirstColumnAsString(originalQueryString, errors,
                 state);
 
-        // Check hints
         List<MySQLText> hintList = MySQLHintGenerator.generateAllHints(select, tables.getTables());
         for (MySQLText hint : hintList) {
             select.setHint(hint);
@@ -81,7 +77,6 @@ public class MySQLDQPOracle implements TestOracle<MySQLGlobalState> {
                     state);
         }
 
-        // Check optimizer variables
         List<SQLQueryAdapter> optimizationList = MySQLSetGenerator.getAllOptimizer(state);
         for (SQLQueryAdapter optimization : optimizationList) {
             optimization.execute(state);

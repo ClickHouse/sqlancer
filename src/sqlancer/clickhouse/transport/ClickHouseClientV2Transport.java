@@ -15,23 +15,6 @@ import com.clickhouse.client.api.enums.Protocol;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 
-// Transport backed by clickhouse-java's client-v2 (com.clickhouse.client.api.Client). Requests
-// RowBinaryWithNamesAndTypes output and feeds the bytes through {@link ClickHouseRowBinaryParser}
-// into the transport-agnostic {@link ClickHouseTransport.ResultData}.
-//
-// Why client-v2 and not jdbc-v2 (the historical default):
-//  - jdbc-v2 wraps client-v2 anyway; every error in the jdbc-v2 stack has a client-v2 root cause.
-//  - JDBC's primitive accessors lose UInt64 (gets ArithmeticException via getLong) and out-of-range
-//    DateTime (gets java.time.DateTimeException via getTimestamp). We don't need primitives -- the
-//    parser hands us textual ClickHouse values directly.
-//  - client-v2 exposes the raw response InputStream, so we avoid the JDBC ResultSet close-time
-//    `Premature end of chunk coded message body` family that the local patch in jdbc-v2 was
-//    written to suppress. The patch (and the maintained-jar burden) disappears entirely.
-//
-// Server-side ClickHouse settings (max_execution_time, allow_experimental_analyzer, ...) are
-// applied per-query via {@link QuerySettings#serverSetting}. They are NOT pinned at the client
-// builder because client-v2 pools connections; per-query attachment guarantees every request
-// carries the same setting regardless of which pooled connection it lands on.
 public final class ClickHouseClientV2Transport implements ClickHouseTransport {
 
     private static final Pattern USE_PATTERN = Pattern.compile("^\\s*USE\\s+`?([\\w_]+)`?\\s*;?\\s*$",
@@ -39,7 +22,7 @@ public final class ClickHouseClientV2Transport implements ClickHouseTransport {
 
     private final Client client;
     private final Map<String, String> serverSettings;
-    private String database; // updated by USE statements
+    private String database;
     private volatile String cachedServerVersion;
 
     public ClickHouseClientV2Transport(String host, int port, String user, String password, String database,
@@ -61,13 +44,12 @@ public final class ClickHouseClientV2Transport implements ClickHouseTransport {
         String body = trimTrailingSemicolon(sql);
         String useTarget = matchUse(body);
         if (useTarget != null) {
-            // USE is parsed locally; we steer the per-request `database` parameter ourselves.
+
             this.database = useTarget;
             return;
         }
         try (QueryResponse response = runQuery(body)) {
-            // Drain the body. INSERT/DDL responses are empty or a stats summary; we don't care
-            // about the content, only that the server signalled completion.
+
             try (InputStream in = response.getInputStream()) {
                 byte[] buf = new byte[4096];
                 int n;
@@ -108,7 +90,7 @@ public final class ClickHouseClientV2Transport implements ClickHouseTransport {
         try {
             client.close();
         } catch (Exception ignored) {
-            // Best-effort close.
+
         }
     }
 
@@ -120,7 +102,7 @@ public final class ClickHouseClientV2Transport implements ClickHouseTransport {
         try {
             return client.query(sql, qs).get();
         } catch (ExecutionException ex) {
-            // CompletableFuture.get() wraps the real cause. Unwrap so as-SQLException catches it.
+
             Throwable cause = ex.getCause();
             if (cause instanceof Exception) {
                 throw (Exception) cause;
@@ -130,9 +112,7 @@ public final class ClickHouseClientV2Transport implements ClickHouseTransport {
     }
 
     private static SQLException asSqlException(Throwable t, String query) {
-        // Preserve the ClickHouse error code (vendorCode) in the SQLException so
-        // ClickHouseErrors.errorIsExpected() can substring-match against the message text exactly
-        // like the JDBC driver did.
+
         int vendorCode = 0;
         String text = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
         if (t instanceof ServerException) {
@@ -143,7 +123,7 @@ public final class ClickHouseClientV2Transport implements ClickHouseTransport {
                 try {
                     vendorCode = Integer.parseInt(m.group(1));
                 } catch (NumberFormatException ignored) {
-                    // leave at 0
+
                 }
             }
         }

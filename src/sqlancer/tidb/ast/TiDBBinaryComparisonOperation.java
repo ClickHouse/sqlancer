@@ -9,13 +9,13 @@ public class TiDBBinaryComparisonOperation extends BinaryOperatorNode<TiDBExpres
         implements TiDBExpression {
 
     public enum TiDBComparisonOperator implements Operator {
-        EQUALS("="), //
-        GREATER(">"), //
-        GREATER_EQUALS(">="), //
-        SMALLER("<"), //
-        SMALLER_EQUALS("<="), //
-        NOT_EQUALS("!="), //
-        NULL_SAFE_EQUALS("<=>"); // https://github.com/tidb-challenge-program/bug-hunting-issue/issues/5
+        EQUALS("="),
+        GREATER(">"),
+        GREATER_EQUALS(">="),
+        SMALLER("<"),
+        SMALLER_EQUALS("<="),
+        NOT_EQUALS("!="),
+        NULL_SAFE_EQUALS("<=>");
 
         private String textRepr;
 

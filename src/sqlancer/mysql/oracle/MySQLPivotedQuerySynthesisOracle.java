@@ -37,8 +37,8 @@ public class MySQLPivotedQuerySynthesisOracle
     public MySQLPivotedQuerySynthesisOracle(MySQLGlobalState globalState) throws SQLException {
         super(globalState);
         MySQLErrors.addExpressionErrors(errors);
-        errors.add("in 'order clause'"); // e.g., Unknown column '2067708013' in 'order clause'
-        errors.add("in 'EXISTS subquery'"); // e.g., Unknown column '2067708013' in 'EXISTS subquery' (MySQL 8.4+)
+        errors.add("in 'order clause'");
+        errors.add("in 'EXISTS subquery'");
     }
 
     @Override
@@ -118,7 +118,7 @@ public class MySQLPivotedQuerySynthesisOracle
     @Override
     protected Query<SQLConnection> getContainmentCheckQuery(Query<?> query) throws SQLException {
         StringBuilder sb = new StringBuilder();
-        sb.append("SELECT * FROM ("); // ANOTHER SELECT TO USE ORDER BY without restrictions
+        sb.append("SELECT * FROM (");
         sb.append(query.getUnterminatedQueryString());
         sb.append(") as result WHERE ");
         int i = 0;

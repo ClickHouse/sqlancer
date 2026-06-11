@@ -42,7 +42,7 @@ public class HSQLDBTableGenerator extends AbstractTableGenerator<HSQLDBSchema.HS
         sb.append(" ");
         sb.append(column.getType().getType().name());
         if (column.getType().getSize() > 0) {
-            // Cannot specify size for non composite data types
+
             sb.append("(");
             sb.append(column.getType().getSize());
             sb.append(")");

@@ -25,18 +25,14 @@ public final class PrestoRandomQuerySynthesizer {
         PrestoTypedExpressionGenerator gen = new PrestoTypedExpressionGenerator(globalState)
                 .setColumns(targetTables.getColumns());
         PrestoSelect select = new PrestoSelect();
-        // TODO: distinct
-        // select.setDistinct(Randomly.getBoolean());
-        // boolean allowAggregates = Randomly.getBooleanWithSmallProbability();
+
         List<PrestoExpression> columns = new ArrayList<>();
         for (int i = 0; i < nrColumns; i++) {
-            // if (allowAggregates && Randomly.getBoolean()) {
+
             PrestoExpression expression = gen
                     .generateExpression(PrestoSchema.PrestoCompositeDataType.getRandomWithoutNull());
             columns.add(expression);
-            // } else {
-            // columns.add(gen());
-            // }
+
         }
         select.setFetchColumns(columns);
         List<PrestoTable> tables = targetTables.getTables();
@@ -59,11 +55,7 @@ public final class PrestoRandomQuerySynthesizer {
         if (Randomly.getBoolean()) {
             select.setLimitClause(PrestoConstant.createIntConstant(Randomly.getNotCachedInteger(0, Integer.MAX_VALUE)));
         }
-        // if (Randomly.getBoolean()) {
-        // select.setOffsetClause(
-        // PrestoConstant.createIntConstant(Randomly.getNotCachedInteger(0,
-        // Integer.MAX_VALUE)));
-        // }
+
         if (Randomly.getBoolean()) {
             select.setHavingClause(gen.generateHavingClause());
         }

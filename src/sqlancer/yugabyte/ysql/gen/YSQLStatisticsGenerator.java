@@ -24,7 +24,7 @@ public final class YSQLStatisticsGenerator {
         if (Randomly.getBoolean()) {
             sb.append(" IF NOT EXISTS");
         }
-        YSQLTable randomTable = globalState.getSchema().getRandomTable(t -> !t.isView()); // TODO materialized view
+        YSQLTable randomTable = globalState.getSchema().getRandomTable(t -> !t.isView());
         if (randomTable.getColumns().size() < 2) {
             throw new IgnoreMeException();
         }

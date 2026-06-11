@@ -82,7 +82,6 @@ public class CERTOracle<Z extends Select<J, E, T, C>, J extends Join<E, T, C>, E
             return;
         }
 
-        // Check the results
         if (increase && rowCount1 > rowCount2 || !increase && rowCount1 < rowCount2) {
             throw new AssertionError("Inconsistent result for query: " + queryString1 + "; --" + rowCount1 + "\n"
                     + queryString2 + "; --" + rowCount2);
@@ -93,7 +92,6 @@ public class CERTOracle<Z extends Select<J, E, T, C>, J extends Join<E, T, C>, E
             throws AssertionError, SQLException {
         Optional<Long> row = Optional.empty();
 
-        // Log the query
         if (globalState.getOptions().logEachSelect()) {
             globalState.getLogger().writeCurrent(explainQuery);
             try {
@@ -103,7 +101,6 @@ public class CERTOracle<Z extends Select<J, E, T, C>, J extends Join<E, T, C>, E
             }
         }
 
-        // Get the row count
         SQLQueryAdapter q = new SQLQueryAdapter(explainQuery, errors);
         try (SQLancerResultSet rs = q.executeAndGet(globalState)) {
             if (rs != null) {

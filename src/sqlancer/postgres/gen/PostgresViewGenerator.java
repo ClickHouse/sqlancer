@@ -46,15 +46,7 @@ public final class PostgresViewGenerator {
             sb.append(DBMSCommon.createColumnName(i));
         }
         sb.append(")");
-        // if (Randomly.getBoolean() && false) {
-        // sb.append(" WITH(");
-        // if (Randomly.getBoolean()) {
-        // sb.append(String.format("security_barrier(%s)", Randomly.getBoolean()));
-        // } else {
-        // sb.append(String.format("check_option(%s)", Randomly.fromOptions("local1", "cascaded")));
-        // }
-        // sb.append(")");
-        // }
+
         sb.append(" AS (");
         PostgresSelect select = PostgresRandomQueryGenerator.createRandomQuery(nrColumns, globalState);
         sb.append(PostgresVisitor.asString(select));
@@ -68,10 +60,10 @@ public final class PostgresViewGenerator {
         PostgresCommon.addGroupingErrors(errors);
         errors.add("already exists");
         errors.add("cannot drop columns from view");
-        errors.add("non-integer constant in ORDER BY"); // TODO
-        errors.add("for SELECT DISTINCT, ORDER BY expressions must appear in select list"); // TODO
+        errors.add("non-integer constant in ORDER BY");
+        errors.add("for SELECT DISTINCT, ORDER BY expressions must appear in select list");
         errors.add("cannot change data type of view column");
-        errors.add("specified more than once"); // TODO
+        errors.add("specified more than once");
         errors.add("materialized views must not use temporary tables or views");
         errors.add("does not have the form non-recursive-term UNION [ALL] recursive-term");
         errors.add("is not a view");

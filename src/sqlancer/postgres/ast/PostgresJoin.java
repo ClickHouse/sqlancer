@@ -63,7 +63,7 @@ public class PostgresJoin implements PostgresExpression, Join<PostgresExpression
 
     public static List<PostgresExpression> getJoins(List<PostgresExpression> tableList,
             PostgresGlobalState globalState) {
-        // Clone Table to prevent the original list from being manipulated
+
         List<PostgresExpression> tbl = new ArrayList<>(tableList);
         List<PostgresExpression> joinExpressions = new ArrayList<>();
         while (tbl.size() >= 2 && Randomly.getBoolean()) {

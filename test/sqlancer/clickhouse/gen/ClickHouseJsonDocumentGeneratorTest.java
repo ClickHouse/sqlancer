@@ -21,8 +21,6 @@ import sqlancer.clickhouse.gen.ClickHouseJsonDocumentGenerator.LeafKind;
 
 class ClickHouseJsonDocumentGeneratorTest {
 
-    // --- hand-built corpus: ground truth helpers must be exact on a hand-checkable corpus ---
-
     private static Document doc(Object... pathLeafPairs) {
         LinkedHashMap<String, Leaf> leaves = new LinkedHashMap<>();
         for (int i = 0; i < pathLeafPairs.length; i += 2) {
@@ -32,12 +30,7 @@ class ClickHouseJsonDocumentGeneratorTest {
     }
 
     private static List<Document> handCorpus() {
-        // 5 documents, hand-checkable:
-        // d0: p_int=7, p_str=val1, u0=int 7, u1=w1
-        // d1: p_int=7, p_str=val2, u0=str "w1"
-        // d2: p_int=9, p_str=val1, n.a.b.c=deep1
-        // d3: empty {}
-        // d4: p_int=12, p_str=val1, u1=w1, n.a.b.c=deep2
+
         return List.of(
                 doc("p_int", Leaf.ofInt(7), "p_str", Leaf.ofString("val1"), "u0", Leaf.ofInt(7), "u1",
                         Leaf.ofString("w1")),
@@ -54,8 +47,7 @@ class ClickHouseJsonDocumentGeneratorTest {
         assertEquals(2, ClickHouseJsonDocumentGenerator.countWhereTypedIntEquals(corpus, 7));
         assertEquals(1, ClickHouseJsonDocumentGenerator.countWhereTypedIntEquals(corpus, 9));
         assertEquals(0, ClickHouseJsonDocumentGenerator.countWhereTypedIntEquals(corpus, 555));
-        // The empty document has no p_int: it must never count, including for hypothetical
-        // default-y values (the default-sentinel guarantee makes 0 unreachable anyway).
+
         assertEquals(0, ClickHouseJsonDocumentGenerator.countWhereTypedIntEquals(corpus, 0));
 
         assertEquals(3, ClickHouseJsonDocumentGenerator.countWhereTypedStrEquals(corpus, "val1"));
@@ -83,8 +75,7 @@ class ClickHouseJsonDocumentGeneratorTest {
 
     @Test
     void existenceGroundTruthRejectsTypedPaths() {
-        // JSONAllPaths reports typed paths unconditionally on the server, so a per-document
-        // presence model for them would be wrong by design.
+
         List<Document> corpus = handCorpus();
         assertThrows(IllegalArgumentException.class,
                 () -> ClickHouseJsonDocumentGenerator.countWherePathExists(corpus, "p_int"));
@@ -95,14 +86,11 @@ class ClickHouseJsonDocumentGeneratorTest {
     @Test
     void untypedStringEqualityIsStrictSameType() {
         List<Document> corpus = handCorpus();
-        // d0 has u0 = INT 7 and d1 has u0 = STRING "w1": strict same-type equality must not
-        // cross-match (d0's int 7 never equals the string "7").
+
         assertEquals(1, ClickHouseJsonDocumentGenerator.countWhereUntypedStringEquals(corpus, "u0", "w1"));
         assertEquals(0, ClickHouseJsonDocumentGenerator.countWhereUntypedStringEquals(corpus, "u0", "7"));
         assertEquals(2, ClickHouseJsonDocumentGenerator.countWhereUntypedStringEquals(corpus, "u1", "w1"));
     }
-
-    // --- rendering ---
 
     @Test
     void renderingIsExactForHandBuiltDocuments() {
@@ -119,9 +107,9 @@ class ClickHouseJsonDocumentGeneratorTest {
         assertEquals("a\\\"b", ClickHouseJsonDocumentGenerator.escapeJsonString("a\"b"));
         assertEquals("a\\\\b", ClickHouseJsonDocumentGenerator.escapeJsonString("a\\b"));
         assertEquals("a\\nb\\tc\\rd\\be\\ff", ClickHouseJsonDocumentGenerator.escapeJsonString("a\nb\tc\rd\be\ff"));
-        // Unnamed control char below U+0020 -> \\u00XX.
+
         assertEquals("x\\u0001y", ClickHouseJsonDocumentGenerator.escapeJsonString("x\u0001y"));
-        // Backslash-then-quote: backslash escaped first, quote escape survives.
+
         assertEquals("\\\\\\\"", ClickHouseJsonDocumentGenerator.escapeJsonString("\\\""));
     }
 
@@ -130,8 +118,6 @@ class ClickHouseJsonDocumentGeneratorTest {
         Document d = doc("p_str", Leaf.ofString("a\"b\\c"));
         assertEquals("{\"p_str\":\"a\\\"b\\\\c\"}", d.render());
     }
-
-    // --- generated corpora ---
 
     @Test
     void generationIsDeterministicGivenTheSeed() {
@@ -166,10 +152,10 @@ class ClickHouseJsonDocumentGeneratorTest {
                     json);
             assertEquals(0, json.chars().filter(c -> c == '"').count() % 2, json);
             if (!d.isEmpty()) {
-                // Typed paths are present in every non-empty document, as quoted keys.
+
                 assertTrue(json.contains("\"p_int\":"), json);
                 assertTrue(json.contains("\"p_str\":\""), json);
-                // Default-sentinel guarantee: int leaves >= 1, string leaves non-empty.
+
                 Leaf typedInt = d.getLeaf(ClickHouseJsonDocumentGenerator.TYPED_INT_PATH);
                 assertNotNull(typedInt);
                 assertEquals(LeafKind.INT, typedInt.getKind());
@@ -179,7 +165,7 @@ class ClickHouseJsonDocumentGeneratorTest {
                 assertEquals(LeafKind.STRING, typedStr.getKind());
                 assertFalse(typedStr.getText().isEmpty(), json);
             }
-            // No path outside the instance schema, and never the phantom path.
+
             assertTrue(allowedPaths.containsAll(d.getPaths()),
                     () -> "document carries a path outside the instance schema: " + d.getPaths());
             assertFalse(d.hasPath(ClickHouseJsonDocumentGenerator.PHANTOM_PATH));
@@ -204,7 +190,7 @@ class ClickHouseJsonDocumentGeneratorTest {
                 sawMixedInt |= mixed.getKind() == LeafKind.INT;
                 sawMixedString |= mixed.getKind() == LeafKind.STRING;
             } else if (!d.isEmpty()) {
-                sawAbsentUntyped = true; // per-document optional absence (PR #98886 edge)
+                sawAbsentUntyped = true;
             }
         }
         assertTrue(sawEmpty, "no empty {} document in 300 draws");

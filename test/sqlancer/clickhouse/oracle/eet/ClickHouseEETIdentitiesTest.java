@@ -17,9 +17,7 @@ class ClickHouseEETIdentitiesTest {
 
     @Test
     void integerTypeAcceptsArithmeticIdentities() {
-        // Loop 200 times so probabilistic selection eventually exercises both plus_zero and
-        // multiply_one alongside the type-agnostic identities. The assertion is on membership in
-        // the eligible set, not on order.
+
         Set<String> seen = new HashSet<>();
         for (int i = 0; i < 200; i++) {
             Optional<ClickHouseEETIdentities.Identity> picked = ClickHouseEETIdentities
@@ -50,8 +48,7 @@ class ClickHouseEETIdentitiesTest {
 
     @Test
     void stringTypeAcceptsNewRoundtripIdentities() {
-        // Unit 6.2: the four new String fold-to-x identities must all be eligible for String and
-        // appear across repeated draws.
+
         Set<String> seen = new HashSet<>();
         for (int i = 0; i < 400; i++) {
             Optional<ClickHouseEETIdentities.Identity> picked = ClickHouseEETIdentities
@@ -94,8 +91,7 @@ class ClickHouseEETIdentitiesTest {
 
     @Test
     void fixedStringExcludedFromStringIdentities() {
-        // FixedString is a distinct Kind and must NOT pick any plain-String identity (the trailing
-        // NUL padding round-trips unevenly through these functions + cast-back).
+
         Set<String> stringOnly = Set.of("reverse_reverse", "substring_whole", "concat_substring_split",
                 "replace_regexp_nomatch", "concat_empty");
         for (int i = 0; i < 200; i++) {
@@ -114,10 +110,7 @@ class ClickHouseEETIdentitiesTest {
 
     @Test
     void floatTypeExcludesArithmeticIdentities() {
-        // Locks down the v1 scope boundary: Float must never be eligible for plus_zero or
-        // multiply_one because of NaN / -0.0 false-positive risk. If someone widens the predicate
-        // later without updating the cast-back machinery or the comparison normalization, this
-        // negative assertion will fail.
+
         Set<String> seen = new HashSet<>();
         for (int i = 0; i < 200; i++) {
             Optional<ClickHouseEETIdentities.Identity> picked = ClickHouseEETIdentities
@@ -155,7 +148,7 @@ class ClickHouseEETIdentitiesTest {
 
     @Test
     void identityAppliesFormatterToBothSlots() {
-        // coalesce_self has two %s slots; ensure applyTo fills both with the same xSql.
+
         ClickHouseEETIdentities.Identity coalesce = ClickHouseEETIdentities.CATALOG.stream()
                 .filter(id -> id.name().equals("coalesce_self")).findFirst().orElseThrow();
         String applied = coalesce.applyTo("t.col");
@@ -166,8 +159,7 @@ class ClickHouseEETIdentitiesTest {
     void plusZeroTemplateUsesFirstSlotOnly() {
         ClickHouseEETIdentities.Identity plus = ClickHouseEETIdentities.CATALOG.stream()
                 .filter(id -> id.name().equals("plus_zero")).findFirst().orElseThrow();
-        // applyTo passes xSql for both slots; plus_zero's template ignores the second slot, so the
-        // rendered output is still the single-arg form.
+
         String applied = plus.applyTo("t.col");
         assertEquals("plus(t.col, 0)", applied);
     }

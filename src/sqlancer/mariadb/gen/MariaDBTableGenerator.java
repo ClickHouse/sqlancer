@@ -80,7 +80,7 @@ public class MariaDBTableGenerator {
             final boolean isGeneratedColumn;
             if (Randomly.getBoolean() && !MariaDBBugs.bug21058) {
                 sb.append(" GENERATED ALWAYS AS(");
-                // TODO columns
+
                 sb.append(MariaDBVisitor.asString(new MariaDBExpressionGenerator(r).getRandomExpression()));
                 sb.append(")");
                 isGeneratedColumn = true;
@@ -133,10 +133,7 @@ public class MariaDBTableGenerator {
             sb.append("OR REPLACE ");
             replace = true;
         }
-        // TODO temporary
-        // if (Randomly.getBoolean()) {
-        // sb.append("TEMPORARY ");
-        // }
+
         sb.append("TABLE ");
         if (Randomly.getBoolean() && !replace) {
             sb.append("IF NOT EXISTS ");

@@ -26,7 +26,7 @@ public class AbstractRelationalTable<C extends AbstractTableColumn<?, ?>, I exte
                 rowCount = query.getLong(1);
                 return rowCount;
             } catch (Throwable t) {
-                // an exception might be expected, for example, when invalid view is created
+
                 throw new IgnoreMeException();
             }
         } else {

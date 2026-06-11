@@ -55,7 +55,7 @@ public class SQLQueryAdapter extends Query<SQLConnection> implements Serializabl
         } else if (!s.contains("--")) {
             return s + ";";
         } else {
-            // query contains a comment
+
             return s;
         }
     }
@@ -83,40 +83,12 @@ public class SQLQueryAdapter extends Query<SQLConnection> implements Serializabl
         return result;
     }
 
-    /**
-     * This method is used to mostly oracles, which need to report exceptions. We set the reportException parameter to
-     * true by default meaning that exceptions are reported.
-     *
-     * @param globalState
-     * @param fills
-     *
-     * @return whether the query was executed successfully
-     *
-     * @param <G>
-     *
-     * @throws SQLException
-     */
     @Override
     public <G extends GlobalState<?, ?, SQLConnection>> boolean execute(G globalState, String... fills)
             throws SQLException {
         return execute(globalState, true, fills);
     }
 
-    /**
-     * This method is used to DQE oracles, DQE does not check exception separately, while other testing methods may
-     * need. We use reportException to control this behavior. For a specific DBMS used DQE oracle, we call this method
-     * and pass a boolean value of false as an argument.
-     *
-     * @param globalState
-     * @param reportException
-     * @param fills
-     *
-     * @return whether the query was executed successfully
-     *
-     * @param <G>
-     *
-     * @throws SQLException
-     */
     public <G extends GlobalState<?, ?, SQLConnection>> boolean execute(G globalState, boolean reportException,
             String... fills) throws SQLException {
         return internalExecute(globalState.getConnection(), reportException, fills);
@@ -133,15 +105,11 @@ public class SQLQueryAdapter extends Query<SQLConnection> implements Serializabl
         } else {
             s = connection.createStatement();
         }
-        // SQLancer never generates JDBC escape syntax (`{fn ...}`, `{call ...}`, `{escape '\'}`),
-        // so disabling escape processing skips the driver's escape-to-native preprocessor. On the
-        // ClickHouse 0.9.8 JDBC driver this saved ~70 samples of `String.replaceAll` per profile
-        // window. The setter is part of JDBC; drivers that don't support disabling it ignore the
-        // call, so this is safe across every DBMS module.
+
         try {
             s.setEscapeProcessing(false);
         } catch (SQLException ignored) {
-            // Some drivers throw on this setter; honour their convention by leaving the default.
+
         }
         try {
             if (fills.length > 0) {
@@ -166,10 +134,7 @@ public class SQLQueryAdapter extends Query<SQLConnection> implements Serializabl
         Throwable ex = e;
 
         while (ex != null) {
-            // ExpectedErrors.errorIsExpected throws IllegalArgumentException on null. Skip
-            // null-message frames in the cause chain rather than propagating that as an
-            // AssertionError -- a chained exception with no message is a no-op from the
-            // expected-error perspective and the next frame may have a useful message.
+
             String msg = ex.getMessage();
             if (msg != null && expectedErrors.errorIsExpected(msg)) {
                 return;
@@ -205,7 +170,7 @@ public class SQLQueryAdapter extends Query<SQLConnection> implements Serializabl
         try {
             s.setEscapeProcessing(false);
         } catch (SQLException ignored) {
-            // Some drivers throw on this setter; honour their convention by leaving the default.
+
         }
         ResultSet result;
         try {

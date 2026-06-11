@@ -37,7 +37,7 @@ public class DorisIndexGenerator extends AbstractIndexGenerator<DorisColumn> {
         sb.append(globalState.getSchema().getFreeIndexName());
         sb.append(" ON ");
         sb.append(randomTable.getName());
-        // Doris only supports CREATE INDEX on a single column; index type is BITMAP
+
         List<DorisColumn> subset = Randomly.extractNrRandomColumns(randomTable.getColumns(), 1);
         appendIndexColumnList(subset, false);
         sb.append(" ");

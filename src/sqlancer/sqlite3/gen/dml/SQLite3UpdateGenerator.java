@@ -51,9 +51,6 @@ public final class SQLite3UpdateGenerator extends AbstractUpdateGenerator<SQLite
             }
             errors.add("[SQLITE_CONSTRAINT]");
         }
-        // TODO Beginning in SQLite version 3.15.0 (2016-10-14), an assignment in the
-        // SET clause can be a parenthesized list of column names on the left and a row
-        // value of the same size on the right.
 
         sb.append(table.getName());
         sb.append(" SET ");
@@ -70,7 +67,7 @@ public final class SQLite3UpdateGenerator extends AbstractUpdateGenerator<SQLite
                 updateValue(columnsToUpdate.get(i));
             }
             sb.append(")");
-            // row values
+
         } else {
             updateColumns(columnsToUpdate);
         }
@@ -81,19 +78,12 @@ public final class SQLite3UpdateGenerator extends AbstractUpdateGenerator<SQLite
             appendWhereClause(whereClause);
         }
 
-        // ORDER BY and LIMIT are only supported by enabling a compile-time option
-        // List<Expression> expressions = QueryGenerator.generateOrderBy(table.getColumns());
-        // if (!expressions.isEmpty()) {
-        // sb.append(" ORDER BY ");
-        // sb.append(expressions.stream().map(e -> SQLite3Visitor.asString(e)).collect(Collectors.joining(", ")));
-        // }
-
         SQLite3Errors.addInsertUpdateErrors(errors);
 
         errors.add("[SQLITE_ERROR] SQL error or missing database (parser stack overflow)");
         errors.add(
                 "[SQLITE_ERROR] SQL error or missing database (second argument to likelihood() must be a constant between 0.0 and 1.0)");
-        // for views
+
         errors.add("ORDER BY term out of range");
         errors.add("unknown function: json_type");
 

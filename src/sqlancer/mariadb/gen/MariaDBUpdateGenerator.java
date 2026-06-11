@@ -35,7 +35,7 @@ public final class MariaDBUpdateGenerator {
             } else {
                 sb.append("DEFAULT");
             }
-            // [WHERE where_condition] [ORDER BY ...] [LIMIT row_count]
+
         }
         ExpectedErrors errors = new ExpectedErrors();
         MariaDBErrors.addInsertErrors(errors);

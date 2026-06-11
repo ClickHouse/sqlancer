@@ -60,8 +60,8 @@ public class H2Schema extends AbstractSchema<H2GlobalState, H2Table> {
                 size = Randomly.fromOptions(4, 8);
                 if (Randomly.getBoolean()) {
                     if (size == 4) {
-                        precision = (int) Randomly.getNotCachedInteger(1, 25); // TODO: documentation states 0 as lower
-                                                                               // bound
+                        precision = (int) Randomly.getNotCachedInteger(1, 25);
+
                     } else {
                         precision = (int) Randomly.getNotCachedInteger(25, 54);
                     }
@@ -113,15 +113,11 @@ public class H2Schema extends AbstractSchema<H2GlobalState, H2Table> {
                     throw new AssertionError(size);
                 }
             case VARCHAR:
-                return /* String varCharType = */ Randomly.fromOptions("VARCHAR", "VARCHAR_IGNORECASE");
-            // if (precision == NO_PRECISION) {
-            // return varCharType;
-            // } else {
-            // return String.format("%s(%d)", varCharType, precision);
-            // }
+                return  Randomly.fromOptions("VARCHAR", "VARCHAR_IGNORECASE");
+
             case BINARY:
                 return "BINARY";
-            // return String.format("BINARY(%d)", precision);
+
             default:
                 return dataType.toString();
             }
@@ -197,7 +193,7 @@ public class H2Schema extends AbstractSchema<H2GlobalState, H2Table> {
                     String columnType = rs.getString("TYPE");
                     H2DataType primitiveType = getColumnType(columnType);
                     H2Column c = new H2Column(columnName,
-                            new H2CompositeDataType(primitiveType, -1, -1 /* TODO: read size and precision */));
+                            new H2CompositeDataType(primitiveType, -1, -1 ));
                     columns.add(c);
                 }
             }
@@ -219,7 +215,7 @@ public class H2Schema extends AbstractSchema<H2GlobalState, H2Table> {
         } else if (columnType.startsWith("NUMERIC")) {
             return H2DataType.INT;
         } else if (columnType.contentEquals("NULL")) {
-            return H2DataType.INT; // for a NULL view column
+            return H2DataType.INT;
         } else if (columnType.startsWith("BINARY")) {
             return H2DataType.BINARY;
         } else {

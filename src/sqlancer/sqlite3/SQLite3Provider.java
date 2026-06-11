@@ -51,7 +51,6 @@ public class SQLite3Provider extends SQLProviderAdapter<SQLite3GlobalState, SQLi
     public static boolean allowFloatingPointFp = true;
     public static boolean mustKnowResult;
 
-    // PRAGMAS to achieve good performance
     private static final List<String> DEFAULT_PRAGMAS = Arrays.asList("PRAGMA cache_size = 50000;",
             "PRAGMA temp_store=MEMORY;", "PRAGMA synchronous=off;");
 
@@ -60,50 +59,50 @@ public class SQLite3Provider extends SQLProviderAdapter<SQLite3GlobalState, SQLi
     }
 
     public enum Action implements AbstractAction<SQLite3GlobalState> {
-        PRAGMA(SQLite3PragmaGenerator::insertPragma), // 0
-        CREATE_INDEX(SQLite3IndexGenerator::insertIndex), // 1
-        CREATE_VIEW(SQLite3ViewGenerator::generate), // 2
-        CREATE_TRIGGER(SQLite3CreateTriggerGenerator::create), // 3
-        CREATE_TABLE(SQLite3TableGenerator::createRandomTableStatement), // 4
-        CREATE_VIRTUALTABLE(SQLite3CreateVirtualFTSTableGenerator::createRandomTableStatement), // 5
-        CREATE_RTREETABLE(SQLite3CreateVirtualRtreeTabelGenerator::createRandomTableStatement), // 6
-        INSERT(SQLite3InsertGenerator::insertRow), // 7
-        DELETE(SQLite3DeleteGenerator::deleteContent), // 8
-        ALTER(SQLite3AlterTable::alterTable), // 9
-        UPDATE(SQLite3UpdateGenerator::updateRow), // 10
-        DROP_INDEX(SQLite3DropIndexGenerator::dropIndex), // 11
-        DROP_TABLE(SQLite3DropTableGenerator::dropTable), // 12
-        DROP_VIEW(SQLite3ViewGenerator::dropView), // 13
-        VACUUM(SQLite3VacuumGenerator::executeVacuum), // 14
-        REINDEX(SQLite3ReindexGenerator::executeReindex), // 15
-        ANALYZE(SQLite3AnalyzeGenerator::generateAnalyze), // 16
-        EXPLAIN(SQLite3ExplainGenerator::explain), // 17
+        PRAGMA(SQLite3PragmaGenerator::insertPragma),
+        CREATE_INDEX(SQLite3IndexGenerator::insertIndex),
+        CREATE_VIEW(SQLite3ViewGenerator::generate),
+        CREATE_TRIGGER(SQLite3CreateTriggerGenerator::create),
+        CREATE_TABLE(SQLite3TableGenerator::createRandomTableStatement),
+        CREATE_VIRTUALTABLE(SQLite3CreateVirtualFTSTableGenerator::createRandomTableStatement),
+        CREATE_RTREETABLE(SQLite3CreateVirtualRtreeTabelGenerator::createRandomTableStatement),
+        INSERT(SQLite3InsertGenerator::insertRow),
+        DELETE(SQLite3DeleteGenerator::deleteContent),
+        ALTER(SQLite3AlterTable::alterTable),
+        UPDATE(SQLite3UpdateGenerator::updateRow),
+        DROP_INDEX(SQLite3DropIndexGenerator::dropIndex),
+        DROP_TABLE(SQLite3DropTableGenerator::dropTable),
+        DROP_VIEW(SQLite3ViewGenerator::dropView),
+        VACUUM(SQLite3VacuumGenerator::executeVacuum),
+        REINDEX(SQLite3ReindexGenerator::executeReindex),
+        ANALYZE(SQLite3AnalyzeGenerator::generateAnalyze),
+        EXPLAIN(SQLite3ExplainGenerator::explain),
         CHECK_RTREE_TABLE((g) -> {
             SQLite3Table table = g.getSchema().getRandomTableOrBailout(t -> t.getName().startsWith("r"));
             String format = String.format("SELECT rtreecheck('%s');", table.getName());
             return new SQLQueryAdapter(format, ExpectedErrors.from("The database file is locked"));
-        }), // 18
-        VIRTUAL_TABLE_ACTION(SQLite3VirtualFTSTableCommandGenerator::create), // 19
-        MANIPULATE_STAT_TABLE(SQLite3StatTableGenerator::getQuery), // 20
+        }),
+        VIRTUAL_TABLE_ACTION(SQLite3VirtualFTSTableCommandGenerator::create),
+        MANIPULATE_STAT_TABLE(SQLite3StatTableGenerator::getQuery),
         TRANSACTION_START(SQLite3TransactionGenerator::generateBeginTransaction) {
             @Override
             public boolean canBeRetried() {
                 return false;
             }
 
-        }, // 21
+        },
         ROLLBACK_TRANSACTION(SQLite3TransactionGenerator::generateRollbackTransaction) {
             @Override
             public boolean canBeRetried() {
                 return false;
             }
-        }, // 22
+        },
         COMMIT(SQLite3TransactionGenerator::generateCommit) {
             @Override
             public boolean canBeRetried() {
                 return false;
             }
-        }; // 23
+        };
 
         private final SQLQueryProvider<SQLite3GlobalState> sqlQueryProvider;
 
@@ -216,7 +215,6 @@ public class SQLite3Provider extends SQLProviderAdapter<SQLite3GlobalState, SQLi
             SQLQueryAdapter query = SQLite3TransactionGenerator.generateCommit(globalState);
             globalState.executeStatement(query);
 
-            // also do an abort for DEFERRABLE INITIALLY DEFERRED
             query = SQLite3TransactionGenerator.generateRollbackTransaction(globalState);
             globalState.executeStatement(query);
         }
@@ -270,11 +268,11 @@ public class SQLite3Provider extends SQLProviderAdapter<SQLite3GlobalState, SQLi
             pragmasToExecute.addAll(DEFAULT_PRAGMAS);
         }
         if (Randomly.getBoolean() && globalState.getDbmsSpecificOptions().oracles != SQLite3OracleFactory.PQS) {
-            // the PQS implementation currently assumes the default behavior of LIKE
+
             pragmasToExecute.add("PRAGMA case_sensitive_like=ON;");
         }
         if (Randomly.getBoolean() && globalState.getDbmsSpecificOptions().oracles != SQLite3OracleFactory.PQS) {
-            // the encoding has an influence how binary strings are cast
+
             pragmasToExecute.add(String.format("PRAGMA encoding = '%s';",
                     Randomly.fromOptions("UTF-8", "UTF-16", "UTF-16le", "UTF-16be")));
         }
@@ -313,7 +311,7 @@ public class SQLite3Provider extends SQLProviderAdapter<SQLite3GlobalState, SQLi
                 e.printStackTrace();
             }
         }
-        // Set up the expected errors for NoREC oracle.
+
         ExpectedErrors errors = new ExpectedErrors();
         SQLite3Errors.addExpectedExpressionErrors(errors);
         SQLite3Errors.addMatchQueryErrors(errors);

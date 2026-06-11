@@ -111,7 +111,7 @@ class ClickHouseSetOperationTest {
 
         assertTrue(rendered.startsWith("SELECT 1 FROM "), "outer select should start as expected, got: " + rendered);
         assertTrue(rendered.contains("UNION ALL"));
-        // The set-op embedded in FROM is visited via the dispatcher which wraps with parens.
+
         assertTrue(rendered.contains("(SELECT"), "set-op embedded in FROM should be parenthesised, got: " + rendered);
     }
 
@@ -123,7 +123,7 @@ class ClickHouseSetOperationTest {
                 right);
 
         ClickHouseToStringVisitor visitor = new ClickHouseToStringVisitor();
-        // Should dispatch to visit(ClickHouseSetOperation, true), not throw AssertionError.
+
         visitor.visit((ClickHouseExpression) setOp);
         String rendered = visitor.get();
 

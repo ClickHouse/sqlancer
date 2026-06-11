@@ -122,7 +122,7 @@ public abstract class OceanBaseConstant implements OceanBaseExpression {
 
         @Override
         public String castAsString() {
-            return String.valueOf(new BigDecimal(val)); // select IFNULL(1.713591018E9, '11') -> 1713591018
+            return String.valueOf(new BigDecimal(val));
         }
 
         @Override
@@ -193,7 +193,7 @@ public abstract class OceanBaseConstant implements OceanBaseExpression {
 
         @Override
         public boolean isEmpty() {
-            // "" " "
+
             if (value.isEmpty()) {
                 return true;
             } else {
@@ -215,7 +215,7 @@ public abstract class OceanBaseConstant implements OceanBaseExpression {
                     Double val = Double.valueOf(substring);
                     return val != 0 && !Double.isNaN(val);
                 } catch (NumberFormatException e) {
-                    // ignore
+
                 }
             }
             return false;

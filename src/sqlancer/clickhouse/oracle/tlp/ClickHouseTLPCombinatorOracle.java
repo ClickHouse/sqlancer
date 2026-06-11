@@ -15,25 +15,6 @@ import sqlancer.clickhouse.ClickHouseVisitor;
 import sqlancer.clickhouse.ast.ClickHouseAggregate;
 import sqlancer.clickhouse.ast.ClickHouseColumnReference;
 
-/**
- * Combinator-identity oracle. For each {@code check()} picks one named identity from
- * {@link ClickHouseCombinatorIdentities#CATALOG} that is applicable to a randomly selected
- * {@code (aggregate, value-column)} pair, builds the combinator-suffixed form and its equivalent rewrite as full
- * SELECTs over the same table, and asserts the result multisets are equal.
- *
- * <p>
- * Equivalences are version-sensitive: the {@code -OrNull} family identities run with
- * {@code aggregate_functions_null_for_empty=0} to avoid the setting double-encoding the empty-NULL semantics on top of
- * the combinator. The setting per identity is declared in the catalog itself; the oracle reads it back here.
- * </p>
- *
- * <p>
- * Non-determinism guard from {@link ClickHouseTLPSetOpOracle} applies here too: a column or condition containing
- * {@code rand} / {@code now} / etc. flips per evaluation and would synthesise false-positive divergence between the two
- * equivalent forms. The deny list lives in {@link ClickHouseTLPSetOpOracle#NON_DETERMINISTIC_IDENTIFIERS} via a
- * package-private accessor.
- * </p>
- */
 public class ClickHouseTLPCombinatorOracle extends ClickHouseTLPBase {
 
     private static final List<String> NON_DETERMINISTIC_IDENTIFIERS = List.of("rand(", "randconstant(", "rand64(",
@@ -50,8 +31,6 @@ public class ClickHouseTLPCombinatorOracle extends ClickHouseTLPBase {
     public void check() throws SQLException {
         super.check();
 
-        // Pick a value column for the identity. Reuse the TLPBase-resolved columns; filter to types
-        // the catalog has identities for. If none match, throw IgnoreMeException.
         List<ClickHouseColumnReference> usable = columns.stream()
                 .filter(c -> ClickHouseCombinatorIdentities.isColumnSuitableAsValue(c.getColumn())).toList();
         if (usable.isEmpty()) {
@@ -67,14 +46,9 @@ public class ClickHouseTLPCombinatorOracle extends ClickHouseTLPBase {
         }
         ClickHouseCombinatorIdentities.Identity identity = maybe.get();
 
-        // Build the value SQL (the column reference) and, for IF-bearing identities, a deterministic
-        // condition derived from the column. Using a column-based condition keeps the SETTINGS-pinned
-        // empty-fallback semantics meaningful (some rows pass, some don't).
         String xSql = ClickHouseVisitor.asString(picked);
         String condSql = identity.needsCondition() ? "(" + xSql + " IS NOT NULL)" : null;
 
-        // Non-determinism guard: if the generated column reference's rendering happens to contain a
-        // deny-listed function call (it shouldn't, but defensively), skip.
         String xLower = xSql.toLowerCase(Locale.ROOT);
         for (String tok : NON_DETERMINISTIC_IDENTIFIERS) {
             if (xLower.contains(tok)) {
@@ -104,23 +78,17 @@ public class ClickHouseTLPCombinatorOracle extends ClickHouseTLPBase {
                 Arrays.asList(rewriteQuery), state);
     }
 
-    // Render the FROM/JOIN block of the base select as a single string, so the same scope can be
-    // reused for both the combinator form and the rewrite form. The fetch columns from the base
-    // select are deliberately discarded -- the identity oracle generates its own SELECT expressions.
     private String renderFromBlock() {
-        // Mutate select to render only the FROM portion, then restore. Cheaper than cloning the AST.
+
         List<sqlancer.clickhouse.ast.ClickHouseExpression> savedFetch = select.getFetchColumns();
         try {
             String rendered = ClickHouseVisitor.asString(select);
-            // Find the OUTER FROM -- ignore any " FROM " inside parens (scalar subqueries
-            // emitted in the fetch-columns list have their own nested FROM that would otherwise
-            // match. The 2026-05-28 6h run surfaced 468 syntax-error reproducers from this
-            // exact path).
+
             int idx = findOuterFrom(rendered);
             if (idx < 0) {
                 throw new IgnoreMeException();
             }
-            return rendered.substring(idx + 1); // keep "FROM ..."
+            return rendered.substring(idx + 1);
         } finally {
             select.setFetchColumns(savedFetch);
         }

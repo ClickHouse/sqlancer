@@ -106,7 +106,7 @@ public class OceanBaseSchema extends AbstractSchema<OceanBaseGlobalState, OceanB
                             : c.getTable().getName() + "." + c.getName() + " AS " + c.getTable().getName()
                                     + c.getName()),
                     tableNamesAsString());
-            // cast float and zerofill as varchar
+
             Map<OceanBaseColumn, OceanBaseConstant> values = new HashMap<>();
             try (Statement s = con.createStatement()) {
                 ResultSet randomRowValues = s.executeQuery(randomRow);
@@ -128,7 +128,7 @@ public class OceanBaseSchema extends AbstractSchema<OceanBaseGlobalState, OceanB
                     } else {
                         switch (column.getType()) {
                         case INT:
-                            // cast zerofill as varchar
+
                             if (column.isZeroFill()) {
                                 value = randomRowValues.getString(columnIndex);
                                 constant = OceanBaseConstant.createStringConstant((String) value);

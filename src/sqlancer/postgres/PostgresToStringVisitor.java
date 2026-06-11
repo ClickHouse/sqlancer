@@ -231,11 +231,11 @@ public final class PostgresToStringVisitor extends ToStringVisitor<PostgresExpre
         case BOOLEAN:
             sb.append("BOOLEAN");
             break;
-        case INT: // TODO support also other int types
+        case INT:
             sb.append("INT");
             break;
         case TEXT:
-            // TODO: append TEXT, CHAR
+
             sb.append(Randomly.fromOptions("VARCHAR"));
             break;
         case REAL:
@@ -258,11 +258,7 @@ public final class PostgresToStringVisitor extends ToStringVisitor<PostgresExpre
             break;
         case BIT:
             sb.append("BIT");
-            // if (Randomly.getBoolean()) {
-            // sb.append("(");
-            // sb.append(Randomly.getNotCachedInteger(1, 100));
-            // sb.append(")");
-            // }
+
             break;
         default:
             throw new AssertionError(cast.getType());

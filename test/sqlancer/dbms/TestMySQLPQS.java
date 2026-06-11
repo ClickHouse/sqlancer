@@ -15,7 +15,7 @@ public class TestMySQLPQS {
         assertEquals(0,
                 Main.executeMain(new String[] { "--random-seed", "0", "--timeout-seconds", TestConfig.SECONDS,
                         "--num-threads", "4", "--random-string-generation", "ALPHANUMERIC", "--database-prefix",
-                        "pqsdb" /* Workaround for connections not being closed */, "--num-queries",
+                        "pqsdb" , "--num-queries",
                         TestConfig.NUM_QUERIES, "mysql", "--oracle", "PQS" }));
     }
 

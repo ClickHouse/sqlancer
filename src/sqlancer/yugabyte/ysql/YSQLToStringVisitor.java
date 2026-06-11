@@ -279,11 +279,11 @@ public final class YSQLToStringVisitor extends ToStringVisitor<YSQLExpression> i
         case BOOLEAN:
             sb.append("BOOLEAN");
             break;
-        case INT: // TODO support also other int types
+        case INT:
             sb.append("INT");
             break;
         case TEXT:
-            // TODO: append TEXT, CHAR
+
             sb.append(Randomly.fromOptions("VARCHAR"));
             break;
         case REAL:
@@ -310,11 +310,7 @@ public final class YSQLToStringVisitor extends ToStringVisitor<YSQLExpression> i
         case BYTEA:
             sb.append("BYTEA");
             break;
-        // if (Randomly.getBoolean()) {
-        // sb.append("(");
-        // sb.append(Randomly.getNotCachedInteger(1, 100));
-        // sb.append(")");
-        // }
+
         default:
             throw new AssertionError(cast.getType());
         }

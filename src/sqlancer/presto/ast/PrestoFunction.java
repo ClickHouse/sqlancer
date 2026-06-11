@@ -20,16 +20,14 @@ public interface PrestoFunction extends PrestoExpression {
 
         List<PrestoExpression> arguments = new ArrayList<>();
 
-        // This is a workaround based on the assumption that array types should refer to
-        // the same element type.
         PrestoSchema.PrestoCompositeDataType savedArrayType = null;
         if (returnType.getPrimitiveDataType() == PrestoSchema.PrestoDataType.ARRAY) {
             savedArrayType = returnType;
         }
-        // -1 - unlimited number of arguments
+
         if (getNumberOfArguments() == -1) {
             PrestoSchema.PrestoDataType dataType = argumentTypes[0];
-            // TODO: consider upper
+
             long no = Randomly.getNotCachedInteger(2, 10);
             for (int i = 0; i < no; i++) {
                 PrestoSchema.PrestoCompositeDataType type;
@@ -67,15 +65,13 @@ public interface PrestoFunction extends PrestoExpression {
 
         List<PrestoExpression> arguments = new ArrayList<>();
 
-        // This is a workaround based on the assumption that array types should refer to
-        // the same element type.
         PrestoSchema.PrestoCompositeDataType savedArrayType = null;
         if (returnType.getPrimitiveDataType() == PrestoSchema.PrestoDataType.ARRAY) {
             savedArrayType = returnType;
         }
         if (getNumberOfArguments() == -1) {
             PrestoSchema.PrestoDataType dataType = getArgumentTypes(returnType)[0];
-            // TODO: consider upper
+
             long no = Randomly.getNotCachedInteger(2, 10);
             for (int i = 0; i < no; i++) {
                 PrestoSchema.PrestoCompositeDataType compositeDataType;

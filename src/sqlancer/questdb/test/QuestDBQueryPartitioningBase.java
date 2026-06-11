@@ -53,8 +53,7 @@ public class QuestDBQueryPartitioningBase
     @Override
     public void check() throws SQLException {
         s = state.getSchema();
-        // Only return one table instead of multiple tables, which is regarded as illegal by QuestDB
-        // e.g. "SELECT * FROM t0, t1;"
+
         targetTable = s.getRandomTable();
         gen = new QuestDBExpressionGenerator(state).setColumns(targetTable.getColumns());
         initializeTernaryPredicateVariants();
@@ -64,7 +63,7 @@ public class QuestDBQueryPartitioningBase
         tables.add(targetTable);
         List<QuestDBTableReference> tableList = tables.stream().map(t -> new QuestDBTableReference(t))
                 .collect(Collectors.toList());
-        // Ignore JOINs for now
+
         select.setFromList(new ArrayList<>(tableList));
         select.setWhereClause(null);
     }

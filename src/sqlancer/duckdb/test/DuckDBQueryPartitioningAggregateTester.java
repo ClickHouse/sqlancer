@@ -46,7 +46,7 @@ public class DuckDBQueryPartitioningAggregateTester extends DuckDBQueryPartition
         super.check();
         DuckDBAggregateFunction aggregateFunction = Randomly.fromOptions(DuckDBAggregateFunction.MAX,
                 DuckDBAggregateFunction.MIN, DuckDBAggregateFunction.SUM, DuckDBAggregateFunction.COUNT,
-                DuckDBAggregateFunction.AVG/* , DuckDBAggregateFunction.STDDEV_POP */);
+                DuckDBAggregateFunction.AVG);
         DuckDBFunction<DuckDBAggregateFunction> aggregate = gen.generateArgsForAggregate(aggregateFunction);
         List<DuckDBExpression> fetchColumns = new ArrayList<>();
         fetchColumns.add(aggregate);
@@ -68,7 +68,7 @@ public class DuckDBQueryPartitioningAggregateTester extends DuckDBQueryPartition
                 || firstResult != null && (!firstResult.contentEquals(secondResult)
                         && !ComparatorHelper.isEqualDouble(firstResult, secondResult))) {
             if (secondResult.contains("Inf")) {
-                throw new IgnoreMeException(); // FIXME: average computation
+                throw new IgnoreMeException();
             }
             throw new AssertionError();
         }

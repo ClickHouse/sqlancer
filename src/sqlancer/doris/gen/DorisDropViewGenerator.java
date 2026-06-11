@@ -18,8 +18,7 @@ public final class DorisDropViewGenerator {
         if (Randomly.getBoolean()) {
             sb.append("IF EXISTS ");
         }
-        // TODO: DROP VIEW syntax: DROP MATERIALIZED VIEW [IF EXISTS] mv_name ON table_name;
-        // should record original table name in view table
+
         sb.append(globalState.getSchema().getRandomTableOrBailout(t -> t.isView()).getName());
         return new SQLQueryAdapter(sb.toString(), null, true);
     }

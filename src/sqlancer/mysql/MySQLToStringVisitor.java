@@ -71,7 +71,7 @@ public class MySQLToStringVisitor extends ToStringVisitor<MySQLExpression> imple
                     sb.append(", ");
                 }
                 visit(s.getFetchColumns().get(i));
-                // MySQL does not allow duplicate column names
+
                 sb.append(" AS ");
                 sb.append("ref");
                 sb.append(ref++);

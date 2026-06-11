@@ -37,7 +37,7 @@ public class DorisInsertGenerator extends AbstractInsertGenerator<DorisColumn> {
             sb.append("DEFAULT");
         } else {
             String value = DorisToStringVisitor.asString(new DorisNewExpressionGenerator(globalState)
-                    .generateConstant(column.getType().getPrimitiveDataType(), column.isNullable())); // 生成一个与column相同的常量类型
+                    .generateConstant(column.getType().getPrimitiveDataType(), column.isNullable()));
             sb.append(value);
         }
     }

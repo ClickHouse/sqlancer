@@ -12,11 +12,6 @@ import net.sf.jsqlparser.util.deparser.ExpressionDeParser;
 import net.sf.jsqlparser.util.deparser.InsertDeParser;
 import net.sf.jsqlparser.util.deparser.SelectDeParser;
 
-/**
- * remove elements of an expression list.
- *
- * NOTE: this only works for select statements and targets at ExpressionList type in JSQLParser, such as groupBy list
- */
 public class RemoveElementsOfExpressionList extends JSQLParserBasedTransformation {
     private final ExpressionDeParser expressionHandler = new ExpressionDeParser();
     private final SelectDeParser simplifier = new SelectDeParser() {

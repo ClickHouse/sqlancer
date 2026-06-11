@@ -92,8 +92,7 @@ public class MySQLSchema extends AbstractSchema<MySQLGlobalState, MySQLTable> {
         public MySQLRowValue getRandomRowValue(SQLConnection con) throws SQLException {
             String randomRow = String.format("SELECT %s FROM %s ORDER BY RAND() LIMIT 1", columnNamesAsString(
                     c -> c.getTable().getName() + "." + c.getName() + " AS " + c.getTable().getName() + c.getName()),
-                    // columnNamesAsString(c -> "typeof(" + c.getTable().getName() + "." +
-                    // c.getName() + ")")
+
                     tableNamesAsString());
             Map<MySQLColumn, MySQLConstant> values = new HashMap<>();
             try (Statement s = con.createStatement()) {
@@ -187,7 +186,7 @@ public class MySQLSchema extends AbstractSchema<MySQLGlobalState, MySQLTable> {
         private final MySQLEngine engine;
 
         public MySQLTable(String tableName, List<MySQLColumn> columns, List<MySQLIndex> indexes, MySQLEngine engine) {
-            super(tableName, columns, indexes, false /* TODO: support views */);
+            super(tableName, columns, indexes, false );
             this.engine = engine;
         }
 
@@ -220,7 +219,7 @@ public class MySQLSchema extends AbstractSchema<MySQLGlobalState, MySQLTable> {
 
     public static MySQLSchema fromConnection(SQLConnection con, String databaseName) throws SQLException {
         Exception ex = null;
-        /* the loop is a workaround for https://bugs.mysql.com/bug.php?id=95929 */
+
         for (int i = 0; i < NR_SCHEMA_READ_TRIES; i++) {
             try {
                 List<MySQLTable> databaseTables = new ArrayList<>();

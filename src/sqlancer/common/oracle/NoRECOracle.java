@@ -82,12 +82,6 @@ public class NoRECOracle<Z extends Select<J, E, T, C>, J extends Join<E, T, C>, 
             state.getLogger().writeCurrent(unoptimizedQueryString);
         }
 
-        // Snapshot table row counts before running the oracle queries. If the row count
-        // changes between the snapshot and after the second query, the divergence is a
-        // state-drift artifact (e.g. ClickHouse ReplacingMergeTree dedup merging mid-test)
-        // rather than an optimizer correctness bug. In that case absorb the iteration --
-        // false-positive trips from racy table state were a major signal-to-noise blocker
-        // in the 2026-05-19 head-CH baseline.
         String rowCountSnapshotBefore = snapshotRowCounts(targetTables);
         int optimizedCount = shouldUseAggregate ? extractCounts(optimizedQueryString, errors, state)
                 : countRows(optimizedQueryString, errors, state);
@@ -180,12 +174,6 @@ public class NoRECOracle<Z extends Select<J, E, T, C>, J extends Join<E, T, C>, 
         return count;
     }
 
-    // Returns a stable string representation of "rows per target table". Used to detect
-    // table-state drift between the optimized and unoptimized query executions. On any
-    // failure (catalog change, permission error, count query rejected) returns "?" so the
-    // before/after comparison still works -- two failures will compare equal and the
-    // oracle proceeds; a failure-then-success or success-then-failure differs and the
-    // oracle skips, which is the safe direction.
     private String snapshotRowCounts(AbstractTables<T, C> targetTables) {
         StringBuilder sb = new StringBuilder();
         for (T table : targetTables.getTables()) {

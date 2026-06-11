@@ -22,7 +22,7 @@ public final class LikeImplementationHelper {
         }
         switch (cur) {
         case '%':
-            // match
+
             boolean foundMatch = match(str, regex, regexPosition, strPosition + 1, caseSensitive);
             if (!foundMatch) {
                 return match(str, regex, regexPosition + 1, strPosition, caseSensitive);

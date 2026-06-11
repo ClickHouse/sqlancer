@@ -40,7 +40,7 @@ public class HiveExpressionGenerator extends UntypedExpressionGenerator<HiveExpr
     private List<HiveTable> tables;
 
     private enum Expression {
-        // TODO: add or delete expressions.
+
         UNARY_PREFIX, UNARY_POSTFIX, BINARY_COMPARISON, BINARY_LOGICAL, BINARY_ARITHMETIC, CAST, FUNC, BETWEEN, IN,
         CASE;
     }
@@ -61,7 +61,7 @@ public class HiveExpressionGenerator extends UntypedExpressionGenerator<HiveExpr
 
     @Override
     protected HiveExpression generateExpression(int depth) {
-        // TODO: randomly cast some types like what PostgresExpressionGenerator does?
+
         return generateExpressionInternal(depth);
     }
 
@@ -71,7 +71,7 @@ public class HiveExpressionGenerator extends UntypedExpressionGenerator<HiveExpr
             return generateLeafNode();
         }
         if (allowAggregates && Randomly.getBooleanWithRatherLowProbability()) {
-            allowAggregates = false; // aggregate function calls cannot be nested
+            allowAggregates = false;
             HiveAggregateFunction aggregate = HiveAggregateFunction.getRandom();
             return new HiveFunction<>(generateExpressions(aggregate.getNrArgs(), depth + 1), aggregate);
         }
@@ -208,7 +208,6 @@ public class HiveExpressionGenerator extends UntypedExpressionGenerator<HiveExpr
 
     public enum HiveUnaryPrefixOperator implements Operator {
 
-        // TODO: ~A (bitwise NOT)
         NOT("NOT"), PLUS("+"), MINUS("-");
 
         private String textRepr;
@@ -229,7 +228,6 @@ public class HiveExpressionGenerator extends UntypedExpressionGenerator<HiveExpr
 
     public enum HiveUnaryPostfixOperator implements Operator {
 
-        // TODO: A IS [NOT] (NULL|TRUE|FALSE)...
         IS_NULL("IS NULL"), IS_NOT_NULL("IS NOT NULL");
 
         private String textRepr;
@@ -329,17 +327,9 @@ public class HiveExpressionGenerator extends UntypedExpressionGenerator<HiveExpr
         }
     }
 
-    // TODO: test all Hive default functions...
     public enum HiveFunc {
 
-        // mathematical functions
         ROUND(2), FLOOR(1);
-
-        // collection functions
-
-        // date functions
-
-        // string functions
 
         private int nrArgs;
         private boolean isVariadic;

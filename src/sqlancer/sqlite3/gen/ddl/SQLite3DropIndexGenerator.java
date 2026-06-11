@@ -5,7 +5,6 @@ import sqlancer.common.query.ExpectedErrors;
 import sqlancer.common.query.SQLQueryAdapter;
 import sqlancer.sqlite3.SQLite3GlobalState;
 
-// see https://www.sqlite.org/lang_dropindex.html
 public final class SQLite3DropIndexGenerator {
 
     private SQLite3DropIndexGenerator() {

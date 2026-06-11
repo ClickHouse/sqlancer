@@ -69,7 +69,7 @@ public class SQLite3ColumnBuilder {
                     sb.append(")");
                     break;
                 case PRIMARY_KEY:
-                    // only one primary key is allow if not specified as table constraint
+
                     if (allowPrimaryKey) {
                         sb.append(" PRIMARY KEY");
                         containsPrimaryKey = true;
@@ -127,7 +127,6 @@ public class SQLite3ColumnBuilder {
         return sb.toString();
     }
 
-    // it seems that only one conflict clause can be inserted
     private void insertOnConflictClause() {
         if (!conflictClauseInserted) {
             sb.append(" ON CONFLICT ");

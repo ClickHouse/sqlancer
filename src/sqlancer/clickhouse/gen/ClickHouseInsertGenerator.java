@@ -19,10 +19,7 @@ public class ClickHouseInsertGenerator extends AbstractInsertGenerator<ClickHous
 
     private final ClickHouseGlobalState globalState;
     private final ClickHouseExpressionGenerator gen;
-    // Unit 2.1: when the target table is a (Versioned)CollapsingMergeTree, every Int8 value must be
-    // +1 / -1 -- CollapsingMergeTree rejects any other Sign value with Code 117 INCORRECT_DATA. We
-    // can't tell which Int8 column is the declared sign from the reflected schema, so we constrain
-    // all Int8 columns to {+1,-1}; non-sign Int8 columns simply get a reduced (still valid) range.
+
     private boolean signConstrained;
 
     public ClickHouseInsertGenerator(ClickHouseGlobalState globalState) {
@@ -51,10 +48,7 @@ public class ClickHouseInsertGenerator extends AbstractInsertGenerator<ClickHous
                     .collect(Collectors.toList());
         }
         if (signConstrained) {
-            // CollapsingMergeTree rejects a defaulted Sign (Sign=0, Code 117). The declared sign is
-            // an Int8 column; if the random column subset omits it, it defaults to 0 and the INSERT
-            // fails. Force every insertable Int8 column into the subset so the sign always receives
-            // an explicit +1/-1 (insertValue emits ±1 for Int8 on these engines).
+
             List<ClickHouseColumn> withSign = new java.util.ArrayList<>(columns);
             for (ClickHouseColumn c : table.getColumns()) {
                 if (c.getType().getType() == ClickHouseDataType.Int8 && !c.isAlias() && !c.isMaterialized()

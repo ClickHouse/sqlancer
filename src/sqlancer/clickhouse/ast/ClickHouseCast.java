@@ -86,7 +86,6 @@ public final class ClickHouseCast extends ClickHouseExpression {
         }
     }
 
-    // SELECT CAST('-1.370998801E9' AS INTEGER) == -1
     public static ClickHouseConstant castToInt(ClickHouseConstant cons) {
         if (isUnsupported(cons)) {
             return cons;
@@ -110,7 +109,7 @@ public final class ClickHouseCast extends ClickHouseExpression {
             try {
                 return ClickHouseCreateConstant.createInt32Constant(cons.asInt());
             } catch (ArithmeticException e) {
-                // BigInteger out of long range -- clamp via sign.
+
                 BigInteger bi = (BigInteger) cons.getValue();
                 return ClickHouseCreateConstant.createInt32Constant(bi.signum() < 0 ? Long.MIN_VALUE : Long.MAX_VALUE);
             }
@@ -204,9 +203,6 @@ public final class ClickHouseCast extends ClickHouseExpression {
         return convertInternal(value, false, false, false);
     }
 
-    /*
-     * Applies numeric affinity to a value.
-     */
     public static ClickHouseConstant castToNumeric(ClickHouseConstant value) {
         return convertInternal(value, true, false, false);
     }
@@ -262,7 +258,7 @@ public final class ClickHouseCast extends ClickHouseExpression {
                             && isWithinConvertibleRange;
                     boolean isInteger = !isFloatingPointNumber && first.compareTo(second) == 0;
                     if (doubleShouldBeConvertedToInt || isInteger && !convertIntToReal) {
-                        // see https://www.sqlite.org/src/tktview/afdc5a29dc
+
                         return ClickHouseCreateConstant.createInt32Constant(first.longValue());
                     } else {
                         return ClickHouseCreateConstant.createFloat64Constant(d);
@@ -299,7 +295,7 @@ public final class ClickHouseCast extends ClickHouseExpression {
     }
 
     private static boolean unprintAbleCharThatLetsBecomeNumberZero(String s) {
-        // non-printable characters are ignored by Double.valueOf
+
         for (int i = 0; i < s.length(); i++) {
             char charAt = s.charAt(i);
             if (!Character.isISOControl(charAt) && !Character.isWhitespace(charAt)) {
@@ -313,7 +309,7 @@ public final class ClickHouseCast extends ClickHouseExpression {
             case SYNCHRONOUS_IDLE:
                 return true;
             default:
-                // fall through
+
             }
 
             if (Character.isWhitespace(charAt)) {

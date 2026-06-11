@@ -45,20 +45,20 @@ public class TiDBProvider extends SQLProviderAdapter<TiDBGlobalState, TiDBOption
     }
 
     public enum Action implements AbstractAction<TiDBGlobalState> {
-        CREATE_TABLE(TiDBTableGenerator::createRandomTableStatement), // 0
-        CREATE_INDEX(TiDBIndexGenerator::getQuery), // 1
-        VIEW_GENERATOR(TiDBViewGenerator::getQuery), // 2
-        INSERT(TiDBInsertGenerator::getQuery), // 3
-        ALTER_TABLE(TiDBAlterTableGenerator::getQuery), // 4
-        TRUNCATE((g) -> new SQLQueryAdapter("TRUNCATE " + g.getSchema().getRandomTable(t -> !t.isView()).getName())), // 5
-        UPDATE(TiDBUpdateGenerator::getQuery), // 6
-        DELETE(TiDBDeleteGenerator::getQuery), // 7
-        SET(TiDBSetGenerator::getQuery), // 8
+        CREATE_TABLE(TiDBTableGenerator::createRandomTableStatement),
+        CREATE_INDEX(TiDBIndexGenerator::getQuery),
+        VIEW_GENERATOR(TiDBViewGenerator::getQuery),
+        INSERT(TiDBInsertGenerator::getQuery),
+        ALTER_TABLE(TiDBAlterTableGenerator::getQuery),
+        TRUNCATE((g) -> new SQLQueryAdapter("TRUNCATE " + g.getSchema().getRandomTable(t -> !t.isView()).getName())),
+        UPDATE(TiDBUpdateGenerator::getQuery),
+        DELETE(TiDBDeleteGenerator::getQuery),
+        SET(TiDBSetGenerator::getQuery),
         ADMIN_CHECKSUM_TABLE(
-                (g) -> new SQLQueryAdapter("ADMIN CHECKSUM TABLE " + g.getSchema().getRandomTable().getName())), // 9
-        ANALYZE_TABLE(TiDBAnalyzeTableGenerator::getQuery), // 10
-        DROP_TABLE(TiDBDropTableGenerator::dropTable), // 11
-        DROP_VIEW(TiDBDropViewGenerator::dropView); // 12
+                (g) -> new SQLQueryAdapter("ADMIN CHECKSUM TABLE " + g.getSchema().getRandomTable().getName())),
+        ANALYZE_TABLE(TiDBAnalyzeTableGenerator::getQuery),
+        DROP_TABLE(TiDBDropTableGenerator::dropTable),
+        DROP_VIEW(TiDBDropViewGenerator::dropView);
 
         private final SQLQueryProvider<TiDBGlobalState> sqlQueryProvider;
 
@@ -97,10 +97,10 @@ public class TiDBProvider extends SQLProviderAdapter<TiDBGlobalState, TiDBOption
         case UPDATE:
             return r.getInteger(0, 5);
         case VIEW_GENERATOR:
-            // https://github.com/tidb-challenge-program/bug-hunting-issue/issues/8
+
             return r.getInteger(0, 2);
         case ALTER_TABLE:
-            return r.getInteger(0, 10); // https://github.com/tidb-challenge-program/bug-hunting-issue/issues/10
+            return r.getInteger(0, 10);
         case CREATE_TABLE:
         case DROP_TABLE:
         case DROP_VIEW:
@@ -132,7 +132,7 @@ public class TiDBProvider extends SQLProviderAdapter<TiDBGlobalState, TiDBOption
         } catch (SQLException e) {
             if (e.getMessage().contains(
                     "references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them")) {
-                throw new IgnoreMeException(); // TODO: drop view instead
+                throw new IgnoreMeException();
             } else {
                 throw new AssertionError(e);
             }
@@ -140,11 +140,10 @@ public class TiDBProvider extends SQLProviderAdapter<TiDBGlobalState, TiDBOption
 
         if (globalState.getDbmsSpecificOptions().getTestOracleFactory().stream()
                 .anyMatch((o) -> o == TiDBOracleFactory.CERT)) {
-            // Disable strict Group By constraints for ROW oracle
+
             globalState.executeStatement(new SQLQueryAdapter(
                     "SET @@sql_mode='STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';"));
 
-            // Enfore statistic collected for all tables
             ExpectedErrors errors = new ExpectedErrors();
             TiDBErrors.addExpressionErrors(errors);
             for (TiDBTable table : globalState.getSchema().getDatabaseTables()) {
@@ -154,7 +153,6 @@ public class TiDBProvider extends SQLProviderAdapter<TiDBGlobalState, TiDBOption
             }
         }
 
-        // TiFlash replication settings
         if (globalState.getDbmsSpecificOptions().tiflash) {
             ExpectedErrors errors = new ExpectedErrors();
             TiDBErrors.addExpressionErrors(errors);
@@ -227,7 +225,7 @@ public class TiDBProvider extends SQLProviderAdapter<TiDBGlobalState, TiDBOption
             if (rs != null) {
                 while (rs.next()) {
                     String targetQueryPlan = rs.getString(1).replace("├─", "").replace("└─", "").replace("│", "").trim()
-                            + ";"; // Unify format
+                            + ";";
                     queryPlan += targetQueryPlan;
                 }
             }

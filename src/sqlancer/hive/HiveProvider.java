@@ -64,7 +64,7 @@ public class HiveProvider extends SQLProviderAdapter<HiveGlobalState, HiveOption
             } while (!success);
         }
         if (globalState.getSchema().getDatabaseTables().isEmpty()) {
-            throw new IgnoreMeException(); // TODO
+            throw new IgnoreMeException();
         }
 
         StatementExecutor<HiveGlobalState, Action> se = new StatementExecutor<>(globalState, Action.values(),

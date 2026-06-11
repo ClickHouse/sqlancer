@@ -79,7 +79,7 @@ public class MaterializeTLPAggregateOracle extends MaterializeTLPBase implements
                 || firstResult != null && !firstResult.contentEquals(secondResult)
                         && !ComparatorHelper.isEqualDouble(firstResult, secondResult)) {
             if (secondResult != null && secondResult.contains("Inf")) {
-                throw new IgnoreMeException(); // FIXME: average computation
+                throw new IgnoreMeException();
             }
             String assertionMessage = String.format("the results mismatch!\n%s\n%s", firstQueryString,
                     secondQueryString);
@@ -105,14 +105,14 @@ public class MaterializeTLPAggregateOracle extends MaterializeTLPBase implements
     }
 
     private String getAggregateResult(String queryString) throws SQLException {
-        // log TLP Aggregate SELECT queries on the current log file
+
         if (state.getOptions().logEachSelect()) {
-            // TODO: refactor me
+
             state.getLogger().writeCurrent(queryString);
             try {
                 state.getLogger().getCurrentFileWriter().flush();
             } catch (IOException e) {
-                // TODO Auto-generated catch block
+
                 e.printStackTrace();
             }
         }

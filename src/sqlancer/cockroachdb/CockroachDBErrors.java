@@ -34,7 +34,7 @@ public final class CockroachDBErrors {
         errors.add("LIKE regexp compilation failed");
         errors.add("error parsing regexp");
 
-        errors.add("expected 9223372036854775808 to be of type int, found type decimal"); // int overflow
+        errors.add("expected 9223372036854775808 to be of type int, found type decimal");
         errors.add("integer out of range");
         errors.add("expected -9223372036854775809 to be of type int, found type decimal");
         errors.add("to be of type int4, found type decimal");
@@ -50,7 +50,6 @@ public final class CockroachDBErrors {
 
         errors.add("invalid cast:");
 
-        // string to bytes
         errors.add("invalid bytea escape sequence");
         errors.add("bytea encoded value ends with incomplete escape sequence");
         errors.add("bytea encoded value ends with escape character");
@@ -91,13 +90,13 @@ public final class CockroachDBErrors {
         errors.add("to be of type bytes, found type string");
         errors.add("as bytes, found type: string");
 
-        errors.add("bit string length"); // TODO restrict generated bit constants
+        errors.add("bit string length");
         errors.add("could not parse string as bit array");
 
         errors.add("ambiguous call");
 
         errors.add(" could not produce a query plan conforming to the");
-        errors.add("LOOKUP can only be used with INNER or LEFT joins"); // TODO
+        errors.add("LOOKUP can only be used with INNER or LEFT joins");
 
         errors.add("ambiguous binary operator: <unknown> || <unknown>");
         errors.add("unsupported binary operator");
@@ -112,7 +111,7 @@ public final class CockroachDBErrors {
         errors.addAll(getJoinTypes());
         errors.add("as int4, found type: decimal");
         errors.add("to be of type int2, found type decimal");
-        errors.add("to be of type int, found type decimal"); // arithmetic overflows
+        errors.add("to be of type int, found type decimal");
         errors.add("unknown signature: left");
         errors.add("numeric constant out of int64 range");
         errors.add("unknown signature: overlay");
@@ -144,13 +143,12 @@ public final class CockroachDBErrors {
         errors.add("unknown signature: bit_and(decimal)");
         errors.add("unknown signature: bit_or(decimal)");
 
-        errors.add("exists but is not a directory"); // TODO
+        errors.add("exists but is not a directory");
 
         errors.add("could not parse JSON");
         errors.add("can't order by column type jsonb");
         errors.add("odd length hex string");
 
-        // TODO: better control what is generated in a view
         errors.add("aggregate functions are not allowed in GROUP BY");
         errors.add(" must appear in the GROUP BY clause or be used in an aggregate function");
 
@@ -191,8 +189,8 @@ public final class CockroachDBErrors {
             errors.add("expected required columns to be a subset of output columns");
         }
 
-        errors.add("unable to vectorize execution plan"); // SET vectorize=experimental_always;
-        errors.add(" mismatched physical types at index"); // SET vectorize=experimental_always;
+        errors.add("unable to vectorize execution plan");
+        errors.add(" mismatched physical types at index");
         errors.add("unsupported type time");
         errors.add("unsupported type varbit");
         errors.add("unsupported type bit");
@@ -221,7 +219,6 @@ public final class CockroachDBErrors {
     private static List<String> getArrayErrors() {
         ArrayList<String> errors = new ArrayList<>();
 
-        // arrays
         errors.add("cannot determine type of empty array");
         errors.add("unknown signature: max(unknown[])");
         errors.add("unknown signature: min(unknown[])");
@@ -256,16 +253,16 @@ public final class CockroachDBErrors {
         errors.add("unknown signature: min(float[])");
         errors.add("unknown signature: max(float[])");
 
-        errors.add("array must be enclosed in { and }"); // when casting a string to an array
+        errors.add("array must be enclosed in { and }");
         errors.add("extra text after closing right brace");
-        errors.add("unimplemented: nested arrays not supported"); // e.g., casting a string {{1}} to an array
+        errors.add("unimplemented: nested arrays not supported");
         errors.add("malformed array");
 
         errors.add("as bytes[], found type: varbit[]");
         errors.add("to be of type decimal[], found type float[]");
         errors.add("to be of type int[], found type decimal[]");
 
-        errors.add("to be of type unknown[]"); // IF with null array
+        errors.add("to be of type unknown[]");
 
         return errors;
     }
@@ -291,11 +288,9 @@ public final class CockroachDBErrors {
         ArrayList<String> errors = new ArrayList<>();
         errors.add("non-integer constant in GROUP BY");
 
-        // https://github.com/cockroachdb/cockroach/pull/46649 -> aggregates on NULL are
-        // not typed strings
-        errors.add("ERROR: argument of HAVING must be type bool, not type string"); // MAX(NULL) etc.
-        errors.add("incompatible condition type: string"); // CASE WHEN MAX(NULL) etc.
-        errors.add("incompatible NOT argument type: string"); // NOT MAX(NULL) etc.
+        errors.add("ERROR: argument of HAVING must be type bool, not type string");
+        errors.add("incompatible condition type: string");
+        errors.add("incompatible NOT argument type: string");
         errors.add("incompatible AND argument type: string");
         errors.add("incompatible OR argument type: string");
         errors.add("ERROR: incompatible IF condition type: string");
@@ -315,21 +310,21 @@ public final class CockroachDBErrors {
 
     private static List<String> getFunctionErrors() {
         ArrayList<String> errors = new ArrayList<>();
-        // functions
-        errors.add("abs of min integer value (-9223372036854775808) not defined"); // ABS
-        errors.add("the input string must not be empty"); // ASCII
-        errors.add("overlay(): non-positive substring length not allowed"); // overlay
-        errors.add("non-positive substring length not allowed"); // overlay
-        errors.add("lpad(): requested length too large"); // lpad
-        errors.add("input value must be >= 0"); // chr
-        errors.add("input value must be <= 1114111 (maximum Unicode code point)"); // chr
-        errors.add("to_ip(): invalid IP format"); // to_ip
-        errors.add("invalid IP format"); // to_ip
-        errors.add("incorrect UUID length"); // to_uuid
-        errors.add("incorrect UUID format"); // to_uuid
-        errors.add("substring(): negative substring length"); // substring
-        errors.add("negative substring length"); // substring
-        errors.add("must be greater than zero"); // split_part
+
+        errors.add("abs of min integer value (-9223372036854775808) not defined");
+        errors.add("the input string must not be empty");
+        errors.add("overlay(): non-positive substring length not allowed");
+        errors.add("non-positive substring length not allowed");
+        errors.add("lpad(): requested length too large");
+        errors.add("input value must be >= 0");
+        errors.add("input value must be <= 1114111 (maximum Unicode code point)");
+        errors.add("to_ip(): invalid IP format");
+        errors.add("invalid IP format");
+        errors.add("incorrect UUID length");
+        errors.add("incorrect UUID format");
+        errors.add("substring(): negative substring length");
+        errors.add("negative substring length");
+        errors.add("must be greater than zero");
 
         return errors;
     }
@@ -349,7 +344,6 @@ public final class CockroachDBErrors {
     private static List<String> getComputedColumnErrors() {
         ArrayList<String> errors = new ArrayList<>();
 
-        // computed columns
         errors.add("computed column expressions cannot reference computed columns");
         errors.add("STORED COMPUTED COLUMN expression cannot reference computed columns");
 

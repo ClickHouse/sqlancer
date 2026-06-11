@@ -17,7 +17,6 @@ import sqlancer.sqlite3.gen.SQLite3ExpressionGenerator;
 import sqlancer.sqlite3.schema.SQLite3Schema.SQLite3Column;
 import sqlancer.sqlite3.schema.SQLite3Schema.SQLite3Table;
 
-// see https://www.sqlite.org/lang_createindex.html
 public class SQLite3IndexGenerator {
 
     private final ExpectedErrors errors = new ExpectedErrors();
@@ -50,16 +49,10 @@ public class SQLite3IndexGenerator {
         errors.add("The database file is locked");
         SQLite3Errors.addExpectedExpressionErrors(errors);
         if (!SQLite3Provider.mustKnowResult) {
-            // can only happen when PRAGMA case_sensitive_like=ON;
+
             errors.add("non-deterministic functions prohibited");
         }
 
-        /*
-         * Strings in single quotes are sometimes interpreted as column names. Since we found an issue with double
-         * quotes, they can no longer be used (see https://sqlite.org/src/info/9b78184b). Single quotes are interpreted
-         * as column names in certain contexts (see
-         * https://www.mail-archive.com/sqlite-users@mailinglists.sqlite.org/msg115014.html).
-         */
         errors.add("[SQLITE_ERROR] SQL error or missing database (no such column:");
         return new SQLQueryAdapter(q, errors, true);
     }
@@ -110,9 +103,6 @@ public class SQLite3IndexGenerator {
         return sb.toString();
     }
 
-    /*
-     * Appends ASC, DESC, or nothing.
-     */
     private void appendPotentialOrdering(StringBuilder sb) {
         if (Randomly.getBoolean()) {
             if (Randomly.getBoolean()) {

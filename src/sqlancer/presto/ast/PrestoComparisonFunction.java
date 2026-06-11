@@ -9,10 +9,6 @@ import sqlancer.presto.PrestoSchema.PrestoDataType;
 
 public enum PrestoComparisonFunction implements PrestoFunction {
 
-    // comparison
-
-    // Returns the largest of the provided values.
-    // → [same as input]
     GREATEST("greatest", null) {
         @Override
         public boolean isCompatibleWithReturnType(PrestoSchema.PrestoCompositeDataType returnType) {
@@ -29,8 +25,7 @@ public enum PrestoComparisonFunction implements PrestoFunction {
             return new PrestoSchema.PrestoDataType[] { returnType.getPrimitiveDataType() };
         }
     },
-    // Returns the smallest of the provided values.
-    // → [same as input]#
+
     LEAST("least", null) {
         @Override
         public boolean isCompatibleWithReturnType(PrestoSchema.PrestoCompositeDataType returnType) {

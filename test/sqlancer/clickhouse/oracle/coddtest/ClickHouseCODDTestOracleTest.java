@@ -4,12 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 
-/**
- * Unit tests for ClickHouseCODDTestOracle's literal rendering. The folded query substitutes an auxiliary-query scalar
- * value as a literal; for wide integers a bare decimal literal exceeding (U)Int64 range is reparsed by ClickHouse as
- * Float64 and loses precision, producing spurious CODDTest mismatches (surfaced by the UInt256 column emission). Those
- * must be cast to their exact type.
- */
 class ClickHouseCODDTestOracleTest {
 
     @Test
@@ -29,7 +23,7 @@ class ClickHouseCODDTestOracleTest {
 
     @Test
     void narrowIntegersStayBareLiterals() {
-        // CH types these as the smallest fitting (U)Int*; a bare literal round-trips exactly.
+
         assertEquals("5", ClickHouseCODDTestOracle.renderLiteral("5", "Int32"));
         assertEquals("-128", ClickHouseCODDTestOracle.renderLiteral("-128", "Int8"));
         assertEquals("18446744073709551615", ClickHouseCODDTestOracle.renderLiteral("18446744073709551615", "UInt64"));
@@ -38,7 +32,7 @@ class ClickHouseCODDTestOracleTest {
 
     @Test
     void wideIntegerCastSurvivesNullableUnwrap() {
-        // The aux query's toTypeName may report Nullable(UInt256); renderLiteral unwraps it.
+
         assertEquals("CAST('42' AS UInt256)", ClickHouseCODDTestOracle.renderLiteral("42", "Nullable(UInt256)"));
     }
 }

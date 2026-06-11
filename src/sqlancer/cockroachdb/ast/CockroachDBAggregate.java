@@ -14,47 +14,47 @@ public class CockroachDBAggregate implements CockroachDBExpression {
     private List<CockroachDBExpression> expr;
 
     public enum CockroachDBAggregateFunction {
-        SUM(CockroachDBDataType.INT, CockroachDBDataType.FLOAT, CockroachDBDataType.DECIMAL), //
-        SUM_INT(CockroachDBDataType.INT), //
-        AVG(CockroachDBDataType.INT, CockroachDBDataType.FLOAT, CockroachDBDataType.DECIMAL), //
+        SUM(CockroachDBDataType.INT, CockroachDBDataType.FLOAT, CockroachDBDataType.DECIMAL),
+        SUM_INT(CockroachDBDataType.INT),
+        AVG(CockroachDBDataType.INT, CockroachDBDataType.FLOAT, CockroachDBDataType.DECIMAL),
         MIN() {
             @Override
             public boolean supportsReturnType(CockroachDBDataType returnType) {
                 return true;
             }
-        }, //
+        },
         MAX() {
             @Override
             public boolean supportsReturnType(CockroachDBDataType returnType) {
                 return true;
             }
-        }, //
+        },
         COUNT_ROWS(CockroachDBDataType.INT) {
             @Override
             public List<CockroachDBDataType> getTypes(CockroachDBDataType returnType) {
                 return Collections.emptyList();
             }
-        }, //
+        },
         COUNT(CockroachDBDataType.INT) {
 
             @Override
             public List<CockroachDBDataType> getTypes(CockroachDBDataType returnType) {
                 return Arrays.asList(CockroachDBDataType.getRandom());
             }
-        }, //
-        SQRDIFF(CockroachDBDataType.INT, CockroachDBDataType.FLOAT, CockroachDBDataType.DECIMAL), //
-        STDDEV(CockroachDBDataType.INT, CockroachDBDataType.FLOAT, CockroachDBDataType.DECIMAL), //
-        VARIANCE(CockroachDBDataType.INT, CockroachDBDataType.FLOAT, CockroachDBDataType.DECIMAL), //
-        XOR_AGG(CockroachDBDataType.BYTES, CockroachDBDataType.INT), //
-        BIT_AND(CockroachDBDataType.INT), //
-        BIT_OR(CockroachDBDataType.INT), //
-        BOOL_AND(CockroachDBDataType.BOOL), //
+        },
+        SQRDIFF(CockroachDBDataType.INT, CockroachDBDataType.FLOAT, CockroachDBDataType.DECIMAL),
+        STDDEV(CockroachDBDataType.INT, CockroachDBDataType.FLOAT, CockroachDBDataType.DECIMAL),
+        VARIANCE(CockroachDBDataType.INT, CockroachDBDataType.FLOAT, CockroachDBDataType.DECIMAL),
+        XOR_AGG(CockroachDBDataType.BYTES, CockroachDBDataType.INT),
+        BIT_AND(CockroachDBDataType.INT),
+        BIT_OR(CockroachDBDataType.INT),
+        BOOL_AND(CockroachDBDataType.BOOL),
         BOOL_OR(CockroachDBDataType.BOOL), STRING_AGG(CockroachDBDataType.STRING, CockroachDBDataType.BYTES) {
             @Override
             public List<CockroachDBDataType> getTypes(CockroachDBDataType returnType) {
                 return Arrays.asList(returnType, returnType);
             }
-        }, //
+        },
         CONCAT_AGG(CockroachDBDataType.STRING, CockroachDBDataType.BYTES);
 
         private CockroachDBDataType[] supportedReturnTypes;
@@ -73,13 +73,12 @@ public class CockroachDBAggregate implements CockroachDBExpression {
                     .collect(Collectors.toList());
         }
 
-        //
         CockroachDBAggregateFunction(CockroachDBDataType... supportedReturnTypes) {
             this.supportedReturnTypes = supportedReturnTypes.clone();
         }
 
         public static CockroachDBAggregateFunction getRandomMetamorphicOracle() {
-            // not: VARIANCE, STDDEV, SQRDIFF
+
             return Randomly.fromOptions(SUM, SUM_INT, MIN, MAX, XOR_AGG, BIT_AND, BIT_OR, BOOL_AND, BOOL_OR, COUNT, AVG,
                     COUNT_ROWS);
         }

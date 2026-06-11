@@ -32,7 +32,7 @@ public final class SQLite3TransactionGenerator {
     }
 
     public static SQLQueryAdapter generateRollbackTransaction(SQLite3GlobalState globalState) {
-        // TODO: could be extended by savepoint
+
         return new SQLQueryAdapter("ROLLBACK TRANSACTION;",
                 ExpectedErrors.from("no transaction is active", "The database file is locked"), true);
     }

@@ -40,7 +40,7 @@ class ClickHouseSelectArrayJoinTest {
         assertFalse(rendered.contains("ARRAY JOIN"),
                 "default-empty arrayJoinExprs must not emit ARRAY JOIN, got: " + rendered);
         assertFalse(rendered.contains("LEFT ARRAY JOIN"), "got: " + rendered);
-        // Locks down byte-equivalence with the pre-change rendering for the no-array-join case.
+
         assertEquals("SELECT t.x FROM t", rendered);
     }
 

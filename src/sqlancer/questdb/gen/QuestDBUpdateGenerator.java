@@ -9,7 +9,7 @@ public final class QuestDBUpdateGenerator {
     }
 
     public static SQLQueryAdapter getQuery(QuestDBGlobalState globalState) {
-        // TODO
+
         return null;
     }
 

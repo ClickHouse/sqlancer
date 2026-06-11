@@ -1,8 +1,5 @@
 package sqlancer.clickhouse.ast;
 
-/**
- * Mutations: ALTER TABLE UPDATE/DELETE and lightweight DELETE FROM. Workstream 9 of the plan.
- */
 public class ClickHouseMutationStatement extends ClickHouseDdlStatement {
 
     public enum Kind {

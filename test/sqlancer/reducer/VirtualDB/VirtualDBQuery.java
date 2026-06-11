@@ -10,8 +10,7 @@ public class VirtualDBQuery extends SQLQueryAdapter {
     private static final long serialVersionUID = 1L;
 
     public VirtualDBQuery(String query) {
-        // Since the base class must check the format
-        // We judge if the statement could affect schema. A bit hacky tho.
+
         super(query, (query.contains("CREATE TABLE") && !query.startsWith("EXPLAIN")));
     }
 

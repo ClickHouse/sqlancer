@@ -46,8 +46,8 @@ public final class PostgresCommon {
     public static List<String> getCommonTableErrors() {
         ArrayList<String> errors = new ArrayList<>();
 
-        errors.add("is not commutative"); // exclude
-        errors.add("operator requires run-time type coercion"); // exclude
+        errors.add("is not commutative");
+        errors.add("operator requires run-time type coercion");
         errors.add("partitioned tables cannot be unlogged");
 
         return errors;
@@ -141,33 +141,26 @@ public final class PostgresCommon {
     private static List<String> getFunctionErrors() {
         ArrayList<String> errors = new ArrayList<>();
 
-        errors.add("out of valid range"); // get_bit/get_byte
+        errors.add("out of valid range");
         errors.add("cannot take logarithm of a negative number");
         errors.add("cannot take logarithm of zero");
-        errors.add("requested character too large for encoding"); // chr
-        errors.add("null character not permitted"); // chr
-        errors.add("requested character not valid for encoding"); // chr
-        errors.add("requested length too large"); // repeat
-        errors.add("invalid memory alloc request size"); // repeat
+        errors.add("requested character too large for encoding");
+        errors.add("null character not permitted");
+        errors.add("requested character not valid for encoding");
+        errors.add("requested length too large");
+        errors.add("invalid memory alloc request size");
 
-        errors.add("negative substring length not allowed"); // substr
-        errors.add("invalid mask length"); // set_masklen
+        errors.add("negative substring length not allowed");
+        errors.add("invalid mask length");
 
         return errors;
     }
 
     private static List<Pattern> getFunctionRegexErrors() {
         ArrayList<Pattern> errors = new ArrayList<>();
-        /*
-         * PostgreSQL support only a few conversion variants to ASCII: LATIN1, LATIN2, LATIN9 and WINDOWS1250. So, it is
-         * better to skip this error at all.
-         */
+
         errors.add(Pattern.compile("encoding conversion from \\w+ to ASCII not supported"));
 
-        /*
-         * In accordance with PostgreSQL code, commit 0ab1a2e, conversions to or from SQL_ASCII is meaningless. So
-         * disable errors on such an attempt.
-         */
         errors.add(Pattern.compile("encoding conversion from SQL_ASCII to \\w+ not supported"));
         errors.add(Pattern.compile("encoding conversion from \\w+ to SQL_ASCII not supported"));
 
@@ -215,7 +208,7 @@ public final class PostgresCommon {
     public static List<String> getGroupingErrors() {
         ArrayList<String> errors = new ArrayList<>();
 
-        errors.add("non-integer constant in GROUP BY"); // TODO
+        errors.add("non-integer constant in GROUP BY");
         errors.add("must appear in the GROUP BY clause or be used in an aggregate function");
         errors.add("is not in select list");
         errors.add("aggregate functions are not allowed in GROUP BY");
@@ -246,7 +239,7 @@ public final class PostgresCommon {
             if (Randomly.getBoolean()) {
                 sb.append("TEXT");
             } else if (Randomly.getBoolean()) {
-                // TODO: support CHAR (without VAR)
+
                 if (PostgresProvider.generateOnlyKnown || Randomly.getBoolean()) {
                     sb.append("VAR");
                 }
@@ -274,16 +267,16 @@ public final class PostgresCommon {
             sb.append("FLOAT");
             break;
         case RANGE:
-            sb.append(Randomly.fromOptions("int4range", "int4range")); // , "int8range", "numrange"
+            sb.append(Randomly.fromOptions("int4range", "int4range"));
             break;
         case MONEY:
             sb.append("money");
             break;
         case BIT:
             sb.append("BIT");
-            // if (Randomly.getBoolean()) {
+
             sb.append(" VARYING");
-            // }
+
             sb.append("(");
             sb.append(Randomly.getNotCachedInteger(1, 500));
             sb.append(")");
@@ -303,7 +296,7 @@ public final class PostgresCommon {
 
     private enum StorageParameters {
         FILLFACTOR("fillfactor", (r) -> r.getInteger(10, 100)),
-        // toast_tuple_target
+
         PARALLEL_WORKERS("parallel_workers", (r) -> r.getInteger(0, 1024)),
         AUTOVACUUM_ENABLED("autovacuum_enabled", (r) -> Randomly.fromOptions(0, 1)),
         AUTOVACUUM_VACUUM_THRESHOLD("autovacuum_vacuum_threshold", (r) -> r.getInteger(0, 2147483647)),
@@ -318,7 +311,6 @@ public final class PostgresCommon {
         AUTOVACUUM_FREEZE_MIN_AGE("autovacuum_freeze_min_age", (r) -> r.getLong(0, 1000000000)),
         AUTOVACUUM_FREEZE_MAX_AGE("autovacuum_freeze_max_age", (r) -> r.getLong(100000, 2000000000)),
         AUTOVACUUM_FREEZE_TABLE_AGE("autovacuum_freeze_table_age", (r) -> r.getLong(0, 2000000000));
-        // TODO
 
         private String parameter;
         private Function<Randomly, Object> op;
@@ -352,7 +344,7 @@ public final class PostgresCommon {
 
     public static void addTableConstraints(boolean excludePrimaryKey, StringBuilder sb, PostgresTable table,
             PostgresGlobalState globalState, ExpectedErrors errors) {
-        // TODO constraint name
+
         List<TableConstraints> tableConstraints = Randomly.nonEmptySubset(TableConstraints.values());
         if (excludePrimaryKey) {
             tableConstraints.remove(TableConstraints.PRIMARY_KEY);
@@ -362,7 +354,7 @@ public final class PostgresCommon {
         }
         for (TableConstraints t : tableConstraints) {
             sb.append(", ");
-            // TODO add index parameters
+
             addTableConstraint(sb, table, globalState, t, errors);
         }
     }
@@ -442,7 +434,7 @@ public final class PostgresCommon {
             errors.add("unsupported EXCLUDE constraint with partition key definition");
             sb.append("EXCLUDE ");
             sb.append("(");
-            // TODO [USING index_method ]
+
             for (int i = 0; i < Randomly.smallNumber() + 1; i++) {
                 if (i != 0) {
                     sb.append(", ");
@@ -478,21 +470,20 @@ public final class PostgresCommon {
         if (Randomly.getBoolean()) {
             generateWith(sb, globalState, errors);
         }
-        // TODO: [ USING INDEX TABLESPACE tablespace ]
+
     }
 
     private static void appendOperator(StringBuilder sb, List<String> operators) {
         sb.append(Randomly.fromList(operators));
     }
 
-    // complete
     private static void appendExcludeElement(StringBuilder sb, PostgresGlobalState globalState,
             List<PostgresColumn> columns) {
         if (Randomly.getBoolean()) {
-            // append column name
+
             sb.append(Randomly.fromList(columns).getName());
         } else {
-            // append expression
+
             sb.append("(");
             sb.append(PostgresVisitor.asString(PostgresExpressionGenerator.generateExpression(globalState, columns)));
             sb.append(")");

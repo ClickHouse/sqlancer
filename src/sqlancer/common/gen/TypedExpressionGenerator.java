@@ -25,7 +25,7 @@ public abstract class TypedExpressionGenerator<E, C, T> implements ExpressionGen
 
     protected abstract boolean canGenerateColumnOfType(T type);
 
-    @SuppressWarnings("unchecked") // unsafe
+    @SuppressWarnings("unchecked")
     public <U extends TypedExpressionGenerator<E, C, T>> U setColumns(List<C> columns) {
         this.columns = columns;
         return (U) this;
@@ -63,17 +63,8 @@ public abstract class TypedExpressionGenerator<E, C, T> implements ExpressionGen
         return expressions;
     }
 
-    // override this class to also generate ASC, DESC
     public List<E> generateOrderBys() {
         return generateExpressions(Randomly.smallNumber() + 1);
     }
-
-    // override this class to generate aggregate functions
-    // public E generateHavingClause() {
-    // allowAggregates = true;
-    // E expr = generateExpression();
-    // allowAggregates = false;
-    // return expr;
-    // }
 
 }

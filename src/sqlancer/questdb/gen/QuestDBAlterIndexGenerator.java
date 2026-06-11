@@ -32,7 +32,6 @@ public final class QuestDBAlterIndexGenerator {
 
         sb.append("ALTER COLUMN ");
 
-        // We should always choose column with SYMBOL type
         QuestDBColumn columnWithSymbolType = table
                 .getRandomColumnOrBailout(c -> c.getType().getPrimitiveDataType() == QuestDBDataType.SYMBOL);
 

@@ -1,8 +1,5 @@
 package sqlancer.clickhouse.ast;
 
-/**
- * CREATE/ALTER/DROP DICTIONARY. Workstream 14 of the plan.
- */
 public class ClickHouseDictionaryDdlStatement extends ClickHouseDdlStatement {
 
     public enum Kind {

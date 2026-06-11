@@ -33,7 +33,7 @@ public class MaterializePrefixOperation implements MaterializeExpression {
 
             @Override
             protected MaterializeConstant getExpectedValue(MaterializeConstant expectedValue) {
-                // TODO: actual converts to double precision
+
                 return expectedValue;
             }
 
@@ -48,7 +48,7 @@ public class MaterializePrefixOperation implements MaterializeExpression {
             @Override
             protected MaterializeConstant getExpectedValue(MaterializeConstant expectedValue) {
                 if (expectedValue.isNull()) {
-                    // TODO
+
                     throw new IgnoreMeException();
                 }
                 if (expectedValue.isInt() && expectedValue.asInt() == Long.MIN_VALUE) {

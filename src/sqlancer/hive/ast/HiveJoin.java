@@ -11,8 +11,6 @@ public class HiveJoin implements HiveExpression, Join<HiveExpression, HiveTable,
     private final JoinType joinType;
     private HiveExpression onClause;
 
-    // TODO: test map-join optimization
-
     public enum JoinType {
         INNER, LEFT_OUTER, RIGHT_OUTER, FULL_OUTER, LEFT_SEMI, CROSS;
     }

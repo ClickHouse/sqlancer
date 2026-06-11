@@ -91,7 +91,7 @@ public class H2Constant implements H2Expression {
         public H2BinaryConstant(long value) {
             this.value = Long.toHexString(value);
             if (this.value.length() % 2 == 1) {
-                this.value = '0' + this.value; // pad with leading zero if needed
+                this.value = '0' + this.value;
             }
         }
 

@@ -41,7 +41,7 @@ public final class YSQLCommon {
             if (Randomly.getBoolean()) {
                 sb.append("TEXT");
             } else if (Randomly.getBoolean()) {
-                // TODO: support CHAR (without VAR)
+
                 if (YSQLProvider.generateOnlyKnown || Randomly.getBoolean()) {
                     sb.append("VAR");
                 }
@@ -65,7 +65,7 @@ public final class YSQLCommon {
             }
             break;
         case RANGE:
-            sb.append(Randomly.fromOptions("int4range", "int4range")); // , "int8range", "numrange"
+            sb.append(Randomly.fromOptions("int4range", "int4range"));
             break;
         case MONEY:
             sb.append("money");
@@ -75,9 +75,9 @@ public final class YSQLCommon {
             break;
         case BIT:
             sb.append("BIT");
-            // if (Randomly.getBoolean()) {
+
             sb.append(" VARYING");
-            // }
+
             sb.append("(");
             sb.append(Randomly.getNotCachedInteger(1, 500));
             sb.append(")");
@@ -109,7 +109,7 @@ public final class YSQLCommon {
 
                 errors.add("cannot create colocated table with split option");
                 errors.add("SPLIT AT option is not yet supported for hash partitioned tables");
-                errors.add("Cannot have duplicate split rows"); // just in case
+                errors.add("Cannot have duplicate split rows");
 
                 boolean hasBoolean = false;
                 for (YSQLColumn column : columnsToBeAdded) {
@@ -168,7 +168,7 @@ public final class YSQLCommon {
 
     public static void addTableConstraints(boolean excludePrimaryKey, StringBuilder sb, YSQLTable table,
             YSQLGlobalState globalState, ExpectedErrors errors) {
-        // TODO constraint name
+
         List<TableConstraints> tableConstraints = Randomly.nonEmptySubset(TableConstraints.values());
         if (excludePrimaryKey) {
             tableConstraints.remove(TableConstraints.PRIMARY_KEY);
@@ -178,7 +178,7 @@ public final class YSQLCommon {
         }
         for (TableConstraints t : tableConstraints) {
             sb.append(", ");
-            // TODO add index parameters
+
             addTableConstraint(sb, table, globalState, t, errors);
         }
     }
@@ -266,18 +266,5 @@ public final class YSQLCommon {
     public enum TableConstraints {
         CHECK, UNIQUE, PRIMARY_KEY, FOREIGN_KEY
     }
-
-    // private enum StorageParameters {
-    // COLOCATED("COLOCATED", (r) -> Randomly.getBoolean());
-    // // TODO
-    //
-    // private final String parameter;
-    // private final Function<Randomly, Object> op;
-    //
-    // StorageParameters(String parameter, Function<Randomly, Object> op) {
-    // this.parameter = parameter;
-    // this.op = op;
-    // }
-    // }
 
 }

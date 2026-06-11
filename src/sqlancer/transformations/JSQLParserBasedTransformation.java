@@ -3,10 +3,6 @@ package sqlancer.transformations;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.Statement;
 
-/**
- * Transformations based on JSQLParser should be derived from this class.
- */
-
 public class JSQLParserBasedTransformation extends Transformation {
 
     protected Statement statement;

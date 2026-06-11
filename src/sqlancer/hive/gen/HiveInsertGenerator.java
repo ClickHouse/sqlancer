@@ -32,17 +32,13 @@ public class HiveInsertGenerator extends AbstractInsertGenerator<HiveColumn> {
 
     @Override
     public void buildStatement() {
-        // Inserting values into tables from SQL.
+
         sb.append("INSERT INTO ");
         HiveTable table = globalState.getSchema().getRandomTable(t -> !t.isView());
         sb.append(table.getName());
 
-        // TODO: specify the inserted partition
-
         sb.append(" VALUES ");
 
-        // Values must be provided by every column in the Hive table.
-        // A value is either null or any valid SQL literal.
         List<HiveColumn> columns = table.getColumns();
         insertColumns(columns);
 

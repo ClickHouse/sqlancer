@@ -20,14 +20,6 @@ import sqlancer.sqlite3.schema.SQLite3Schema.SQLite3Column;
 import sqlancer.sqlite3.schema.SQLite3Schema.SQLite3Table;
 import sqlancer.sqlite3.schema.SQLite3Schema.SQLite3Table.TableKind;
 
-/**
- * See https://www.sqlite.org/lang_createtable.html
- *
- * TODO What's missing:
- * <ul>
- * <li>CREATE TABLE ... AS SELECT Statements</li>
- * </ul>
- */
 public class SQLite3TableGenerator {
 
     private final StringBuilder sb = new StringBuilder();
@@ -124,12 +116,8 @@ public class SQLite3TableGenerator {
         }
 
         if (globalState.getDbmsSpecificOptions().testCheckConstraints && globalState
-                .getDbmsSpecificOptions().oracles != SQLite3OracleFactory.PQS /*
-                                                                               * we are currently lacking a parser to
-                                                                               * read column definitions, and would
-                                                                               * interpret a COLLATE in the check
-                                                                               * constraint as belonging to the column
-                                                                               */
+                .getDbmsSpecificOptions().oracles != SQLite3OracleFactory.PQS
+
                 && Randomly.getBooleanWithRatherLowProbability()) {
             sb.append(SQLite3Common.getCheckConstraint(globalState, columns));
         }
@@ -137,7 +125,7 @@ public class SQLite3TableGenerator {
         sb.append(")");
         if (globalState.getDbmsSpecificOptions().testWithoutRowids && containsPrimaryKey && !containsAutoIncrement
                 && Randomly.getBoolean()) {
-            // see https://sqlite.org/withoutrowid.html
+
             sb.append(" WITHOUT ROWID");
         }
     }
@@ -156,9 +144,6 @@ public class SQLite3TableGenerator {
         sb.append(")");
     }
 
-    /**
-     * @see https://www.sqlite.org/foreignkeys.html
-     */
     private void addForeignKey() {
         assert globalState.getDbmsSpecificOptions().testForeignKeys;
         List<String> foreignKeyColumns;
@@ -177,7 +162,7 @@ public class SQLite3TableGenerator {
         String referencedTableName;
         List<String> columns = new ArrayList<>();
         if (existingSchema.getDatabaseTables().isEmpty() || Randomly.getBooleanWithSmallProbability()) {
-            // the foreign key references our own table
+
             referencedTableName = tableName;
             for (int i = 0; i < foreignKeyColumns.size(); i++) {
                 columns.add(Randomly.fromList(columnNames));
@@ -206,7 +191,7 @@ public class SQLite3TableGenerator {
         addActionClause(" ON DELETE ");
         addActionClause(" ON UPDATE ");
         if (Randomly.getBoolean()) {
-            // add a deferrable clause
+
             sb.append(" ");
             String deferrable = Randomly.fromOptions("DEFERRABLE INITIALLY DEFERRED",
                     "NOT DEFERRABLE INITIALLY DEFERRED", "NOT DEFERRABLE INITIALLY IMMEDIATE", "NOT DEFERRABLE",
@@ -217,7 +202,7 @@ public class SQLite3TableGenerator {
 
     private void addActionClause(String string) {
         if (Randomly.getBoolean()) {
-            // add an ON DELETE or ON ACTION clause
+
             sb.append(string);
             sb.append(Randomly.fromOptions("NO ACTION", "RESTRICT", "SET NULL", "SET DEFAULT", "CASCADE"));
         }

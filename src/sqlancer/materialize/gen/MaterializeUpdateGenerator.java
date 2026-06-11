@@ -40,8 +40,8 @@ public final class MaterializeUpdateGenerator extends AbstractUpdateGenerator<Ma
         sb.append("UPDATE ");
         sb.append(randomTable.getName());
         sb.append(" SET ");
-        errors.add("multiple assignments to same column"); // view whose columns refer to a column in the referenced
-                                                           // table multiple times
+        errors.add("multiple assignments to same column");
+
         errors.add("new row violates check option for view");
         MaterializeCommon.addCommonInsertUpdateErrors(errors);
         updateColumns(columns);
@@ -68,7 +68,7 @@ public final class MaterializeUpdateGenerator extends AbstractUpdateGenerator<Ma
             sb.append("(");
             MaterializeExpression expr = MaterializeExpressionGenerator.generateExpression(globalState,
                     randomTable.getColumns(), column.getType());
-            // caused by casts
+
             sb.append(MaterializeVisitor.asString(expr));
             sb.append(")");
         }

@@ -1,4 +1,3 @@
-
 package sqlancer.mysql;
 
 import java.sql.SQLException;

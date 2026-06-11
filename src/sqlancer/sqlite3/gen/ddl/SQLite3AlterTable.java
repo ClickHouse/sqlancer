@@ -33,8 +33,8 @@ public class SQLite3AlterTable {
     private SQLQueryAdapter getQuery(SQLite3Schema s, SQLite3AlterTable alterTable) throws AssertionError {
         ExpectedErrors errors = new ExpectedErrors();
         errors.add("error in view");
-        errors.add("no such column"); // trigger
-        errors.add("error in trigger"); // trigger
+        errors.add("no such column");
+        errors.add("error in trigger");
 
         errors.add("operator prohibited in generated columns");
         errors.add("subqueries prohibited in generated columns");
@@ -64,13 +64,7 @@ public class SQLite3AlterTable {
         case ADD_COLUMN:
             sb.append(" ADD COLUMN ");
             String name = SQLite3Common.getFreeColumnName(t);
-            // The column may not have a PRIMARY KEY or UNIQUE constraint.
-            // The column may not have a default value of CURRENT_TIME, CURRENT_DATE,
-            // CURRENT_TIMESTAMP, or an expression in parentheses.
-            // If a NOT NULL constraint is specified, then the column must have a default
-            // value other than NULL.
-            // If foreign key constraints are enabled and a column with a REFERENCES clause
-            // is added, the column must have a default value of NULL.
+
             sb.append(new SQLite3ColumnBuilder().allowPrimaryKey(false).allowUnique(false).allowNotNull(false)
                     .allowDefaultValue(false).createColumn(name, globalState, t.getColumns()));
             errors.add("subqueries prohibited in CHECK constraints");

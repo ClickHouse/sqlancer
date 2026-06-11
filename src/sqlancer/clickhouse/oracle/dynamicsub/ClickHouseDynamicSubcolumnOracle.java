@@ -16,16 +16,6 @@ import sqlancer.clickhouse.ClickHouseType;
 import sqlancer.common.oracle.TestOracle;
 import sqlancer.common.query.ExpectedErrors;
 
-/**
- * Dynamic subcolumn equivalence oracle (workstream 6 of the plan). Asserts:
- *
- * <pre>
- *   dynamicElement(d, 'Int32')  ==  CAST(d AS Nullable(Int32))
- * </pre>
- *
- * on rows where the dynamic value's runtime type can be Int32. Same shape for Int64 / String / Float64. Iterations that
- * find no Dynamic column short-circuit.
- */
 public class ClickHouseDynamicSubcolumnOracle implements TestOracle<ClickHouseGlobalState> {
 
     private final ClickHouseGlobalState state;

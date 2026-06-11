@@ -15,8 +15,6 @@ import sqlancer.clickhouse.ClickHouseType.Unknown;
 
 class ClickHouseTypeTest {
 
-    // ----- Unit 1: ADT shape, equality, toString -----
-
     @Test
     void primitiveToString() {
         assertEquals("Int32", new Primitive(Kind.Int32).toString());
@@ -61,8 +59,6 @@ class ClickHouseTypeTest {
         assertEquals(new Primitive(Kind.String), wrapped.unwrap());
     }
 
-    // ----- Unit 1: canWrap rules -----
-
     @Test
     void nullableCanWrapPrimitivesOnly() {
         assertTrue(Nullable.canWrap(new Primitive(Kind.Int32)));
@@ -82,8 +78,6 @@ class ClickHouseTypeTest {
         assertTrue(LowCardinality.canWrap(new Nullable(new Primitive(Kind.Int32))));
         assertTrue(LowCardinality.canWrap(new Nullable(new Primitive(Kind.String))));
 
-        // ClickHouse allows LowCardinality(Float32)/(Float64) (with
-        // allow_suspicious_low_cardinality_types), so canWrap accepts them.
         assertTrue(LowCardinality.canWrap(new Primitive(Kind.Float32)));
         assertTrue(LowCardinality.canWrap(new Primitive(Kind.Float64)));
         assertFalse(LowCardinality.canWrap(new Primitive(Kind.Bool)));
@@ -93,8 +87,6 @@ class ClickHouseTypeTest {
         assertFalse(LowCardinality.canWrap(new LowCardinality(new Primitive(Kind.String))));
         assertFalse(LowCardinality.canWrap(new Unknown("Decimal(9,2)")));
     }
-
-    // ----- Unit 2: Capability predicates -----
 
     @Test
     void isNumericTableByKind() {

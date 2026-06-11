@@ -6,14 +6,6 @@ import java.util.List;
 import sqlancer.Randomly;
 import sqlancer.clickhouse.ClickHouseType;
 
-/**
- * Geo function registry. Workstream 4 of the 2026-05-27 coverage expansion plan.
- *
- * <p>
- * Each entry binds a function name to the argument shape it expects, sourced from CH's geo function docs. The generator
- * picks an entry whose argument shape matches the types it has on hand. CPU-heavy functions (polygonsDistanceSpherical)
- * are gated at lower probability per the plan's "cap at 5% per expression" guidance.
- */
 public enum ClickHouseGeoFunction {
 
     POINT_IN_POLYGON("pointInPolygon", ArgShape.POINT_POLYGON, false),
@@ -50,7 +42,7 @@ public enum ClickHouseGeoFunction {
     }
 
     public static List<ClickHouseGeoFunction> matching(ClickHouseType colType) {
-        // Filter the registry to functions whose first argument matches the column's type.
+
         ClickHouseType u = colType.unwrap();
         ArgShape want;
         if (u instanceof ClickHouseType.Point) {

@@ -8,15 +8,6 @@ import java.sql.Statement;
 import java.util.Properties;
 import java.util.concurrent.Executor;
 
-/**
- * Minimum-viable {@link Connection} that delegates execution to a {@link ClickHouseTransport}. The bulk of
- * {@code java.sql.Connection}'s 50+ methods aren't exercised by sqlancer; those throw
- * {@link UnsupportedOperationException} so attempts to use them surface loudly during smoke testing rather than
- * silently no-oping.
- *
- * The two methods that matter -- {@link #createStatement()} and {@link #prepareStatement(String)} -- both return a
- * {@link ClickHouseTransportStatement} bound to the same transport.
- */
 public final class ClickHouseTransportConnection implements Connection {
 
     private final ClickHouseTransport transport;
@@ -55,9 +46,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public DatabaseMetaData getMetaData() {
-        // sqlancer's SQLConnection.getDatabaseVersion is the only consumer, calling just
-        // getDatabaseProductVersion(). Synthesise a dynamic proxy rather than stubbing all ~190
-        // DatabaseMetaData methods.
+
         return (DatabaseMetaData) Proxy.newProxyInstance(getClass().getClassLoader(),
                 new Class<?>[] { DatabaseMetaData.class }, (proxy, method, args) -> {
                     String name = method.getName();
@@ -82,8 +71,6 @@ public final class ClickHouseTransportConnection implements Connection {
                     throw new UnsupportedOperationException("DatabaseMetaData." + name + " not implemented");
                 });
     }
-
-    // ---- methods sqlancer never calls; loud unsupported ----
 
     @Override
     public Statement createStatement(int rsType, int rsConcur) {
@@ -142,7 +129,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void setAutoCommit(boolean a) {
-        /* no-op: ClickHouse is autocommit */ }
+         }
 
     @Override
     public boolean getAutoCommit() {
@@ -151,7 +138,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void commit() {
-        /* no-op */ }
+         }
 
     @Override
     public void rollback() {
@@ -180,7 +167,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void setReadOnly(boolean r) {
-        /* no-op */ }
+         }
 
     @Override
     public boolean isReadOnly() {
@@ -189,7 +176,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void setCatalog(String c) {
-        /* no-op; sqlancer uses ?database= */ }
+         }
 
     @Override
     public String getCatalog() {
@@ -198,7 +185,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void setTransactionIsolation(int level) {
-        /* no-op */ }
+         }
 
     @Override
     public int getTransactionIsolation() {
@@ -212,7 +199,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void clearWarnings() {
-        /* no-op */ }
+         }
 
     @Override
     public java.util.Map<String, Class<?>> getTypeMap() {
@@ -221,11 +208,11 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void setTypeMap(java.util.Map<String, Class<?>> m) {
-        /* no-op */ }
+         }
 
     @Override
     public void setHoldability(int h) {
-        /* no-op */ }
+         }
 
     @Override
     public int getHoldability() {
@@ -259,11 +246,11 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void setClientInfo(String n, String v) {
-        /* no-op */ }
+         }
 
     @Override
     public void setClientInfo(Properties p) {
-        /* no-op */ }
+         }
 
     @Override
     public String getClientInfo(String n) {
@@ -287,7 +274,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void setSchema(String s) {
-        /* no-op */ }
+         }
 
     @Override
     public String getSchema() {
@@ -301,7 +288,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void setNetworkTimeout(Executor e, int ms) {
-        /* no-op */ }
+         }
 
     @Override
     public int getNetworkTimeout() {

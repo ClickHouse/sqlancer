@@ -40,8 +40,7 @@ public class PrestoSchema extends AbstractSchema<PrestoGlobalState, PrestoSchema
     private static List<String> getTableNames(SQLConnection con) throws SQLException {
         List<String> tableNames = new ArrayList<>();
         try (Statement s = con.createStatement()) {
-            // TODO: UPDATE
-            // SHOW TABLES [ FROM schema ] [ LIKE pattern [ ESCAPE 'escape_character' ] ]
+
             try (ResultSet rs = s.executeQuery("SHOW TABLES")) {
                 while (rs.next()) {
                     tableNames.add(rs.getString("Table"));
@@ -171,16 +170,7 @@ public class PrestoSchema extends AbstractSchema<PrestoGlobalState, PrestoSchema
     public enum PrestoDataType {
         BOOLEAN, INT, FLOAT, DECIMAL, VARCHAR, CHAR, VARBINARY, JSON, DATE, TIME, TIMESTAMP, TIME_WITH_TIME_ZONE,
         TIMESTAMP_WITH_TIME_ZONE, INTERVAL_YEAR_TO_MONTH, INTERVAL_DAY_TO_SECOND, ARRAY,
-        // MAP,
-        // ROW,
-        // IPADDRESS,
-        // UID,
-        // IPPREFIX,
-        // HyperLogLog,
-        // P4HyperLogLog,
-        // KHyperLogLog,
-        // QDigest,
-        // TDigest,
+
         NULL;
 
         public static PrestoDataType getRandomWithoutNull() {
@@ -203,7 +193,7 @@ public class PrestoSchema extends AbstractSchema<PrestoGlobalState, PrestoSchema
 
         public static List<PrestoDataType> getOrderableTypes() {
             return Arrays.asList(BOOLEAN, INT, FLOAT, DECIMAL, VARCHAR, CHAR, VARBINARY,
-                    // JSON,
+
                     DATE, TIME, TIMESTAMP, TIME_WITH_TIME_ZONE, TIMESTAMP_WITH_TIME_ZONE, INTERVAL_YEAR_TO_MONTH,
                     INTERVAL_DAY_TO_SECOND, ARRAY);
         }

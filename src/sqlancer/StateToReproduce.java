@@ -51,12 +51,6 @@ public class StateToReproduce implements Serializable {
         return databaseProvider;
     }
 
-    /**
-     * Logs the statement string without executing the corresponding statement.
-     *
-     * @param queryString
-     *            the query string to be logged
-     */
     public void logStatement(String queryString) {
         if (queryString == null) {
             throw new IllegalArgumentException();
@@ -64,12 +58,6 @@ public class StateToReproduce implements Serializable {
         logStatement(databaseProvider.getLoggableFactory().getQueryForStateToReproduce(queryString));
     }
 
-    /**
-     * Logs the statement without executing it.
-     *
-     * @param query
-     *            the query to be logged
-     */
     public void logStatement(Query<?> query) {
         if (query == null) {
             throw new IllegalArgumentException();
@@ -81,9 +69,6 @@ public class StateToReproduce implements Serializable {
         return Collections.unmodifiableList(statements);
     }
 
-    /**
-     * @deprecated
-     */
     @Deprecated
     public void commentStatements() {
         for (int i = 0; i < statements.size(); i++) {
@@ -97,19 +82,10 @@ public class StateToReproduce implements Serializable {
         return seedValue;
     }
 
-    /**
-     * Returns a local state in which a test oracle can save useful information about a single run. If the local state
-     * is closed without indicating access to it, the local statements will be added to the global state.
-     *
-     * @return the local state for logging
-     */
     public OracleRunReproductionState getLocalState() {
         return localState;
     }
 
-    /**
-     * State information that is logged if the test oracle finds a bug or if an exception is thrown.
-     */
     public class OracleRunReproductionState implements Closeable {
 
         private final List<Query<?>> statements = new ArrayList<>();

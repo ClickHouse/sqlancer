@@ -11,9 +11,6 @@ import sqlancer.datafusion.DataFusionSchema.DataFusionColumn;
 import sqlancer.datafusion.DataFusionSchema.DataFusionTable;
 import sqlancer.datafusion.gen.DataFusionExpressionGenerator;
 
-/*
-    NOT IMPLEMENTED YET
- */
 public class DataFusionJoin
         implements DataFusionExpression, Join<DataFusionExpression, DataFusionTable, DataFusionColumn> {
 
@@ -32,15 +29,14 @@ public class DataFusionJoin
 
     public static List<DataFusionJoin> getJoins(List<DataFusionTableReference> tableList,
             DataFusionGlobalState globalState) {
-        // [t1_join_t2, t1_join_t3, ...]
+
         List<DataFusionJoin> joinExpressions = new ArrayList<>();
         while (tableList.size() >= 2 && Randomly.getBooleanWithRatherLowProbability()) {
             DataFusionTableReference leftTable = tableList.remove(0);
             DataFusionTableReference rightTable = tableList.remove(0);
             List<DataFusionColumn> columns = new ArrayList<>(leftTable.getTable().getColumns());
             columns.addAll(rightTable.getTable().getColumns());
-            // TODO(datafusion) this `joinGen` can generate super chaotic exprsions, maybe we should make it more like a
-            // normal join expression
+
             DataFusionExpressionGenerator joinGen = new DataFusionExpressionGenerator(globalState).setColumns(columns);
             switch (DataFusionJoin.JoinType.getRandom()) {
             case INNER:
@@ -77,7 +73,6 @@ public class DataFusionJoin
 
     public enum JoinType {
         INNER;
-        // NATURAL, LEFT, RIGHT;
 
         public static JoinType getRandom() {
             return Randomly.fromOptions(values());

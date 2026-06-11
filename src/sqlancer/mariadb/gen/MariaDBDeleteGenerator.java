@@ -66,7 +66,6 @@ public final class MariaDBDeleteGenerator extends AbstractDeleteGenerator {
             appendWhereClause(condition);
         }
 
-        // ORDER BY + LIMIT
         if (Randomly.getBooleanWithRatherLowProbability() && !table.getColumns().isEmpty()) {
             sb.append(" ORDER BY ");
             sb.append(Randomly.fromList(table.getColumns()).getName());
@@ -79,7 +78,6 @@ public final class MariaDBDeleteGenerator extends AbstractDeleteGenerator {
             appendLimitClause(Randomly.getNotCachedInteger(1, 10));
         }
 
-        // RETURNING clause (MariaDB >= 10.5)
         if (Randomly.getBooleanWithRatherLowProbability()) {
             String expression;
             if (Randomly.getBooleanWithRatherLowProbability()) {

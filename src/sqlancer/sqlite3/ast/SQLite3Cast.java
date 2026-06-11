@@ -49,13 +49,12 @@ public final class SQLite3Cast {
     }
 
     public static void checkDoubleIsInsideDangerousRange(double doubleVal) {
-        // high double-values might result in small rounding differences between Java and SQLite
+
         if (Math.abs(doubleVal) > 1e15) {
             throw new IgnoreMeException();
         }
     }
 
-    // SELECT CAST('-1.370998801E9' AS INTEGER) == -1
     public static SQLite3Constant castToInt(SQLite3Constant originalCons) {
         SQLite3Constant cons = originalCons;
         if (cons.getDataType() == SQLite3DataType.BINARY) {
@@ -126,9 +125,6 @@ public final class SQLite3Cast {
         return convertInternal(value, false, false, false);
     }
 
-    /*
-     * Applies numeric affinity to a value.
-     */
     public static SQLite3Constant castToNumeric(SQLite3Constant value) {
         return convertInternal(value, true, false, false);
     }
@@ -172,7 +168,7 @@ public final class SQLite3Cast {
                             && isWithinConvertibleRange;
                     boolean isInteger = !isFloatingPointNumber && first.compareTo(second) == 0;
                     if (doubleShouldBeConvertedToInt || isInteger && !convertIntToReal) {
-                        // see https://www.sqlite.org/src/tktview/afdc5a29dc
+
                         return SQLite3Constant.createIntConstant(first.longValue());
                     } else {
                         return SQLite3Constant.createRealConstant(d);
@@ -209,7 +205,7 @@ public final class SQLite3Cast {
     }
 
     private static boolean unprintAbleCharThatLetsBecomeNumberZero(String s) {
-        // non-printable characters are ignored by Double.valueOf
+
         for (int i = 0; i < s.length(); i++) {
             char charAt = s.charAt(i);
             if (!Character.isISOControl(charAt) && !Character.isWhitespace(charAt)) {
@@ -223,7 +219,7 @@ public final class SQLite3Cast {
             case SYNCHRONOUS_IDLE:
                 return true;
             default:
-                // fall through
+
             }
 
             if (Character.isWhitespace(charAt)) {

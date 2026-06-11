@@ -2,14 +2,6 @@ package sqlancer.clickhouse.ast;
 
 import sqlancer.clickhouse.ClickHouseToStringVisitor;
 
-/**
- * Variant element access. Renders as {@code v.Int32} (subcolumn dot form) or {@code variantElement(v, 'Int32')}
- * (function form), selected via the {@link #isFunctionForm} field. The function form is the one ClickHouse documents as
- * the primary read path.
- *
- * <p>
- * Workstream 6.
- */
 public class ClickHouseVariantElement extends ClickHouseExpression {
 
     private final ClickHouseExpression variant;

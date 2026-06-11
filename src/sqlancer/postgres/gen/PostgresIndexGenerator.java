@@ -34,15 +34,9 @@ public class PostgresIndexGenerator extends AbstractIndexGenerator<PostgresColum
     @Override
     public void buildStatement() {
         appendCreateIndex(Randomly.getBoolean());
-        /*
-         * Commented out as a workaround for https://www.postgresql.org/message-id/CA%2Bu7OA4XYhc-
-         * qyCgJqwwgMGZDWAyeH821oa5oMzm_HEifZ4BeA%40mail.gmail.com
-         */
-        // if (Randomly.getBoolean()) {
-        // sb.append("CONCURRENTLY ");
-        // }
-        PostgresTable randomTable = globalState.getSchema().getRandomTable(t -> !t.isView()); // TODO: materialized
-                                                                                              // views
+
+        PostgresTable randomTable = globalState.getSchema().getRandomTable(t -> !t.isView());
+
         String indexName = getNewIndexName(randomTable);
         sb.append(indexName);
         sb.append(" ON ");
@@ -77,11 +71,6 @@ public class PostgresIndexGenerator extends AbstractIndexGenerator<PostgresColum
                     sb.append(")");
                 }
 
-                // if (Randomly.getBoolean()) {
-                // sb.append(" ");
-                // sb.append("COLLATE ");
-                // sb.append(Randomly.fromOptions("C", "POSIX"));
-                // }
                 if (Randomly.getBooleanWithRatherLowProbability()) {
                     sb.append(" ");
                     sb.append(globalState.getRandomOpclass());
@@ -111,9 +100,9 @@ public class PostgresIndexGenerator extends AbstractIndexGenerator<PostgresColum
                     .setGlobalState(globalState).generateExpression(PostgresDataType.BOOLEAN);
             appendWhereClause(PostgresVisitor.asString(expr));
         }
-        errors.add("already contains data"); // CONCURRENT INDEX failed
+        errors.add("already contains data");
         errors.add("You might need to add explicit type casts");
-        errors.add(" collations are not supported"); // TODO check
+        errors.add(" collations are not supported");
         errors.add("because it has pending trigger events");
         errors.add("could not determine which collation to use for index expression");
         errors.add("could not determine which collation to use for string comparison");

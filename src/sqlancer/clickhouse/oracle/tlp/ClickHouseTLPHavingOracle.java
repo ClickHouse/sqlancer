@@ -31,7 +31,6 @@ public class ClickHouseTLPHavingOracle extends ClickHouseTLPBase {
         select.setFetchColumns(IntStream.range(0, Randomly.smallNumber() + 1)
                 .mapToObj(i -> gen.generateAggregateExpressionWithColumns(columns, 3)).collect(Collectors.toList()));
         select.setSelectType(ClickHouseSelect.SelectType.ALL);
-        // TODO order by?
 
         List<ClickHouseExpression> groupByColumns = IntStream.range(0, 1 + Randomly.smallNumber())
                 .mapToObj(i -> gen.generateExpressionWithColumns(columns, 6)).collect(Collectors.toList());
@@ -39,7 +38,7 @@ public class ClickHouseTLPHavingOracle extends ClickHouseTLPBase {
         select.setGroupByClause(groupByColumns);
         select.setHavingClause(null);
         String originalQueryString = ClickHouseVisitor.asString(select);
-        originalQueryString += " SETTINGS aggregate_functions_null_for_empty=1, enable_optimize_predicate_expression=0"; // https://github.com/ClickHouse/ClickHouse/issues/12264
+        originalQueryString += " SETTINGS aggregate_functions_null_for_empty=1, enable_optimize_predicate_expression=0";
 
         List<String> resultSet = ComparatorHelper.getResultSetFirstColumnAsString(originalQueryString, errors, state);
 
@@ -58,15 +57,13 @@ public class ClickHouseTLPHavingOracle extends ClickHouseTLPBase {
                 ClickHouseUnaryPostfixOperation.ClickHouseUnaryPostfixOperator.IS_NULL, false));
         String thirdQueryString = ClickHouseVisitor.asString(select);
         String combinedString = firstQueryString + " UNION ALL " + secondQueryString + " UNION ALL " + thirdQueryString;
-        combinedString += " SETTINGS aggregate_functions_null_for_empty=1, enable_optimize_predicate_expression=0"; // https://github.com/ClickHouse/ClickHouse/issues/12264
+        combinedString += " SETTINGS aggregate_functions_null_for_empty=1, enable_optimize_predicate_expression=0";
         List<String> secondResultSet = ComparatorHelper.getResultSetFirstColumnAsString(combinedString, errors, state);
         if (state.getOptions().logEachSelect()) {
             state.getLogger().writeCurrent(originalQueryString);
             state.getLogger().writeCurrent(combinedString);
         }
-        // Multiset semantics: HAVING-filtered aggregate rows can repeat structurally identical
-        // group entries when the HAVING predicate is NULL across branches, and the count of
-        // those entries must match between LHS and RHS for the TLP invariant to hold.
+
         ComparatorHelper.assumeResultSetsAreEqual(resultSet, secondResultSet, originalQueryString,
                 Collections.singletonList(combinedString), state, ComparatorHelper.ComparisonMode.MULTISET);
     }

@@ -8,12 +8,6 @@ import org.junit.jupiter.api.Test;
 import sqlancer.clickhouse.ClickHouseTypeParser;
 import sqlancer.clickhouse.oracle.coddtest.ClickHouseCODDTestFilters;
 
-/**
- * Exercises the v1 CODDTest filter through the small bridge in {@link ClickHouseCODDTestFilters}. The original
- * {@code aggType != Int32 && aggType != String} check is replaced with a capability-driven predicate so
- * {@code Nullable(Int32)}, {@code LowCardinality(String)}, and their nesting all pass; Float and Unknown columns are
- * still rejected.
- */
 class ClickHouseCODDTestFilterTest {
 
     @Test

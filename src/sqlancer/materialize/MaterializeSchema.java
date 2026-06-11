@@ -221,7 +221,7 @@ public class MaterializeSchema extends AbstractSchema<MaterializeGlobalState, Ma
             List<MaterializeTable> databaseTables = new ArrayList<>();
             List<String> indexNames = new ArrayList<>();
             try (Statement s = con.createStatement()) {
-                // ERROR: column "is_insertable_into" does not exist
+
                 try (ResultSet rs = s.executeQuery(
                         "SELECT table_name, table_schema, table_type FROM information_schema.tables WHERE table_schema='public' OR table_schema LIKE 'pg_temp_%' ORDER BY table_name;")) {
                     while (rs.next()) {
@@ -282,7 +282,7 @@ public class MaterializeSchema extends AbstractSchema<MaterializeGlobalState, Ma
         List<MaterializeIndex> indexes = new ArrayList<>();
         try (Statement s = con.createStatement()) {
             try (ResultSet rs = s.executeQuery(String
-                    // org.postgresql.util.PSQLException: ERROR: unknown catalog item 'pg_indexes'
+
                     .format("SELECT c.relname as indexname FROM pg_catalog.pg_class c LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace LEFT JOIN pg_catalog.pg_index i ON i.indexrelid = c.oid LEFT JOIN pg_catalog.pg_class c2 ON i.indrelid = c2.oid WHERE c.relkind IN ('i','I','') AND n.nspname <> 'pg_catalog' AND n.nspname !~ '^pg_toast' AND n.nspname <> 'information_schema' AND c2.relname = '%s' AND pg_catalog.pg_table_is_visible(c.oid) ORDER BY indexname;",
                             tableName))) {
                 while (rs.next()) {

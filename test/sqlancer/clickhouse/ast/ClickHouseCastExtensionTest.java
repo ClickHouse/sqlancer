@@ -17,8 +17,6 @@ import sqlancer.clickhouse.ast.constant.ClickHouseUnsupportedConstant;
 
 class ClickHouseCastExtensionTest {
 
-    // ----- castToInt -----
-
     @Test
     void castToIntFromInt32IsIdentity() {
         ClickHouseConstant out = ClickHouseCast.castToInt(ClickHouseCreateConstant.createInt32Constant(5L));
@@ -54,13 +52,11 @@ class ClickHouseCastExtensionTest {
 
     @Test
     void castToIntFromInt256OutOfLongRangeClampsByNeitherFailsNorThrows() {
-        // BigInteger.valueOf is called in the constructor; long range is fine here.
+
         ClickHouseConstant cons = ClickHouseCreateConstant.createInt256Constant(BigInteger.valueOf(42L));
         ClickHouseConstant out = ClickHouseCast.castToInt(cons);
         assertEquals(42L, out.asInt());
     }
-
-    // ----- castToReal -----
 
     @Test
     void castToRealFromFloat32() {
@@ -85,8 +81,6 @@ class ClickHouseCastExtensionTest {
         assertInstanceOf(ClickHouseUnsupportedConstant.class,
                 ClickHouseCast.castToReal(new ClickHouseUnsupportedConstant()));
     }
-
-    // ----- castToText -----
 
     @Test
     void castToTextFromInt32() {
@@ -113,8 +107,6 @@ class ClickHouseCastExtensionTest {
                 ClickHouseCast.castToText(new ClickHouseUnsupportedConstant()));
     }
 
-    // ----- isTrue -----
-
     @Test
     void isTrueForNumericPrimitives() {
         assertEquals(Optional.of(true), ClickHouseCast.isTrue(ClickHouseCreateConstant.createInt8Constant(1L)));
@@ -137,8 +129,6 @@ class ClickHouseCastExtensionTest {
     void isTrueForUnsupportedIsEmpty() {
         assertEquals(Optional.empty(), ClickHouseCast.isTrue(new ClickHouseUnsupportedConstant()));
     }
-
-    // ----- Unsupported constant semantics -----
 
     @Test
     void unsupportedConstantSignalsItself() {

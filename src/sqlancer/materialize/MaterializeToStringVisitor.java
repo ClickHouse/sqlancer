@@ -234,11 +234,11 @@ public final class MaterializeToStringVisitor extends ToStringVisitor<Materializ
         case BOOLEAN:
             sb.append("BOOLEAN");
             break;
-        case INT: // TODO support also other int types
+        case INT:
             sb.append("INT");
             break;
         case TEXT:
-            // TODO: append TEXT, CHAR
+
             sb.append(Randomly.fromOptions("VARCHAR"));
             break;
         case REAL:

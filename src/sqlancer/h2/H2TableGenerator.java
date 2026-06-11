@@ -49,7 +49,7 @@ public class H2TableGenerator {
                 H2ExpressionGenerator gen = new H2ExpressionGenerator(globalState).setColumns(columns);
                 sb.append(H2ToStringVisitor.asString(gen.generateExpression()));
                 H2Errors.addExpressionErrors(errors);
-                errors.add("not found"); // generated column cycles
+                errors.add("not found");
                 sb.append(')');
             }
             if (Randomly.getBooleanWithRatherLowProbability()) {
@@ -101,8 +101,8 @@ public class H2TableGenerator {
                 addReferentialAction(sb);
             }
             errors.add("are not comparable");
-            errors.add(" cannot be updatable by a referential constraint with"); // generated columns
-            errors.add("not found"); // Constraint "PRIMARY KEY | UNIQUE (C0)" not found;
+            errors.add(" cannot be updatable by a referential constraint with");
+            errors.add("not found");
         }
         sb.append(")");
         return new SQLQueryAdapter(sb.toString(), errors, true);

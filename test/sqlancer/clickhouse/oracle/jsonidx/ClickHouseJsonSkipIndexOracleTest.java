@@ -43,8 +43,6 @@ class ClickHouseJsonSkipIndexOracleTest {
                 doc("p_int", Leaf.ofInt(9), "p_str", Leaf.ofString("val1")), doc());
     }
 
-    // --- DDL rendering ---
-
     @Test
     void renderedCreateContainsTheChosenIndexVariant() {
         String table = "db.jsidx_1_t";
@@ -70,8 +68,6 @@ class ClickHouseJsonSkipIndexOracleTest {
         String insert = ClickHouseJsonSkipIndexOracle.renderInsertBlock("db.t", 5, docs);
         assertEquals("INSERT INTO db.t (k, j) VALUES (5, '{\"p_int\":1,\"p_str\":\"val2\"}'), (6, '{}')", insert);
     }
-
-    // --- predicate rendering and ground-truth classification ---
 
     @Test
     void typedPredicatesRenderSubcolumnAccessAndCarryExactCounts() {
@@ -121,7 +117,7 @@ class ClickHouseJsonSkipIndexOracleTest {
         assertTrue(ClickHouseJsonSkipIndexOracle.isGroundTruthComputable(PredicateKind.TYPED_STR_EQ));
         assertTrue(ClickHouseJsonSkipIndexOracle.isGroundTruthComputable(PredicateKind.TYPED_INT_IN));
         assertTrue(ClickHouseJsonSkipIndexOracle.isGroundTruthComputable(PredicateKind.PATH_EXISTS));
-        // Dynamic comparison / NULL-vs-default semantics are deliberately unmodelled in Java.
+
         assertFalse(ClickHouseJsonSkipIndexOracle.isGroundTruthComputable(PredicateKind.UNTYPED_EQ));
         assertFalse(ClickHouseJsonSkipIndexOracle.isGroundTruthComputable(PredicateKind.TYPED_STR_IS_NOT_NULL));
         assertFalse(ClickHouseJsonSkipIndexOracle.isGroundTruthComputable(PredicateKind.UNTYPED_IS_NOT_NULL));
@@ -132,13 +128,10 @@ class ClickHouseJsonSkipIndexOracleTest {
         assertEquals("val1", ClickHouseJsonSkipIndexOracle.escapeStringLiteral("val1"));
         assertEquals("a\\'b", ClickHouseJsonSkipIndexOracle.escapeStringLiteral("a'b"));
         assertEquals("a\\\\b", ClickHouseJsonSkipIndexOracle.escapeStringLiteral("a\\b"));
-        // A rendered JSON document: double quotes pass through (harmless inside a single-quoted SQL
-        // literal) and JSON's own backslash escapes get their backslash doubled.
+
         assertEquals("{\"p_str\":\"a\\\\nb\"}",
                 ClickHouseJsonSkipIndexOracle.escapeStringLiteral("{\"p_str\":\"a\\nb\"}"));
     }
-
-    // --- arm structure ---
 
     @Test
     void armSettingsSuffixesAreCorrectlyAttached() {
@@ -157,8 +150,6 @@ class ClickHouseJsonSkipIndexOracleTest {
                 + " SETTINGS ignore_data_skipping_indices = 'jx'", keys);
     }
 
-    // --- R4 read envelope: no read may project raw `j` (JSON) or an untyped path (Dynamic) ---
-
     @Test
     void readsNeverProjectRawJsonOrUntypedPaths() {
         List<Document> corpus = handCorpus();
@@ -175,11 +166,7 @@ class ClickHouseJsonSkipIndexOracleTest {
                         .add(projectionOf(ClickHouseJsonSkipIndexOracle.renderTypedRowImageQuery("db.t", p, arm)));
             }
         }
-        // The full projection set across all read renderers; every projected use of `j` must be a
-        // typed subcolumn (j.p_int / j.p_str -- concrete Int64/String) or go through JSONAllPaths
-        // (Array(String), here additionally collapsed via arrayStringConcat). After removing those
-        // allowed forms, no standalone `j` token may remain -- raw JSON and Dynamic-typed untyped
-        // paths are not decodable by the client-v2 RowBinary reader (R4).
+
         Pattern bareJ = Pattern.compile("\\bj\\b");
         for (String projection : projections) {
             String stripped = projection.replace("j.p_int", "").replace("j.p_str", "")
@@ -197,15 +184,13 @@ class ClickHouseJsonSkipIndexOracleTest {
         return query.substring("SELECT ".length(), from);
     }
 
-    // --- vacuity probe predicate ---
-
     @Test
     void probePredicateMatchesTheIndexVariant() {
         List<Document> corpus = handCorpus();
-        // JSONAllValues text index: documented (PR #100730) as auto-used for subcolumn predicates.
+
         String allValues = ClickHouseJsonSkipIndexOracle.renderProbePredicate(IndexVariant.ALL_VALUES_TEXT, corpus);
         assertEquals("j.p_str = 'val1'", allValues);
-        // JSONAllPaths indexes: path-existence over a path known to be present in some document.
+
         for (IndexVariant v : List.of(IndexVariant.ALL_PATHS_BLOOM, IndexVariant.ALL_PATHS_TOKENBF,
                 IndexVariant.ALL_PATHS_NGRAMBF, IndexVariant.ALL_PATHS_TEXT)) {
             assertEquals("has(JSONAllPaths(j), 'u0')", ClickHouseJsonSkipIndexOracle.renderProbePredicate(v, corpus));
@@ -219,8 +204,6 @@ class ClickHouseJsonSkipIndexOracleTest {
         assertNull(ClickHouseJsonSkipIndexOracle.renderProbePredicate(IndexVariant.ALL_PATHS_BLOOM, allEmpty));
     }
 
-    // --- predicate generation ---
-
     @Test
     void generatePredicateCoversAllKindsAcrossSeeds() {
         ClickHouseJsonDocumentGenerator gen = new ClickHouseJsonDocumentGenerator(new Randomly(551L));
@@ -232,14 +215,13 @@ class ClickHouseJsonSkipIndexOracleTest {
             JsonPredicate p = ClickHouseJsonSkipIndexOracle.generatePredicate(r, corpus, untyped);
             assertNotNull(p.getWhereSql());
             seenKinds.add(p.getKind().name());
-            // Computability stays kind-consistent through generation.
+
             assertEquals(ClickHouseJsonSkipIndexOracle.isGroundTruthComputable(p.getKind()),
                     p.isGroundTruthComputable());
             if (p.isGroundTruthComputable()) {
                 assertTrue(p.getExpectedCount() >= 0 && p.getExpectedCount() <= corpus.size());
             }
-            // The phantom path can only appear inside a PATH_EXISTS predicate (its only purpose is
-            // the 0-rows end of the existence selectivity span).
+
             if (p.getWhereSql().contains(ClickHouseJsonDocumentGenerator.PHANTOM_PATH)) {
                 assertEquals(PredicateKind.PATH_EXISTS, p.getKind());
             }

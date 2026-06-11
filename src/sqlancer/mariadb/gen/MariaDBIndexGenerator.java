@@ -35,7 +35,7 @@ public class MariaDBIndexGenerator extends AbstractIndexGenerator<MariaDBColumn>
         sb.append(DBMSCommon.createColumnName(Randomly.smallNumber()));
         if (Randomly.getBoolean()) {
             sb.append(" USING ");
-            sb.append(Randomly.fromOptions("BTREE", "HASH")); // , "RTREE")
+            sb.append(Randomly.fromOptions("BTREE", "HASH"));
         }
 
         sb.append(" ON ");

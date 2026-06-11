@@ -6,11 +6,6 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Round double values which are longer than a certain length. e.g. 2.4782565267 -> 2.478.
- *
- * This transformation is not based on JSQLParser.
- */
 public class RoundDoubleConstant extends Transformation {
 
     private Set<String> doubleValueCollector;

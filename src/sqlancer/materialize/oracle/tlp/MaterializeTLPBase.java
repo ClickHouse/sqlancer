@@ -65,7 +65,7 @@ public class MaterializeTLPBase
                     options);
             joinStatements.add(j);
         }
-        // JOIN subqueries
+
         for (int i = 0; i < Randomly.smallNumber(); i++) {
             MaterializeTables subqueryTables = globalState.getSchema().getRandomTableNonEmptyTables();
             MaterializeSubquery subquery = MaterializeTLPBase.createSubquery(globalState, String.format("sub%d", i),

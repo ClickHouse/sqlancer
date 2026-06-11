@@ -26,7 +26,7 @@ public class H2InsertGenerator extends AbstractInsertGenerator<H2Column> {
 
     @Override
     public void buildStatement() {
-        boolean mergeInto = false; // Randomly.getBooleanWithRatherLowProbability();
+        boolean mergeInto = false;
         if (mergeInto) {
             sb.append("MERGE INTO ");
             errors.add("Index \"PRIMARY_KEY_\" not found");
@@ -48,7 +48,7 @@ public class H2InsertGenerator extends AbstractInsertGenerator<H2Column> {
         sb.append(" VALUES ");
         insertColumns(columns);
         H2Errors.addInsertErrors(errors);
-        H2Errors.addExpressionErrors(errors); // generated columns
+        H2Errors.addExpressionErrors(errors);
     }
 
     @Override

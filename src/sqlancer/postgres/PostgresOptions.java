@@ -64,11 +64,11 @@ public class PostgresOptions implements DBMSSpecificOptions<PostgresOracleFactor
     public static String getDefaultTablespacePath() {
         String osName = System.getProperty("os.name").toLowerCase();
         if (osName.contains("windows")) {
-            // On Windows, use a path in the temp directory
+
             return new File(System.getProperty("java.io.tmpdir"), "postgresql" + File.separator + "tablespace")
                     .getAbsolutePath();
         } else {
-            // On Unix-like systems, use /tmp
+
             return "/tmp/postgresql/tablespace";
         }
     }
@@ -85,18 +85,15 @@ public class PostgresOptions implements DBMSSpecificOptions<PostgresOracleFactor
 
         File path = new File(tablespacePath);
 
-        // Check if the directory exists or can be created
         if (!path.exists() && !path.mkdirs()) {
             throw new AssertionError("Cannot create tablespace directory: " + tablespacePath
                     + ". Please ensure the parent directory exists and you have write permissions.");
         }
 
-        // Check if it's actually a directory
         if (!path.isDirectory()) {
             throw new AssertionError("Tablespace path is not a directory: " + tablespacePath);
         }
 
-        // Check write permissions
         if (!path.canWrite()) {
             throw new AssertionError("No write permissions for tablespace directory: " + tablespacePath
                     + ". Please ensure you have write permissions to this directory.");
@@ -106,8 +103,7 @@ public class PostgresOptions implements DBMSSpecificOptions<PostgresOracleFactor
     }
 
     public boolean isTestTablespaces() {
-        // If the user explicitly set the value via command line, use that
-        // Otherwise, use the OS-dependent default
+
         return testTablespaces || getDefaultTablespaceSupport();
     }
 

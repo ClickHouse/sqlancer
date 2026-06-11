@@ -26,11 +26,11 @@ public class MySQLUnaryPrefixOperation extends UnaryOperatorNode<MySQLExpression
             @Override
             public MySQLConstant applyNotNull(MySQLConstant expr) {
                 if (expr.isString()) {
-                    // TODO: implement floating points
+
                     throw new IgnoreMeException();
                 } else if (expr.isInt()) {
                     if (!expr.isSigned()) {
-                        // TODO
+
                         throw new IgnoreMeException();
                     }
                     return MySQLConstant.createIntConstant(-expr.getInt());

@@ -15,13 +15,6 @@ import sqlancer.clickhouse.ClickHouseSchema;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseColumn;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
 
-/**
- * DB-free tests for the statistics on/off differential oracle (Unit 9). Covers: (a) exact differential-pair rendering
- * (settings suffixes, join-order pin on both arms); (b) statistics DDL rendering per kind; (c) the staleness-arm DDL
- * sequence and its order; (d) the fleet-table eligibility predicate at the engine + column-type level; plus the
- * bounded multiset diff, the AssertionError payload, and the deterministic kind rotation backing the per-kind
- * materialize counters.
- */
 class ClickHouseStatsToggleOracleTest {
 
     private static ClickHouseColumn col(String name, String type) {
@@ -31,8 +24,6 @@ class ClickHouseStatsToggleOracleTest {
     private static ClickHouseTable table(String name, String engine, boolean isView, ClickHouseColumn... columns) {
         return new ClickHouseTable(name, List.of(columns), List.of(), isView, engine);
     }
-
-    // --- (a) differential SELECT rendering ---
 
     @Test
     void differentialPairRendersExactSettingsSuffixes() {
@@ -45,8 +36,7 @@ class ClickHouseStatsToggleOracleTest {
 
     @Test
     void joinShapedDifferentialPinsJoinOrderOnBothArms() {
-        // Stats act through join-order decisions; pinning reorder off on BOTH arms attributes a
-        // mismatch to the statistics path (Unit 3's JoinReorder oracle owns the reorder axis).
+
         String[] pair = ClickHouseStatsToggleOracle.renderDifferentialPair("SELECT 1", true);
         assertEquals("SELECT 1 SETTINGS use_statistics = 1, allow_statistics_optimize = 1, "
                 + "query_plan_optimize_join_order_limit = 0", pair[0]);
@@ -56,13 +46,10 @@ class ClickHouseStatsToggleOracleTest {
 
     @Test
     void tupleProjectionWrapsRefsInToString() {
-        // toString(tuple(...)) renders a single never-NULL string column, so the multiset compare
-        // sorts plain Java strings.
+
         assertEquals("toString(tuple(`c0`, a1.`c2`))",
                 ClickHouseStatsToggleOracle.renderTupleProjection(List.of("`c0`", "a1.`c2`")));
     }
-
-    // --- (b) statistics DDL rendering per kind ---
 
     @Test
     void stalenessSetupRendersEveryKind() {
@@ -86,8 +73,6 @@ class ClickHouseStatsToggleOracleTest {
                 ClickHouseStatsToggleOracle.renderDropStatistics("db.stats_3_t"));
     }
 
-    // --- (c) staleness-arm DDL sequence order ---
-
     @Test
     void stalenessSequenceOrdersCreateInsertStatsMaterialize() {
         List<String> seq = ClickHouseStatsToggleOracle.renderStalenessSetup("db.stats_1_t", 750, "tdigest", "minmax");
@@ -104,9 +89,7 @@ class ClickHouseStatsToggleOracleTest {
 
     @Test
     void stalenessMutationsAreSyncAndDomainShifting() {
-        // The DELETE must be synchronous (mutations_sync = 1) so the differential never races a
-        // background mutation; the INSERT must shift the k domain far outside everything the
-        // materialized minmax/tdigest stats recorded.
+
         assertEquals("ALTER TABLE db.stats_2_t DELETE WHERE k % 2 = 0 SETTINGS mutations_sync = 1",
                 ClickHouseStatsToggleOracle.renderStaleDelete("db.stats_2_t"));
         assertEquals("INSERT INTO db.stats_2_t SELECT toInt32(1000000 + number), toInt64(number % 5) "
@@ -115,15 +98,12 @@ class ClickHouseStatsToggleOracleTest {
 
     @Test
     void stalenessSelectsAreOrderAndLimitFree() {
-        // LIMIT without ORDER BY would be nondeterministic across the pair; the setup must not
-        // sneak either in.
+
         for (String stmt : ClickHouseStatsToggleOracle.renderStalenessSetup("db.t", 500, "uniq", "countmin")) {
             assertFalse(stmt.contains("LIMIT"), stmt);
-            assertFalse(stmt.contains("ORDER BY t"), stmt); // engine ORDER BY k is fine
+            assertFalse(stmt.contains("ORDER BY t"), stmt);
         }
     }
-
-    // --- (d) fleet-table eligibility ---
 
     @Test
     void plainMergeTreeWithIntegerColumnIsEligible() {
@@ -133,7 +113,7 @@ class ClickHouseStatsToggleOracleTest {
 
     @Test
     void nullableAndLowCardinalityIntegersCountAsInteger() {
-        // getType() unwraps Nullable / LowCardinality, so wrapped integers stay eligible.
+
         assertTrue(ClickHouseStatsToggleOracle
                 .isEligibleFleetTable(table("t0", "MergeTree", false, col("c0", "Nullable(Int64)"))));
         assertTrue(ClickHouseStatsToggleOracle
@@ -142,8 +122,7 @@ class ClickHouseStatsToggleOracleTest {
 
     @Test
     void dedupeEnginesViewsAndUndiscoveredEnginesAreNotEligible() {
-        // Dedupe engines change visible rows when a background merge lands between the two arms
-        // (the 2026-05-20 false-positive class); empty engine fails closed.
+
         for (String engine : List.of("ReplacingMergeTree", "SummingMergeTree", "AggregatingMergeTree",
                 "CollapsingMergeTree", "VersionedCollapsingMergeTree", "Memory", "")) {
             assertFalse(
@@ -170,8 +149,6 @@ class ClickHouseStatsToggleOracleTest {
         assertFalse(ClickHouseStatsToggleOracle
                 .isExactInteger(new ClickHouseSchema.ClickHouseLancerDataType("String").getType()));
     }
-
-    // --- multiset compare + AssertionError payload ---
 
     @Test
     void multisetDiffIsEmptyForEqualMultisetsRegardlessOfOrder() {
@@ -206,8 +183,6 @@ class ClickHouseStatsToggleOracleTest {
         ClickHouseStatsToggleOracle.assertMultisetsEqual(List.of("(7)"), List.of("(7)"), "a", "b");
     }
 
-    // --- kind rotation + materialize counters ---
-
     @Test
     void kindRotationCoversEveryKindWithinFourIterations() {
         Set<String> seenK = new HashSet<>();
@@ -222,8 +197,7 @@ class ClickHouseStatsToggleOracleTest {
 
     @Test
     void kindRotationOffsetsKAndVKindsApart() {
-        // Same iteration, different column position -> different kind, so one iteration exercises
-        // two kinds at once.
+
         for (long id = 1; id <= 8; id++) {
             assertFalse(ClickHouseStatsToggleOracle.kindForIteration(id, 0)
                     .equals(ClickHouseStatsToggleOracle.kindForIteration(id, 1)), "id " + id);

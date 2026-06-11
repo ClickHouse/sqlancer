@@ -20,12 +20,10 @@ public final class PostgresReindexGenerator {
 
     public static SQLQueryAdapter create(PostgresGlobalState globalState) {
         ExpectedErrors errors = new ExpectedErrors();
-        errors.add("could not create unique index"); // CONCURRENT INDEX
+        errors.add("could not create unique index");
         StringBuilder sb = new StringBuilder();
         sb.append("REINDEX");
-        // if (Randomly.getBoolean()) {
-        // sb.append(" VERBOSE");
-        // }
+
         sb.append(" ");
         Scope scope = Randomly.fromOptions(Scope.values());
         switch (scope) {
@@ -57,7 +55,7 @@ public final class PostgresReindexGenerator {
         default:
             throw new AssertionError(scope);
         }
-        errors.add("already contains data"); // FIXME bug report
+        errors.add("already contains data");
         errors.add("REINDEX is not yet implemented for partitioned indexes");
         return new SQLQueryAdapter(sb.toString(), errors);
     }

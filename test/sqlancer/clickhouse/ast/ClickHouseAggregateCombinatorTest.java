@@ -54,9 +54,7 @@ class ClickHouseAggregateCombinatorTest {
 
     @Test
     void countIfModelsConditionInExprField() {
-        // Per plan: countIf(c) is modelled as Aggregate(COUNT, c, [(IF, [])]) -- the boolean condition
-        // is the `expr` field, with empty extra-args on the IF suffix. This is the documented
-        // asymmetric shape.
+
         ClickHouseAggregate countIf = new ClickHouseAggregate(column("t", "c"),
                 ClickHouseAggregate.ClickHouseAggregateFunction.COUNT,
                 Arrays.asList(new ClickHouseAggregateCombinator(ClickHouseAggregateCombinator.Suffix.IF,
@@ -132,7 +130,7 @@ class ClickHouseAggregateCombinatorTest {
 
     @Test
     void suffixRequiredArgCountMatchesGrammar() {
-        // Lock down the per-suffix required-arg-count contract used by the generator.
+
         assertEquals(1, ClickHouseAggregateCombinator.Suffix.IF.getRequiredArgCount());
         assertEquals(3, ClickHouseAggregateCombinator.Suffix.RESAMPLE.getRequiredArgCount());
         for (ClickHouseAggregateCombinator.Suffix s : ClickHouseAggregateCombinator.Suffix.values()) {

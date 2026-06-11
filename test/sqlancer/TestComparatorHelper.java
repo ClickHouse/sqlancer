@@ -12,9 +12,7 @@ import sqlancer.h2.H2Options;
 import sqlancer.h2.H2Schema;
 
 public class TestComparatorHelper {
-    // TODO: Implement tests for the other ComparatorHelper methods
 
-    // TODO: create test state that not depends on specific database
     final SQLGlobalState<H2Options, H2Schema> state = new SQLGlobalState<H2Options, H2Schema>() {
 
         @Override
@@ -40,9 +38,7 @@ public class TestComparatorHelper {
     public void testAssumeResultSetsAreEqualWithUnequalLengthSets() {
         List<String> r1 = Arrays.asList("a", "b", "c");
         List<String> r2 = Arrays.asList("a", "b", "c", "d", "g");
-        // NullPointerException is raised instead of AssertionError because state is null and the state.getState()...
-        // line occurs before AssertionError is thrown, but it's good enough as an indicator that one of the Exceptions
-        // is raised
+
         assertThrowsExactly(NullPointerException.class, () -> {
             ComparatorHelper.assumeResultSetsAreEqual(r1, r2, "", Arrays.asList(""), state);
         });
@@ -52,9 +48,7 @@ public class TestComparatorHelper {
     public void testAssumeResultSetsAreEqualWithUnequalValueSets() {
         List<String> r1 = Arrays.asList("a", "b", "c");
         List<String> r2 = Arrays.asList("a", "b", "d");
-        // NullPointerException is raised instead of AssertionError because state is null and the state.getState()...
-        // line occurs before AssertionError is thrown, but it's good enough as an indicator that one of the Exceptions
-        // is raised
+
         assertThrowsExactly(NullPointerException.class, () -> {
             ComparatorHelper.assumeResultSetsAreEqual(r1, r2, "", Arrays.asList(""), state);
         });
@@ -69,11 +63,9 @@ public class TestComparatorHelper {
         });
     }
 
-    // ===== Workstream 1 (2026-05-27 coverage expansion plan) tests =====
-
     @Test
     public void testIsEqualDoubleHandlesUlpDifferences() {
-        // Two slightly different representations of the same logical double.
+
         org.junit.jupiter.api.Assertions
                 .assertTrue(ComparatorHelper.isEqualDouble("0.123456789012345678", "0.12345678901234568"));
         org.junit.jupiter.api.Assertions.assertTrue(ComparatorHelper.isEqualDouble("100.0", "100.0"));
@@ -122,10 +114,10 @@ public class TestComparatorHelper {
 
     @Test
     public void testAssumeResultSetsAreEqualMultisetCatchesDuplicates() {
-        // ["x","x","y"] vs ["x","y","y"] have equal sets but unequal multisets.
+
         List<String> r1 = Arrays.asList("x", "x", "y");
         List<String> r2 = Arrays.asList("x", "y", "y");
-        // MULTISET mode must fail; route through NullPointerException since state is partial.
+
         assertThrowsExactly(NullPointerException.class, () -> {
             ComparatorHelper.assumeResultSetsAreEqual(r1, r2, "", Arrays.asList(""), state,
                     ComparatorHelper.ComparisonMode.MULTISET);
@@ -134,18 +126,17 @@ public class TestComparatorHelper {
 
     @Test
     public void testAssumeResultSetsAreEqualUlpTolerantAcceptsFloatVariance() {
-        // Two equivalent float renderings -- ULP_TOLERANT mode treats them as equal.
+
         List<String> r1 = Arrays.asList("0.123456789012345678", "1.0");
         List<String> r2 = Arrays.asList("0.12345678901234568", "1.0");
-        // No throw expected -- the canonicaliser folds the float pair before set comparison.
+
         ComparatorHelper.assumeResultSetsAreEqual(r1, r2, "", Arrays.asList(""), state,
                 ComparatorHelper.ComparisonMode.ULP_TOLERANT_MULTISET);
     }
 
     @Test
     public void testAssumeResultSetsAreEqualPreservesNaN() {
-        // NaN strings round-trip through the canonicaliser as-is (Double.parseDouble accepts
-        // "NaN" but Double.toString(NaN) is "NaN" -- identity preserved).
+
         List<String> r1 = Arrays.asList("NaN", "NaN");
         List<String> r2 = Arrays.asList("NaN", "NaN");
         ComparatorHelper.assumeResultSetsAreEqual(r1, r2, "", Arrays.asList(""), state,

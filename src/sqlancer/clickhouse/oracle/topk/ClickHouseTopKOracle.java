@@ -20,48 +20,11 @@ import sqlancer.clickhouse.ClickHouseType;
 import sqlancer.common.oracle.TestOracle;
 import sqlancer.common.query.ExpectedErrors;
 
-/**
- * Top-k dynamic-filtering differential oracle (plan Unit 2).
- *
- * <p>
- * Targets the 26.5 default-on top-k read pipeline: {@code use_top_k_dynamic_filtering} (PR #99537, threshold filter
- * derived from the current top-N heap is pushed into the scan), {@code use_skip_indexes_for_top_k} (PR #104216, minmax
- * skip indexes prune granules against that threshold) and {@code query_plan_top_k_through_join} (PR #104268, the top-k
- * step is pushed below a join). The bug class is missing or extra rows at the {@code ORDER BY ... LIMIT N} boundary: a
- * too-tight dynamic threshold (or a granule wrongly pruned against it) silently drops rows that belong in the top N,
- * and an off-by-one threshold update lets rows in that should have been cut. {@code
- * use_top_k_dynamic_filtering_for_variable_length_types} (default false -- the opt-in path that had the regression) is
- * exercised whenever every chosen sort key is string-shaped.
- *
- * <p>
- * Differential: the same {@code SELECT k1..kn FROM t [LEFT JOIN u ON ...] ORDER BY k1..kn LIMIT N [OFFSET M]} runs once
- * with the feature defaults (or the var-length opt-in) and once with all three top-k toggles forced off; the two
- * ordered row lists must be identical.
- *
- * <p>
- * <b>Soundness rule</b>: the projection is <i>exactly</i> the ORDER BY columns, in ORDER BY order. {@code ORDER BY
- * ... LIMIT} is non-deterministic under ties in non-key columns, but the ordered list of the sort-key tuples themselves
- * is deterministic: tied rows straddling the LIMIT boundary have identical key tuples, so whichever physical rows
- * ClickHouse picks, the rendered lists are equal. Comparison is positional (never a Java-side sort -- the known
- * {@code ComparableTimSort} NPE family on SQL NULLs) with NULL cells carried as an explicit flag captured from
- * {@code ResultSet.wasNull()}, so a SQL NULL can never collide with a column whose value is the literal string
- * {@code "NULL"}. Float sort keys are excluded by type (NaN ordering + float-render noise); the oracle is restricted to
- * plain-MergeTree fleet tables because background merges on the dedupe engines change visible rows between the two
- * arms (the documented 2026-05-20 false-positive class -- {@code mutations_sync} covers mutations, not merges).
- */
 public class ClickHouseTopKOracle implements TestOracle<ClickHouseGlobalState> {
 
-    /**
-     * Arm (2): every top-k optimization forced off. The var-length opt-in is left at its default (false) here -- with
-     * the main toggle off it is dead anyway, and keeping the suffix minimal keeps reproducers readable.
-     */
     static final String OFF_SETTINGS = " SETTINGS use_top_k_dynamic_filtering = 0, use_skip_indexes_for_top_k = 0,"
             + " query_plan_top_k_through_join = 0";
 
-    /**
-     * Arm (1) when ALL chosen sort keys are string-shaped: defaults plus the off-by-default var-length path (the one
-     * that had the regression). For non-string key sets arm (1) carries no SETTINGS clause at all (pure defaults).
-     */
     static final String VAR_LENGTH_OPT_IN_SETTINGS = " SETTINGS use_top_k_dynamic_filtering_for_variable_length_types"
             + " = 1";
 
@@ -69,15 +32,9 @@ public class ClickHouseTopKOracle implements TestOracle<ClickHouseGlobalState> {
         DEFAULT, FIRST, LAST
     }
 
-    /** One ORDER BY key: column name (unquoted), direction, and an optional explicit NULLS placement. */
     record SortKey(String column, boolean ascending, NullsOrder nullsOrder) {
     }
 
-    /**
-     * One rendered result cell. SQL NULL is carried as {@code isNull=true, value=null} (captured from
-     * {@code ResultSet.wasNull()}), structurally distinct from a non-null cell whose text happens to be the literal
-     * string {@code "NULL"} -- record equality compares the flag first, so the sentinel cannot collide.
-     */
     record Cell(boolean isNull, String value) {
         static final Cell NULL = new Cell(true, null);
 
@@ -91,10 +48,7 @@ public class ClickHouseTopKOracle implements TestOracle<ClickHouseGlobalState> {
 
     public ClickHouseTopKOracle(ClickHouseGlobalState state) {
         this.state = state;
-        // Broad read set (ProjectionToggle/KeyCondition precedent): the SELECTs are hand-built but
-        // column names/types come from generated fleet schemas, so generator-shaped rejections are
-        // noise here, not findings. Session-settings errors keep the suite runnable on pre-26.5
-        // images where the top-k setting names do not exist (UNKNOWN_SETTING -> IgnoreMe).
+
         ClickHouseErrors.addExpectedExpressionErrors(errors);
         ClickHouseErrors.addSessionSettingsErrors(errors);
     }
@@ -125,14 +79,10 @@ public class ClickHouseTopKOracle implements TestOracle<ClickHouseGlobalState> {
         }
 
         long limit = pickLimit();
-        // Small OFFSET occasionally: shifts which side of the dynamic threshold the returned window
-        // sits on without changing the soundness argument (the key-tuple list stays deterministic).
+
         long offset = Randomly.getBooleanWithRatherLowProbability() ? Randomly.getNotCachedInteger(0, 6) : -1;
         String joinClause = maybeRenderJoinClause(table, plainTables);
 
-        // The var-length opt-in arm only fires when EVERY key is string-shaped: a single fixed-width
-        // key already gives the default pipeline a filterable prefix, which is the default-on path
-        // arm (1) covers without any suffix.
         boolean allVarLength = keyColumns.stream().allMatch(c -> isVarLengthKey(c.getType()));
         String onSql = renderQuery(table.getName(), joinClause, sortKeys, limit, offset,
                 allVarLength ? VAR_LENGTH_OPT_IN_SETTINGS : "");
@@ -153,10 +103,6 @@ public class ClickHouseTopKOracle implements TestOracle<ClickHouseGlobalState> {
         }
     }
 
-    // LIMIT pool per the plan: 0 (the degenerate boundary), 1 (heap of one), a small window (the
-    // common top-N shape where threshold updates are most frequent), and occasionally a value at or
-    // above any fleet table's row count (the "LIMIT swallows everything" boundary -- safe under the
-    // universal 1M result cap).
     private static long pickLimit() {
         int roll = (int) Randomly.getNotCachedInteger(0, 100);
         if (roll < 10) {
@@ -166,15 +112,11 @@ public class ClickHouseTopKOracle implements TestOracle<ClickHouseGlobalState> {
             return 1;
         }
         if (roll < 90) {
-            return 2 + Randomly.getNotCachedInteger(0, 9); // 2..10
+            return 2 + Randomly.getNotCachedInteger(0, 9);
         }
         return 1_000_000;
     }
 
-    // ~25%: wrap the FROM in a LEFT JOIN on an integer-ish column pair so query_plan_top_k_through_join
-    // has something to push through. Null (no wrap) when the roll misses or no eligible pair exists.
-    // The projection stays left-table ORDER BY keys only, so join-induced row multiplication keeps the
-    // key-tuple list deterministic (multiplied rows carry identical key tuples).
     private static String maybeRenderJoinClause(ClickHouseTable left, List<ClickHouseTable> plainTables) {
         if (Randomly.getNotCachedInteger(0, 100) >= 25) {
             return null;
@@ -200,14 +142,6 @@ public class ClickHouseTopKOracle implements TestOracle<ClickHouseGlobalState> {
                 .collect(Collectors.toList());
     }
 
-    // ----- Static rendering / classification / comparison helpers (unit-tested DB-free) -----
-
-    /**
-     * Render one arm. Projection is exactly the sort keys, in order (the soundness rule). When {@code joinClause} is
-     * non-null every column reference is table-qualified (fleet tables share the c0/c1/... naming, so unqualified
-     * references would be ambiguous under a join). {@code offset < 0} means no OFFSET clause; {@code settingsSuffix} is
-     * appended verbatim (empty for pure defaults).
-     */
     static String renderQuery(String tableName, String joinClause, List<SortKey> sortKeys, long limit, long offset,
             String settingsSuffix) {
         String qualifier = joinClause == null ? "" : tableName + ".";
@@ -244,13 +178,6 @@ public class ClickHouseTopKOracle implements TestOracle<ClickHouseGlobalState> {
         return "`" + identifier.replace("`", "``") + "`";
     }
 
-    /**
-     * A type usable as a sort key for this oracle: a fixed-render scalar whose ordering is total and whose textual
-     * rendering is stable across plans. Nullable/LowCardinality wrappers are transparent ({@code getType()} returns
-     * the root). Floats are excluded (NaN ordering + render noise); Decimal, UUID, Enum, Bool, Time and every
-     * composite/exotic type stay out -- the plan scopes the key pool to the Int/UInt widths, Date, Date32, DateTime,
-     * DateTime64, String and FixedString.
-     */
     static boolean isEligibleSortKey(ClickHouseLancerDataType type) {
         ClickHouseDataType root = type.getType();
         if (isExactInteger(root)) {
@@ -269,16 +196,11 @@ public class ClickHouseTopKOracle implements TestOracle<ClickHouseGlobalState> {
         }
     }
 
-    /**
-     * String-shaped keys routed through the variable-length top-k path ({@code String}, {@code FixedString},
-     * {@code LowCardinality(String)} and Nullable wrappers -- {@code getType()} unwraps the wrappers).
-     */
     static boolean isVarLengthKey(ClickHouseLancerDataType type) {
         ClickHouseDataType root = type.getType();
         return root == ClickHouseDataType.String || root == ClickHouseDataType.FixedString;
     }
 
-    /** True when the column can hold SQL NULL, i.e. a Nullable wrapper appears anywhere in the wrapper chain. */
     static boolean isNullableKey(ClickHouseLancerDataType type) {
         return containsNullable(type.getTypeTerm());
     }
@@ -313,11 +235,6 @@ public class ClickHouseTopKOracle implements TestOracle<ClickHouseGlobalState> {
         }
     }
 
-    /**
-     * Positional comparison of two ordered row lists. Returns -1 when equal; otherwise the index of the first
-     * divergent row -- which is {@code min(size)} when one list is a strict prefix of the other (the
-     * missing/extra-rows-at-the-boundary shape this oracle exists to catch). Never sorts.
-     */
     static int firstDivergence(List<List<Cell>> a, List<List<Cell>> b) {
         int common = Math.min(a.size(), b.size());
         for (int i = 0; i < common; i++) {
@@ -335,11 +252,6 @@ public class ClickHouseTopKOracle implements TestOracle<ClickHouseGlobalState> {
         return rows.get(idx).stream().map(c -> c.isNull() ? "NULL" : c.value()).collect(Collectors.joining("|"));
     }
 
-    // ----- Execution plumbing -----
-
-    // Read one arm into an ordered list of Cell rows (EET's collectRows shape, WITHOUT the Java-side
-    // sort -- the compare is positional by design). A tolerated failure -> IgnoreMeException, so a
-    // partial pair is never compared.
     private List<List<Cell>> collectRows(String query) throws SQLException {
         List<List<Cell>> rows = new ArrayList<>();
         try (Statement s = state.getConnection().createStatement(); ResultSet rs = s.executeQuery(query)) {

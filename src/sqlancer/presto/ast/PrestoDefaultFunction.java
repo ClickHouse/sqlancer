@@ -13,7 +13,6 @@ import sqlancer.presto.gen.PrestoTypedExpressionGenerator;
 
 public enum PrestoDefaultFunction implements PrestoFunction {
 
-    // Conditional functions
     IF_TRUE("if", null) {
         @Override
         public boolean isCompatibleWithReturnType(PrestoSchema.PrestoCompositeDataType returnType) {
@@ -80,9 +79,6 @@ public enum PrestoDefaultFunction implements PrestoFunction {
         }
     },
 
-    // comparison
-
-    // Returns the largest of the provided values. → [same as input]
     GREATEST("greatest", null) {
         @Override
         public boolean isCompatibleWithReturnType(PrestoSchema.PrestoCompositeDataType returnType) {
@@ -99,7 +95,7 @@ public enum PrestoDefaultFunction implements PrestoFunction {
             return new PrestoSchema.PrestoDataType[] { returnType.getPrimitiveDataType() };
         }
     },
-    // Returns the smallest of the provided values. → [same as input]
+
     LEAST("least", null) {
         @Override
         public boolean isCompatibleWithReturnType(PrestoSchema.PrestoCompositeDataType returnType) {
@@ -180,7 +176,6 @@ public enum PrestoDefaultFunction implements PrestoFunction {
             PrestoDataType[] argumentTypes, PrestoCompositeDataType returnType) {
         List<PrestoExpression> arguments = new ArrayList<>();
 
-        // This is a workaround based on the assumption that array types should refer to the same element type.
         PrestoCompositeDataType savedArrayType = null;
         if (returnType.getPrimitiveDataType() == PrestoDataType.ARRAY) {
             savedArrayType = returnType;
@@ -188,7 +183,7 @@ public enum PrestoDefaultFunction implements PrestoFunction {
 
         if (getNumberOfArguments() == UNLIMITED_NO_OF_ARGUMENTS) {
             PrestoDataType dataType = getArgumentTypes(returnType)[0];
-            // TODO: consider upper
+
             long no = Randomly.getNotCachedInteger(2, 10);
             for (int i = 0; i < no; i++) {
                 PrestoCompositeDataType type;

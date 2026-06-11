@@ -41,8 +41,7 @@ public class MySQLIndexGenerator {
         MySQLErrors.addExpressionErrors(errors);
         sb.append("CREATE ");
         if (Randomly.getBoolean()) {
-            // "FULLTEXT" TODO Column 'c3' cannot be part of FULLTEXT index
-            // A SPATIAL index may only contain a geometrical type column
+
             sb.append("UNIQUE ");
             errors.add("Duplicate entry");
         }
@@ -78,7 +77,7 @@ public class MySQLIndexGenerator {
                 sb.append(c.getName());
                 if (Randomly.getBoolean() && c.getType() == MySQLDataType.VARCHAR) {
                     sb.append("(");
-                    // TODO for string
+
                     if (MySQLBugs.bug114534) {
                         sb.append(r.getInteger(2, 5));
                     } else {
@@ -119,7 +118,7 @@ public class MySQLIndexGenerator {
         errors.add("out of range");
         errors.add("Data truncated for functional index");
         errors.add("used in key specification without a key length");
-        errors.add("Row size too large"); // seems to happen together with MIN_ROWS in the table declaration
+        errors.add("Row size too large");
         return new SQLQueryAdapter(string, errors, true);
     }
 
@@ -142,7 +141,7 @@ public class MySQLIndexGenerator {
         if (Randomly.getBoolean()) {
             sb.append(" ");
             if (columnIsPrimaryKey) {
-                // The explicit primary key cannot be made invisible.
+
                 sb.append("VISIBLE");
             } else {
                 sb.append(Randomly.fromOptions("VISIBLE", "INVISIBLE"));

@@ -12,9 +12,6 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.JCommander.Builder;
 import com.beust.jcommander.ParameterDescription;
 
-/**
- * Check that consistent option names are used (those that are displayed when launcing SQLancer without options).
- */
 public class TestParameterFormat {
 
     private final static String OPTION_REGEX = "(-)?-[a-z0-9-]*";

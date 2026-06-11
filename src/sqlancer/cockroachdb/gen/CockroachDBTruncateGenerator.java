@@ -11,7 +11,6 @@ public final class CockroachDBTruncateGenerator {
     private CockroachDBTruncateGenerator() {
     }
 
-    // https://www.cockroachlabs.com/docs/v19.2/truncate.html
     public static SQLQueryAdapter truncate(CockroachDBGlobalState globalState) {
         ExpectedErrors errors = new ExpectedErrors();
         errors.add("is referenced by foreign key");

@@ -56,7 +56,7 @@ public final class TiDBDeleteGenerator extends AbstractDeleteGenerator {
             appendLimitClause(Randomly.getNotCachedInteger(0, Integer.MAX_VALUE));
         }
         errors.add("Bad Number");
-        errors.add("Truncated incorrect"); // https://github.com/pingcap/tidb/issues/24292
+        errors.add("Truncated incorrect");
         errors.add("is not valid for CHARACTER SET");
         errors.add("Division by 0");
         errors.add("error parsing regexp");

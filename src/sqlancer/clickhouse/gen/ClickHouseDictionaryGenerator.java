@@ -15,22 +15,6 @@ import sqlancer.clickhouse.ClickHouseSchema.ClickHouseColumn;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
 import sqlancer.clickhouse.ast.ClickHouseDictionaryDdlStatement;
 
-/**
- * CREATE/DROP/ALTER DICTIONARY generator. Workstream 14 of the plan.
- *
- * <p>
- * Emits one of:
- * <ul>
- * <li>CREATE DICTIONARY d (k UInt64, v String) PRIMARY KEY k SOURCE(CLICKHOUSE(...)) LIFETIME(0) LAYOUT(HASHED())
- * <li>DROP DICTIONARY d
- * <li>ALTER DICTIONARY d LIFETIME(0)
- * </ul>
- *
- * <p>
- * LIFETIME is pinned to 0 (static) per the plan's recommendation -- variable LIFETIME causes test-iteration timing
- * flakes that mask real bugs. LAYOUT is picked from {HASHED, FLAT, COMPLEX_KEY_HASHED, RANGE_HASHED} at uniform
- * probability.
- */
 public final class ClickHouseDictionaryGenerator {
 
     private static final AtomicLong DICT_COUNTER = new AtomicLong();
@@ -83,16 +67,6 @@ public final class ClickHouseDictionaryGenerator {
                 sql);
     }
 
-    /**
-     * Execute a CREATE/DROP/ALTER DICTIONARY statement against the active connection.
-     *
-     * @param state
-     *            the global state providing the database connection
-     * @param stmt
-     *            the dictionary DDL statement to execute
-     *
-     * @return {@code true} on success, {@code false} on a tolerated error
-     */
     public static boolean execute(ClickHouseGlobalState state, ClickHouseDictionaryDdlStatement stmt) {
         try (Statement s = state.getConnection().createStatement()) {
             s.execute(stmt.getSql());

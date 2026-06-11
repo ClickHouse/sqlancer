@@ -35,7 +35,6 @@ public class MySQLBetweenOperation implements MySQLExpression {
         MySQLConstant convertedLeft = MySQLComputableFunction.castToMostGeneralType(left.getExpectedValue(), arr);
         MySQLConstant convertedRight = MySQLComputableFunction.castToMostGeneralType(right.getExpectedValue(), arr);
 
-        /* workaround for https://bugs.mysql.com/bug.php?id=96006 */
         if (convertedLeft.isInt() && convertedLeft.getInt() < 0 || convertedRight.isInt() && convertedRight.getInt() < 0
                 || convertedExpr.isInt() && convertedExpr.getInt() < 0) {
             throw new IgnoreMeException();

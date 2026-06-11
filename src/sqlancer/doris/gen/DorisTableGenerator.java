@@ -19,8 +19,6 @@ import sqlancer.doris.visitor.DorisToStringVisitor;
 
 public class DorisTableGenerator {
 
-    // private final ExpectedErrors errors = new ExpectedErrors();
-
     public static SQLQueryAdapter createRandomTableStatement(DorisGlobalState globalState) throws SQLException {
         if (globalState.getSchema().getDatabaseTables().size() > globalState.getDbmsSpecificOptions().maxNumTables) {
             throw new IgnoreMeException();
@@ -39,7 +37,7 @@ public class DorisTableGenerator {
         List<DorisColumn> columns = getNewColumns(globalState);
         Collections.sort(columns);
         if (columns.isEmpty() || !columns.get(0).isKey()) {
-            return null; // ensure table has at least one key column
+            return null;
         }
         sb.append(columns.stream().map(DorisColumn::toString).collect(Collectors.joining(", ")));
         sb.append(")");
@@ -51,15 +49,14 @@ public class DorisTableGenerator {
             sb.append(")");
         }
         sb.append(generateDistributionStr(globalState, dataModel, keysColumn));
-        sb.append(" PROPERTIES (\"replication_num\" = \"1\")"); // now only consider this one parameter
+        sb.append(" PROPERTIES (\"replication_num\" = \"1\")");
         DorisErrors.addExpressionErrors(errors);
         return new SQLQueryAdapter(sb.toString(), errors, true);
     }
 
     public static String generateDistributionStr(DorisGlobalState globalState,
             DorisSchema.DorisTableDataModel dataModel, List<DorisColumn> keysColumn) {
-        // DISTRIBUTED BY HASH (k1[,k2 ...]) [BUCKETS num]
-        // DISTRIBUTED BY RANDOM [BUCKETS num]
+
         StringBuilder sb = new StringBuilder();
         sb.append(" DISTRIBUTED BY");
         if (dataModel == DorisSchema.DorisTableDataModel.UNIQUE || Randomly.getBoolean()) {
@@ -81,15 +78,14 @@ public class DorisTableGenerator {
         for (int i = 0; i < Randomly.smallNumber() + 1; i++) {
             String columnName = String.format("c%d", i);
             DorisCompositeDataType columnType = DorisCompositeDataType.getRandomWithoutNull();
-            columnType.initColumnArgs(); // set decimalAndVarchar
+            columnType.initColumnArgs();
 
             boolean iskey = columnType.canBeKey() && Randomly.getBoolean();
             boolean isNullable = Randomly.getBoolean();
             if (!globalState.getDbmsSpecificOptions().testNotNullConstraints) {
                 isNullable = true;
             }
-            // boolean isHllOrBitmap = (columnType.getPrimitiveDataType() == DorisSchema.DorisDataType.HLL)
-            // || (columnType.getPrimitiveDataType() == DorisSchema.DorisDataType.BITMAP);
+
             boolean isHllOrBitmap = false;
             DorisSchema.DorisColumnAggrType aggrType = DorisSchema.DorisColumnAggrType.NULL;
             if (globalState.getDbmsSpecificOptions().testColumnAggr && (isHllOrBitmap || !iskey)) {

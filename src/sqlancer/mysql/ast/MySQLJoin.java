@@ -60,9 +60,7 @@ public class MySQLJoin implements MySQLExpression, Join<MySQLExpression, MySQLTa
         List<MySQLColumn> columns = new ArrayList<>();
         if (tables.size() > 1) {
             int nrJoinClauses = (int) Randomly.getNotCachedInteger(0, tables.size());
-            // Natural join is incompatible with other joins
-            // because it needs unique column names
-            // while other joins will produce duplicate column names
+
             if (nrJoinClauses > 1) {
                 options.remove(JoinType.NATURAL);
             }
@@ -74,7 +72,7 @@ public class MySQLJoin implements MySQLExpression, Join<MySQLExpression, MySQLTa
                 MySQLExpression joinClause = joinGen.generateExpression();
                 JoinType selectedOption = Randomly.fromList(options);
                 if (selectedOption == JoinType.NATURAL) {
-                    // NATURAL joins do not have an ON clause
+
                     joinClause = null;
                 }
                 MySQLJoin j = new MySQLJoin(table, joinClause, selectedOption);

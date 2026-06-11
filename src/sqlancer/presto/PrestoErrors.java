@@ -15,31 +15,21 @@ public final class PrestoErrors {
 
         errors.addAll(getFunctionErrors());
 
-        // Presto errors
         errors.add("cannot be applied to");
         errors.add("LIKE expression must evaluate to a varchar");
         errors.add("JOIN ON clause must evaluate to a boolean");
-        // errors.add("Unexpected parameters");
 
-        // SELECT SUM(count) FROM (SELECT
-        // CAST((-179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
-        // IS NOT NULL AND
-        // -179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000)
-        // AS BIGINT)as count FROM t0) as res
         errors.add("Decimal overflow");
         errors.add("long overflow");
         errors.add("multiplication overflow");
         errors.add("addition overflow");
         errors.add("subtraction overflow");
 
-        // cast
-        // errors.add("Cannot cast");
         errors.add("Value cannot be cast to");
         errors.add("Cannot cast DECIMAL");
         errors.add("Cannot cast BIGINT");
         errors.add("Cannot cast INTEGER");
 
-        // TODO: check
         errors.add("io.airlift.slice.Slice cannot be cast to java.lang.Number");
         errors.add("class io.airlift.slice.Slice cannot be cast to class java.lang.Number");
         if (PrestoBugs.bug23324) {
@@ -55,7 +45,6 @@ public final class PrestoErrors {
             errors.add("Error processing class definition");
         }
 
-        // 9223372036854775808
         errors.add("Invalid numeric literal");
 
         errors.add("Division by zero");
@@ -70,10 +59,8 @@ public final class PrestoErrors {
         errors.add("Unknown time-zone ID");
         errors.add("GROUP BY position");
 
-        // ARRAY
         errors.add("Unknown type: ARRAY");
 
-        // SELECT
         errors.add("WHERE clause must evaluate to a boolean");
         errors.add("HAVING clause must evaluate to a boolean");
         errors.add("not yet implemented");
@@ -119,23 +106,23 @@ public final class PrestoErrors {
         ArrayList<String> errors = new ArrayList<>();
 
         errors.add("SUBSTRING cannot handle negative lengths");
-        errors.add("is undefined outside [-1,1]"); // ACOS etc
-        errors.add("invalid type specifier"); // PRINTF
-        errors.add("argument index out of range"); // PRINTF
-        errors.add("invalid format string"); // PRINTF
-        errors.add("number is too big"); // PRINTF
-        errors.add("Like pattern must not end with escape character!"); // LIKE
-        errors.add("Could not choose a best candidate function for the function call \"date_part"); // date_part
-        errors.add("extract specifier"); // date_part
-        errors.add("not recognized"); // date_part
-        errors.add("not supported"); // date_part
+        errors.add("is undefined outside [-1,1]");
+        errors.add("invalid type specifier");
+        errors.add("argument index out of range");
+        errors.add("invalid format string");
+        errors.add("number is too big");
+        errors.add("Like pattern must not end with escape character!");
+        errors.add("Could not choose a best candidate function for the function call \"date_part");
+        errors.add("extract specifier");
+        errors.add("not recognized");
+        errors.add("not supported");
         errors.add("Failed to cast");
         errors.add("Conversion Error");
         errors.add("Could not cast value");
-        errors.add("Insufficient padding in RPAD"); // RPAD
-        errors.add("Could not choose a best candidate function for the function call"); // monthname
-        errors.add("expected a numeric precision field"); // ROUND
-        errors.add("with non-constant precision is not supported"); // ROUND
+        errors.add("Insufficient padding in RPAD");
+        errors.add("Could not choose a best candidate function for the function call");
+        errors.add("expected a numeric precision field");
+        errors.add("with non-constant precision is not supported");
         errors.add("Unexpected parameters");
         errors.add("not registered");
         errors.add("Expected: least(E) E:orderable");
@@ -145,7 +132,6 @@ public final class PrestoErrors {
         return errors;
     }
 
-    // TODO: cover presto error
     public static List<String> getInsertErrors() {
         ArrayList<String> errors = new ArrayList<>();
 
@@ -160,9 +146,9 @@ public final class PrestoErrors {
         errors.add("Unimplemented type for cast");
         errors.add("field value out of range");
         errors.add("CHECK constraint failed");
-        errors.add("Cannot explicitly insert values into rowid column"); // TODO: don't insert into rowid
-        errors.add(" Column with name rowid does not exist!"); // currently, there doesn't seem to way to determine if
-        // the table has a primary key
+        errors.add("Cannot explicitly insert values into rowid column");
+        errors.add(" Column with name rowid does not exist!");
+
         errors.add("Could not cast value");
         errors.add("create unique index, table contains duplicate data");
         errors.add("Failed to cast");

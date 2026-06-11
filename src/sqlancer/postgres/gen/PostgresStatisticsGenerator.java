@@ -23,7 +23,7 @@ public final class PostgresStatisticsGenerator {
         if (Randomly.getBoolean()) {
             sb.append(" IF NOT EXISTS");
         }
-        PostgresTable randomTable = globalState.getSchema().getRandomTable(t -> !t.isView()); // TODO materialized view
+        PostgresTable randomTable = globalState.getSchema().getRandomTable(t -> !t.isView());
         if (randomTable.getColumns().size() < 2) {
             throw new IgnoreMeException();
         }
@@ -68,7 +68,7 @@ public final class PostgresStatisticsGenerator {
         PostgresStatisticsObject randomStatistic = Randomly.fromList(statistics);
         sb.append(randomStatistic.getName());
         sb.append(" SET STATISTICS ");
-        sb.append(Randomly.getNotCachedInteger(-1, 10000)); // -1 means default
+        sb.append(Randomly.getNotCachedInteger(-1, 10000));
         return new SQLQueryAdapter(sb.toString(), true);
     }
 

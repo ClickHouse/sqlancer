@@ -515,7 +515,7 @@ public abstract class PrestoConstant implements PrestoExpression {
                 String randString = rand.getString();
                 String string = randString.substring(0, Math.min(randString.length(), 250));
                 string = string.replace("'", "");
-                // https://www.rfc-editor.org/rfc/rfc8259#page-8
+
                 string = PrestoConstantUtils.removeAllControlChars(string);
                 string = string.replace("\\", "\\\\");
 
@@ -703,11 +703,9 @@ public abstract class PrestoConstant implements PrestoExpression {
 
         @Override
         public String toString() {
-            // if (toInterval == null) {
+
             return String.format("INTERVAL '%s' %s", textRepresentation, fromInterval.name());
-            // } else {
-            // return String.format("INTERVAL '%s' %s TO %s", textRepresentation, fromInterval, toInterval);
-            // }
+
         }
 
         private enum Interval {

@@ -8,7 +8,7 @@ public final class QuestDBViewGenerator {
     }
 
     public static SQLQueryAdapter generate(QuestDBGlobalState globalState) {
-        // TODO
+
         return null;
     }
 }

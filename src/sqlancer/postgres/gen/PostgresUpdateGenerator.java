@@ -40,8 +40,8 @@ public final class PostgresUpdateGenerator extends AbstractUpdateGenerator<Postg
         sb.append("UPDATE ");
         sb.append(randomTable.getName());
         sb.append(" SET ");
-        errors.add("multiple assignments to same column"); // view whose columns refer to a column in the referenced
-                                                           // table multiple times
+        errors.add("multiple assignments to same column");
+
         errors.add("new row violates check option for view");
         PostgresCommon.addCommonInsertUpdateErrors(errors);
         updateColumns(columns);
@@ -70,7 +70,7 @@ public final class PostgresUpdateGenerator extends AbstractUpdateGenerator<Postg
             sb.append("(");
             PostgresExpression expr = PostgresExpressionGenerator.generateExpression(globalState,
                     randomTable.getColumns(), column.getType());
-            // caused by casts
+
             sb.append(PostgresVisitor.asString(expr));
             sb.append(")");
         }

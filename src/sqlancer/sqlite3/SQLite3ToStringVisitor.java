@@ -138,7 +138,7 @@ public class SQLite3ToStringVisitor extends ToStringVisitor<SQLite3Expression> i
             }
             if (s.getFromList().get(i) instanceof SQLite3Select) {
                 sb.append("(");
-                // TODO: fix this workaround
+
                 visit(s.getFromList().get(i));
                 sb.append(")");
             } else {
@@ -189,17 +189,14 @@ public class SQLite3ToStringVisitor extends ToStringVisitor<SQLite3Expression> i
         } else {
             switch (c.getDataType()) {
             case INT:
-                // if ((c.asInt() == 0 || c.asInt() == 1) && Randomly.getBoolean()) {
-                // sb.append(c.asInt() == 1 ? "TRUE" : "FALSE");
-                // } else {
-                // - 0X8000000000000000 results in an error message otherwise
+
                 if (!c.isHex() || c.asInt() == Long.MIN_VALUE) {
                     sb.append(c.asInt());
                 } else {
                     long intVal = c.asInt();
                     asHexString(intVal);
                 }
-                // }
+
                 break;
             case REAL:
                 double asDouble = c.asDouble();
@@ -208,7 +205,7 @@ public class SQLite3ToStringVisitor extends ToStringVisitor<SQLite3Expression> i
                 } else if (Double.NEGATIVE_INFINITY == asDouble) {
                     sb.append("-1e500");
                 } else if (Double.isNaN(asDouble)) {
-                    // throw new IgnoreMeException();
+
                     sb.append("1e500 / 1e500");
                 } else {
                     sb.append(asDouble);
@@ -273,7 +270,7 @@ public class SQLite3ToStringVisitor extends ToStringVisitor<SQLite3Expression> i
     @Override
     public void visit(SQLite3OrderingTerm term) {
         visit(term.getExpression());
-        // TODO make order optional?
+
         sb.append(" ");
         sb.append(term.getOrdering().toString());
     }
@@ -500,7 +497,7 @@ public class SQLite3ToStringVisitor extends ToStringVisitor<SQLite3Expression> i
 
     @Override
     public void visit(SQLite3SetClause set) {
-        // do not print parentheses
+
         sb.append(SQLite3Visitor.asString(set.getLeft()));
         sb.append(" ");
         sb.append(set.getType().getTextRepresentation());
@@ -576,7 +573,7 @@ public class SQLite3ToStringVisitor extends ToStringVisitor<SQLite3Expression> i
 
     @Override
     public void visit(SQLite3ResultMap tableSummary) {
-        // We use the CASE WHEN THEN END expression to represent the result of an expression for each row in the table.
+
         SQLite3Values values = tableSummary.getValues();
         List<SQLite3ColumnName> columnRefs = tableSummary.getColumns();
         List<SQLite3Constant> summary = tableSummary.getSummary();

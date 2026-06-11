@@ -44,11 +44,10 @@ class ClickHouseTypeParserTest {
 
     @Test
     void parsesParameterizedTypes() {
-        // The parser now understands Decimal(P, S) and Array(...), and recurses into them under
-        // wrappers. These used to cascade to Unknown; they now parse to structured types.
+
         assertEquals(new Decimal(9, 2), ClickHouseTypeParser.parse("Decimal(9, 2)"));
         assertEquals(new Array(new Primitive(Kind.Int32)), ClickHouseTypeParser.parse("Array(Int32)"));
-        // Nullable around a Decimal parses through; spacing is normalised on the inner Decimal.
+
         assertEquals(new Nullable(new Decimal(9, 2)), ClickHouseTypeParser.parse("Nullable(Decimal(9,2))"));
     }
 
@@ -65,14 +64,13 @@ class ClickHouseTypeParserTest {
 
     @Test
     void tolerantOfAmbientWhitespace() {
-        // ClickHouse DESCRIBE rows are usually compact but not guaranteed; ambient whitespace within
-        // wrapper parens should still parse.
+
         assertEquals(new Nullable(new Primitive(Kind.Int32)), ClickHouseTypeParser.parse("Nullable( Int32 )"));
     }
 
     @Test
     void roundTripFromToString() {
-        // Every v1 type the generator can emit should parse back to an equal value.
+
         ClickHouseType[] samples = { new Primitive(Kind.Int32), new Primitive(Kind.UInt256), new Primitive(Kind.String),
                 new Primitive(Kind.Date32), new Nullable(new Primitive(Kind.Int8)),
                 new LowCardinality(new Primitive(Kind.String)),
@@ -84,7 +82,7 @@ class ClickHouseTypeParserTest {
 
     @Test
     void parserDoesNotThrow() {
-        // Defensive: every input must produce a ClickHouseType -- never an exception.
+
         String[] adversarialInputs = { "(", ")", "Nullable(", "Nullable()", "Nullable(Int32",
                 "LowCardinality(Nullable(Float32))", "Nullable(LowCardinality(LowCardinality(String)))",
                 "Something(Else(Nested(Deeply)))", "Int32 NOT NULL", "Int32 DEFAULT 5", " ", "  Int32  ",

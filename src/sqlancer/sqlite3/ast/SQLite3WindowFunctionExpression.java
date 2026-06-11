@@ -8,7 +8,7 @@ import sqlancer.sqlite3.schema.SQLite3Schema.SQLite3Column.SQLite3CollateSequenc
 
 public class SQLite3WindowFunctionExpression extends SQLite3Expression {
 
-    private final SQLite3Expression baseWindowFunction; // also contains the arguments to the window function
+    private final SQLite3Expression baseWindowFunction;
     private List<SQLite3Expression> partitionBy = new ArrayList<>();
     private List<SQLite3Expression> orderBy = new ArrayList<>();
     private SQLite3Expression filterClause;

@@ -98,10 +98,8 @@ public class TestStateToReproduce {
         state.serialize(file);
         StateToReproduce result = StateToReproduce.deserialize(file);
 
-        // Verify databaseProvider is correctly deserialized
         assertEquals("sqlite3", result.getDatabaseProvider().getDBMSName());
 
-        // Verify databaseProvider functionality by testing logStatement
         result.logStatement("INSERT INTO test VALUES (1);");
         assertEquals(2, result.getStatements().size());
         assertEquals("INSERT INTO test VALUES (1);", result.getStatements().get(1).getLogString());

@@ -72,8 +72,6 @@ class ClickHouseTableGeneratorTest {
         assertTrue(ClickHouseTableGenerator.isValidSampleBy(column(ClickHouseDataType.Int32)));
     }
 
-    // Unit 1.3: PRIMARY-KEY-prefix helpers.
-
     @Test
     void pickDistinctReturnsRequestedCountDistinctInPool() {
         List<String> src = Arrays.asList("a", "b", "c", "d", "e");
@@ -101,11 +99,9 @@ class ClickHouseTableGeneratorTest {
         assertTrue(ClickHouseTableGenerator.isBareKeyColumn(col(ClickHouseDataType.String)));
         assertTrue(ClickHouseTableGenerator.isBareKeyColumn(col(ClickHouseDataType.Date32)));
         assertTrue(ClickHouseTableGenerator.isBareKeyColumn(col(ClickHouseDataType.UUID)));
-        // Array maps to no Kind -> Unknown type term -> not a usable bare key.
+
         assertFalse(ClickHouseTableGenerator.isBareKeyColumn(col(ClickHouseDataType.Array)));
     }
-
-    // Unit 2.1: CollapsingMergeTree sign column must be exactly Int8.
 
     @Test
     void isValidSignAcceptsOnlyInt8() {

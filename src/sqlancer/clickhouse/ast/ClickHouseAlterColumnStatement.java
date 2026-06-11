@@ -1,8 +1,5 @@
 package sqlancer.clickhouse.ast;
 
-/**
- * ALTER TABLE ... ADD/DROP/MODIFY/RENAME/COMMENT COLUMN. Workstream 8 of the plan.
- */
 public class ClickHouseAlterColumnStatement extends ClickHouseDdlStatement {
 
     public enum Kind {

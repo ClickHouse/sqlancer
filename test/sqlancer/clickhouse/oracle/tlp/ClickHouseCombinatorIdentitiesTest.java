@@ -30,9 +30,7 @@ class ClickHouseCombinatorIdentitiesTest {
 
     @Test
     void orNullFamilyForcesNullForEmptyOff() {
-        // Per plan Unit 5: -OrNull / -OrDefault identities must run with the setting at 0 to avoid
-        // double-encoding the empty-NULL semantics. Lock this down so a future "make all identities
-        // use the same settings" refactor would fail loudly here.
+
         for (ClickHouseCombinatorIdentities.Identity id : ClickHouseCombinatorIdentities.CATALOG) {
             if (id.name().endsWith("OrNull") || id.name().endsWith("OrDefault")) {
                 assertEquals(ClickHouseCombinatorIdentities.SETTINGS_NULL_FOR_EMPTY_OFF, id.settings(),
@@ -43,10 +41,7 @@ class ClickHouseCombinatorIdentitiesTest {
 
     @Test
     void ifFamilySumLikeKeepsNullForEmptyOn() {
-        // Sum-family -If identities keep null_for_empty=1 because sum-family's empty-input return
-        // (NULL) coincides with the combinator's empty-input return on both sides. countIf is the
-        // documented asymmetric exception: count returns 0 on empty regardless, while the sum-based
-        // rewrite would return NULL under =1.
+
         for (ClickHouseCombinatorIdentities.Identity id : ClickHouseCombinatorIdentities.CATALOG) {
             if (id.name().endsWith("If") && !id.name().equals("countIf")) {
                 assertEquals(ClickHouseCombinatorIdentities.SETTINGS_NULL_FOR_EMPTY_ON, id.settings(),
@@ -85,8 +80,7 @@ class ClickHouseCombinatorIdentitiesTest {
 
     @Test
     void identityPickerReturnsEmptyForUnmatchedAggregate() {
-        // sumIf is SUM-only -- ask the picker for COUNT and Int32 type; expect a different identity
-        // (countIf), not sumIf.
+
         ClickHouseSchema.ClickHouseLancerDataType intType = new ClickHouseSchema.ClickHouseLancerDataType(
                 ClickHouseDataType.Int32);
         java.util.Optional<ClickHouseCombinatorIdentities.Identity> picked = ClickHouseCombinatorIdentities
@@ -98,8 +92,7 @@ class ClickHouseCombinatorIdentitiesTest {
 
     @Test
     void identityPickerSkipsStringForNumericFamily() {
-        // String columns disqualify the numeric-typed identities (sumIf, avgOrNull, etc.) but countIf
-        // accepts any type.
+
         ClickHouseSchema.ClickHouseLancerDataType stringType = new ClickHouseSchema.ClickHouseLancerDataType(
                 ClickHouseDataType.String);
         java.util.Optional<ClickHouseCombinatorIdentities.Identity> sumPick = ClickHouseCombinatorIdentities

@@ -18,10 +18,7 @@ public class ClickHouseTLPDistinctOracle extends ClickHouseTLPBase {
 
     @Override
     public void check() throws SQLException {
-        // TLPDistinct's RHS already collapses partition multiplicity via UNION DISTINCT
-        // (getCombinedResultSetNoDuplicates with asUnion=false wraps the UNION ALL in a SELECT
-        // DISTINCT). The same defect that bites TLPGroupBy -- a row appearing across multiple
-        // partition branches -- is already handled here. Do not "fix" by switching to UNION ALL.
+
         super.check();
         select.setSelectType(ClickHouseSelect.SelectType.DISTINCT);
         select.setWhereClause(null);
@@ -39,10 +36,6 @@ public class ClickHouseTLPDistinctOracle extends ClickHouseTLPBase {
         List<String> secondResultSet = ComparatorHelper.getCombinedResultSetNoDuplicates(firstQueryString,
                 secondQueryString, thirdQueryString, combinedString, false, state, errors);
 
-        // NaN/Inf guard (shared with TLPGroupBy via ClickHouseTLPBase): a single-pass DISTINCT and
-        // the UNION-ALL + outer-DISTINCT reformulation coalesce NaN bit-patterns differently on CH
-        // 26.6, so the distinct-count over a NaN/Inf-producing projection is implementation-defined
-        // and the TLP invariant does not hold. Covers NaN/Inf in any projected column.
         if (projectionMayBeNonFinite(resultSet, secondResultSet, originalQueryString)) {
             throw new IgnoreMeException();
         }

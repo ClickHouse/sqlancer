@@ -23,8 +23,8 @@ public class SQLite3Function extends SQLite3Expression {
             public SQLite3Constant apply(SQLite3Constant... args) {
                 SQLite3Constant castValue;
                 if (args[0].getDataType() == SQLite3DataType.BINARY) {
-                    throw new IgnoreMeException(); // TODO
-                                                   // implement
+                    throw new IgnoreMeException();
+
                 }
                 if (args[0].getDataType() == SQLite3DataType.INT) {
                     castValue = SQLite3Cast.castToInt(args[0]);
@@ -67,9 +67,7 @@ public class SQLite3Function extends SQLite3Expression {
             @Override
             public SQLite3Constant apply(SQLite3Constant... args) {
                 return null;
-                // SQLite3Constant binaryValue = SQLite3Cast.castToBlob(args[0]);
-                // return
-                // SQLite3Constant.createTextConstant(binaryValue.getStringRepresentation());
+
             }
         },
 
@@ -272,12 +270,6 @@ public class SQLite3Function extends SQLite3Expression {
             this.functionName = functionName;
         }
 
-        /**
-         * Gets the number of arguments if the function is non-variadic. If the function is variadic, the minimum number
-         * of arguments is returned.
-         *
-         * @return the number of arguments
-         */
         public int getNrArgs() {
             return nrArgs;
         }

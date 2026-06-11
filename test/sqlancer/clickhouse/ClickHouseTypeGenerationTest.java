@@ -14,19 +14,11 @@ import sqlancer.clickhouse.ClickHouseType.LowCardinality;
 import sqlancer.clickhouse.ClickHouseType.Nullable;
 import sqlancer.clickhouse.ClickHouseType.Primitive;
 
-/**
- * Unit tests for the v1 type-generation surface. State-aware random picking is exercised end-to-end in the integration
- * suite; here we only validate the static no-state path and the wrapper guard rails -- both reachable without spinning
- * up a ClickHouse instance.
- */
 class ClickHouseTypeGenerationTest {
 
     @Test
     void getRandomWithoutStateReturnsScalar() {
-        // The no-state form is used by AST scaffolding and test fixtures; it must not emit wrapper
-        // types regardless of any package-level state. The scalar may be a Primitive or an Enum
-        // (both legitimate scalars); the contract is "no WRAPPER type" -- not Nullable, not
-        // LowCardinality, not Array.
+
         for (int i = 0; i < 256; i++) {
             ClickHouseLancerDataType t = ClickHouseLancerDataType.getRandom();
             ClickHouseType term = t.getTypeTerm();
@@ -37,21 +29,18 @@ class ClickHouseTypeGenerationTest {
 
     @Test
     void nullableCanWrapPrimitivesAndForbidsSelfNest() {
-        // Direct canWrap exercise -- the random picker consults this before constructing Nullable.
+
         assertTrue(Nullable.canWrap(new Primitive(Kind.Int32)));
         assertFalse(Nullable.canWrap(new Nullable(new Primitive(Kind.Int32))));
     }
 
     @Test
     void lowCardinalityCanWrapAllowsFloat() {
-        // ClickHouse allows LowCardinality(Float64), so canWrap now accepts it.
+
         assertTrue(LowCardinality.canWrap(new Primitive(Kind.Float64)));
         assertTrue(LowCardinality.canWrap(new Primitive(Kind.String)));
         assertTrue(LowCardinality.canWrap(new Nullable(new Primitive(Kind.Int32))));
     }
-
-    // Unit 1.2: scalar kinds the picker now emits as columns must render the correct DDL type
-    // spelling and map cleanly onto the JDBC data-type enum the column builder consumes.
 
     @Test
     void unit12NewScalarKindsRenderAsColumnTypes() {
@@ -74,7 +63,7 @@ class ClickHouseTypeGenerationTest {
 
     @Test
     void unit12LowCardinalityAcceptsDate32NotIpOrUuid() {
-        // Date32 is a valid LowCardinality inner (dictionary-encodable); IPv*/UUID are not.
+
         assertTrue(LowCardinality.canWrap(new Primitive(Kind.Date32)));
         assertFalse(LowCardinality.canWrap(new Primitive(Kind.IPv4)));
         assertFalse(LowCardinality.canWrap(new Primitive(Kind.UUID)));

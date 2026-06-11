@@ -35,44 +35,6 @@ import sqlancer.clickhouse.gen.ClickHouseExpressionGenerator;
 import sqlancer.common.oracle.CODDTestBase;
 import sqlancer.common.oracle.TestOracle;
 
-/**
- * Equivalent Expression Transformation (EET) oracle for ClickHouse, the companion approach to CODDTest from Zhang and
- * Rigger, SIGMOD 2025 (CODDTest: <a href="https://doi.org/10.1145/3709674">DOI 10.1145/3709674</a>).
- *
- * <p>
- * Where CODDTest folds a sub-expression to its precomputed value, EET goes the opposite direction: it <em>injects</em>
- * an expression that should fold to a fixed value (a tautology, a contradiction, or an algebraic identity) and asserts
- * the rewrite is semantics-preserving. Any divergence is a logic bug in the rewrite pipeline.
- * </p>
- *
- * <p>
- * Each {@code check()} picks one mode uniformly:
- * </p>
- * <ul>
- * <li><strong>WHERE injection.</strong> Generate base predicate {@code predQ} and a random expression {@code e}; build
- * the 3VL tautology {@code (((e) OR NOT (e)) OR (e) IS NULL)} and the contradiction
- * {@code (((e) AND NOT (e)) AND (e) IS NOT NULL)}. Assert
- * {@code rows(SELECT * FROM t WHERE predQ AND taut) == rows(SELECT * FROM t WHERE predQ)} and
- * {@code rows(SELECT * FROM t WHERE predQ AND contra)} is empty.</li>
- * <li><strong>HAVING injection.</strong> Same shapes injected into an aggregated query's HAVING clause. (Unit 2.)</li>
- * <li><strong>Expression-position rewrite.</strong> {@code if(taut, x, x)} / {@code multiIf} /
- * {@code CASE WHEN ... END} substitution on a SELECT-list column. (Unit 3.)</li>
- * <li><strong>Algebraic identity.</strong> Type-safe substitution like {@code x + 0}, {@code concat(x, '')}, etc. (Unit
- * 4.)</li>
- * </ul>
- *
- * <p>
- * Tautology/contradiction parenthesization is deliberately binding-tight: ClickHouse's parser binds {@code OR} looser
- * than {@code NOT} and tighter than {@code AND}, so an unparenthesized injection inside {@code pred AND ...} would
- * parse the wrong way. Every reference to {@code e} in the injected fragment is wrapped in its own parentheses.
- * </p>
- *
- * <p>
- * v1 reuses {@link CODDTestBase} for failure-attribution fields ({@code originalQueryString},
- * {@code foldedQueryString}, {@code auxiliaryQueryString}); the naming is a deliberate trade-off documented in the plan
- * rather than introducing a sibling base class for one extra oracle.
- * </p>
- */
 public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         implements TestOracle<ClickHouseGlobalState> {
 
@@ -80,16 +42,11 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
     private static final int MAX_INJECTED_EXPR_DEPTH = 4;
     private static final int MAX_BASE_PRED_DEPTH = 3;
 
-    // TLPHaving's hardcoded dodge for ClickHouse#12264; required on both sides of any HAVING-mode
-    // comparison or the bug surfaces as a false-positive EET finding.
     private static final String HAVING_SETTINGS_SUFFIX = " SETTINGS aggregate_functions_null_for_empty=1, enable_optimize_predicate_expression=0";
 
     enum Mode {
         WHERE_INJECT, HAVING_INJECT, EXPR_REWRITE, ALGEBRAIC_ID, MULTIIF_EQUIV,
-        // 26.x modes (plan 2026-06-10-002, Units 4 + 6). EET is in ALL_ORACLES, so these go live
-        // fleet-wide the moment they can be picked; they are therefore gated behind
-        // --eet-26x-modes (default off, precedent --tlp-groupby-strict) until their convergence
-        // run passes. See candidateModes().
+
         COMPOUND_INTERVAL, OVERLAY_EQUIV, OVERLAY_SPLICE, NATURAL_SORT_KEY
     }
 
@@ -131,16 +88,15 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
             checkExprRewrite(table, readableColumns, polarity);
             break;
         case ALGEBRAIC_ID:
-            // Polarity is irrelevant for the algebraic-identity mode (every catalog entry is
-            // unconditionally x-preserving), so we ignore the picked polarity here.
+
             checkAlgebraicIdentity(table, readableColumns);
             break;
         case MULTIIF_EQUIV:
-            // Polarity is irrelevant: the two forms are structurally equivalent regardless.
+
             checkMultiIfNestedIfEquivalence(table, readableColumns);
             break;
         case COMPOUND_INTERVAL:
-            // Polarity irrelevant: compound literal vs decomposed sum is an unconditional identity.
+
             checkCompoundInterval(table, readableColumns);
             break;
         case OVERLAY_EQUIV:
@@ -157,15 +113,10 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         }
     }
 
-    // Uniform mode picker -- mirrors CODDTest's three-mode picker at ClickHouseCODDTestOracle.check().
-    // The 26.x modes join the candidate list only when --eet-26x-modes is set.
     private Mode pickMode() {
         return Randomly.fromList(candidateModes(state.getClickHouseOptions().eet26xModes));
     }
 
-    // Candidate-mode builder, factored out (static, package-private) so the flag gating is unit
-    // testable without a database. The legacy list is spelled out explicitly rather than via
-    // Mode.values() so a future enum constant cannot silently go live fleet-wide on merge.
     static List<Mode> candidateModes(boolean enable26xModes) {
         List<Mode> modes = new ArrayList<>(List.of(Mode.WHERE_INJECT, Mode.HAVING_INJECT, Mode.EXPR_REWRITE,
                 Mode.ALGEBRAIC_ID, Mode.MULTIIF_EQUIV));
@@ -175,8 +126,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         }
         return modes;
     }
-
-    // ----- Mode: WHERE injection -----
 
     private void checkWhereInject(ClickHouseTable table, List<ClickHouseColumn> columns, Polarity polarity)
             throws SQLException {
@@ -198,9 +147,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         String fetchCols = colRefs.stream().map(c -> tableQ + "." + quote(c.getColumn().getName()))
                 .collect(Collectors.joining(", "));
 
-        // Template carries a single sentinel; substitute the original predicate vs the predicate
-        // conjoined with the injection. Asserting the token appears exactly once protects against
-        // accidental embedding of the sentinel by a future generator change.
         String queryTemplate = "SELECT " + fetchCols + " FROM " + tableQ + " WHERE " + PHI_TOKEN;
         if (queryTemplate.split(Pattern.quote(PHI_TOKEN), -1).length != 2) {
             throw new IgnoreMeException();
@@ -237,24 +183,14 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         }
     }
 
-    // 3VL tautology with binding-tight parenthesization. Each reference to e is wrapped in its own
-    // parens so the fragment composes safely inside any larger AND/OR/NOT expression.
     static String tautologyFragment(String eSql) {
         return "((((" + eSql + ") OR NOT (" + eSql + ")) OR (" + eSql + ") IS NULL))";
     }
 
-    // 3VL contradiction with the same parenthesization discipline.
     static String contradictionFragment(String eSql) {
         return "((((" + eSql + ") AND NOT (" + eSql + ")) AND (" + eSql + ") IS NOT NULL))";
     }
 
-    // ----- Mode: HAVING injection -----
-
-    // Build a GROUP-BY aggregated SELECT via the AST (matching TLPHaving), stringify it with HAVING
-    // null, then append a placeholder HAVING and the mandatory TLPHaving SETTINGS suffix. The
-    // tautology/contradiction is injected inside the HAVING clause where the optimizer's
-    // predicate-folding logic runs over aggregate expressions -- a different code path from WHERE
-    // folding and a documented bug-class home in CODDTest's paper.
     private void checkHavingInject(ClickHouseTable table, List<ClickHouseColumn> columns, Polarity polarity)
             throws SQLException {
         List<ClickHouseColumnReference> colRefs = columns.stream().map(c -> c.asColumnReference(table.getName()))
@@ -265,7 +201,7 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
 
         ClickHouseSelect select = new ClickHouseSelect();
         select.setFromClause(new ClickHouseTableReference(table, null));
-        // Build a mix of aggregate fetch columns and group-by keys, matching TLPHaving's shape.
+
         List<ClickHouseExpression> fetchColumns = IntStream.range(0, Randomly.smallNumber() + 1)
                 .mapToObj(i -> gen.generateAggregateExpressionWithColumns(colRefs, 3)).collect(Collectors.toList());
         select.setFetchColumns(fetchColumns);
@@ -278,9 +214,7 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         List<ClickHouseExpression> aggregateExprs = fetchColumns.stream().filter(p -> p instanceof ClickHouseAggregate)
                 .collect(Collectors.toList());
         if (aggregateExprs.isEmpty()) {
-            // Without aggregates the HAVING clause can't reference a function-of-group result; the
-            // generator's column-only fallback would yield "not under aggregate function and not in
-            // GROUP BY" errors that aren't EET findings.
+
             throw new IgnoreMeException();
         }
 
@@ -292,10 +226,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         String foldedFragment = polarity == Polarity.TAUTOLOGY ? tautologyFragment(injectSql)
                 : contradictionFragment(injectSql);
 
-        // Use ClickHouseVisitor.asString (not ClickHouseToStringVisitor.asString) to render the
-        // outer SELECT without enclosing parens. ToStringVisitor.asString dispatches via the
-        // generic visit path that treats the SELECT as an inner subquery and wraps it in `(...)`,
-        // which produces `(SELECT ... FROM t GROUP BY ...) HAVING ...` -- a SYNTAX_ERROR.
         String selectSql = ClickHouseVisitor.asString(select);
         String template = selectSql + " HAVING " + PHI_TOKEN + HAVING_SETTINGS_SUFFIX;
         if (template.split(Pattern.quote(PHI_TOKEN), -1).length != 2) {
@@ -333,12 +263,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         }
     }
 
-    // ----- Mode: expression-position rewriting (if / multiIf / CASE) -----
-
-    // Pick a column-reference x, probe its runtime type, wrap a SELECT-list expression with one of
-    // three boolean-fold shapes that should reduce to x. The transformed column is cast back to
-    // x's exact type so result formatting matches even when the optimizer's tautology recognition
-    // would otherwise produce a slightly different intermediate type.
     private void checkExprRewrite(ClickHouseTable table, List<ClickHouseColumn> columns, Polarity polarity)
             throws SQLException {
         List<ClickHouseColumnReference> colRefs = columns.stream().map(c -> c.asColumnReference(table.getName()))
@@ -353,9 +277,7 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
 
         String typeOfX = probeTypeName(table, xSql);
         if (typeOfX == null || !isFoldablePrimitiveTypeName(typeOfX)) {
-            // Non-primitive column types (Array, Tuple, Map, Nothing, ...) are skipped to avoid
-            // false positives where the cast-back coerces representation in ways unrelated to the
-            // tautology-folding code path we're testing.
+
             throw new IgnoreMeException();
         }
 
@@ -363,10 +285,7 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         String injectSql = ClickHouseToStringVisitor.asString(injectExpr);
         String taut = tautologyFragment(injectSql);
         String contra = contradictionFragment(injectSql);
-        // Junk-branch value must be the same type as x or ClickHouse rejects multiIf/CASE at parse
-        // time (e.g., cast(NULL, 'LowCardinality(String)') fails because LowCardinality is not
-        // nullable). defaultValueOfTypeName yields a non-NULL typed default for any ClickHouse
-        // type, so the optimizer still has a real dead branch to recognize and fold past.
+
         String junkSql = "defaultValueOfTypeName(" + sqlQuote(typeOfX) + ")";
 
         ExprShape shape = Randomly.fromOptions(ExprShape.values());
@@ -376,13 +295,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
                 "EXPR-" + shape.name() + "-" + polarity.name() + " typeOfX=" + typeOfX);
     }
 
-    // Construct the if/multiIf/CASE shape that must fold to x regardless of polarity:
-    // - For tautology: the truth-path branch is x; the off-path branches are x or junk in slots
-    // the condition will not select.
-    // - For contradiction: the false-path branch is junk; x lands in the slot that wins.
-    // The two-condition shapes (multiIf with 5 args, CASE with 2 WHEN clauses) exercise the
-    // optimizer's recognition of redundant branches, which is a distinct code path from the bare
-    // 2-arm conditional that `if` exercises.
     static String buildExprRewrite(ExprShape shape, Polarity polarity, String xSql, String junkSql, String taut,
             String contra) {
         switch (shape) {
@@ -390,8 +302,7 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
             return polarity == Polarity.TAUTOLOGY ? "if(" + taut + ", " + xSql + ", " + xSql + ")"
                     : "if(" + contra + ", " + junkSql + ", " + xSql + ")";
         case MULTI_IF:
-            // multiIf(cond1, then1, cond2, then2, else) -- 5 args. Tautology: first cond is true,
-            // returns x. Contradiction: first cond is false, second cond is true, returns x.
+
             return polarity == Polarity.TAUTOLOGY
                     ? "multiIf(" + taut + ", " + xSql + ", " + contra + ", " + junkSql + ", " + xSql + ")"
                     : "multiIf(" + contra + ", " + junkSql + ", " + taut + ", " + xSql + ", " + xSql + ")";
@@ -406,9 +317,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         }
     }
 
-    // Single-row probe of toTypeName(x) at the running server. Returns null when the table is empty
-    // (no rows to evaluate), which the caller treats as IgnoreMeException via the type-foldability
-    // check.
     String probeTypeName(ClickHouseTable table, String exprSql) throws SQLException {
         String query = "SELECT toTypeName(" + exprSql + ") AS t FROM " + quote(table.getName()) + " LIMIT 1";
         try (Statement s = state.getConnection().createStatement(); ResultSet rs = s.executeQuery(query)) {
@@ -421,9 +329,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         }
     }
 
-    // A type is "foldable" for EET expression rewriting if its inner term (after stripping Nullable
-    // and LowCardinality wrappers) is a primitive type. Mirrors CODDTest's isFoldableColumnTerm
-    // discipline but operates on the textual type name returned by toTypeName.
     static boolean isFoldablePrimitiveTypeName(String typeName) {
         try {
             ClickHouseType inner = ClickHouseTypeParser.parse(typeName).unwrap();
@@ -433,13 +338,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         }
     }
 
-    // ----- Mode: algebraic identity rewriting -----
-
-    // Pick a column-reference x, probe its runtime type, look up a type-safe identity in the
-    // catalog, and rewrite the SELECT-list expression as the identity applied to x. The cast-back
-    // wrap eliminates any type-widening introduced by the identity (e.g., plus(Int8, 0) widens to
-    // Int16; the cast restores Int8). Polarity is unused for this mode -- every identity is
-    // unconditionally x-preserving.
     private void checkAlgebraicIdentity(ClickHouseTable table, List<ClickHouseColumn> columns) throws SQLException {
         List<ClickHouseColumnReference> colRefs = columns.stream().map(c -> c.asColumnReference(table.getName()))
                 .collect(Collectors.toList());
@@ -454,8 +352,7 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         Optional<ClickHouseEETIdentities.Identity> picker = ClickHouseEETIdentities
                 .pickIdentityForType(state.getRandomly(), typeOfX);
         if (picker.isEmpty()) {
-            // No identity in the v1 catalog accepts this type (Array, Tuple, Map, Float-only,
-            // Decimal-only, etc.). Skip the attempt.
+
             throw new IgnoreMeException();
         }
         ClickHouseEETIdentities.Identity identity = picker.get();
@@ -464,24 +361,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         assertSingleSnapshotEquivalent(table, xSql, transExpr, "ALG-" + identity.name() + " typeOfX=" + typeOfX);
     }
 
-    // ----- Mode: multiIf <-> nested-if structural equivalence (Unit 6.1) -----
-
-    // Assert the catalog identity multiIf(c1, a, c2, b, d) == if(c1, a, if(c2, b, d)). The
-    // generator renders both forms from the SAME (c1, a, c2, b, d) components, so the VALUE each
-    // produces on every row must agree; a divergence is a branch-selection or short-circuit-folding
-    // bug -- the surface the plan's WS6 multiIf unit targets.
-    //
-    // IMPORTANT: multiIf and nested-if do NOT necessarily agree on the RESULT TYPE. ClickHouse
-    // unifies the branch types of an n-ary multiIf in one pass but unifies a nested if pairwise
-    // from the inside out, so e.g. multiIf(.., lcm()->UInt, .., c0->Int32, max2()->Float64) settles
-    // on an integer type while if(.., lcm, if(.., c0, max2)) settles on Float64. The values are
-    // identical (-1875264158 vs -1.875264158E9), only the textual rendering differs. That is a
-    // legitimate type-inference difference, not a wrong result, so comparing the raw renderings is
-    // unsound. We normalise both forms through CAST(... AS Float64) so the comparison is purely on
-    // value. Trade-off: two genuinely-different integer values above 2^53 could collide after the
-    // Float64 round; that narrow blind spot is acceptable -- every branch-selection / short-circuit
-    // bug changes the value far more than one ULP, and this mirrors the codebase's existing
-    // float-tolerance stance for aggregate oracles.
     private void checkMultiIfNestedIfEquivalence(ClickHouseTable table, List<ClickHouseColumn> columns)
             throws SQLException {
         List<ClickHouseColumnReference> colRefs = columns.stream().map(c -> c.asColumnReference(table.getName()))
@@ -491,25 +370,13 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
 
         String[] forms = gen.renderMultiIfAndNestedIf(colRefs);
         if (forms == null) {
-            // No numeric column to build branch values from.
+
             throw new IgnoreMeException();
         }
-        // forms[0]/[1] already CAST to a common Nullable(Float64) (see renderMultiIfAndNestedIf):
-        // that normalises away the legitimate multiIf-vs-nested-if type-inference difference and
-        // keeps the column wire-readable, so we compare the two forms directly.
+
         assertSingleSnapshotEquivalent(table, forms[0], forms[1], "MULTIIF-EQUIV");
     }
 
-    // ----- Mode: compound INTERVAL literal == decomposed single-unit sum (Unit 4, 26.4 PR #100453) -----
-
-    // Identity: d + INTERVAL '<v>' <FROM> TO <TO> == d + INTERVAL a U1 + INTERVAL b U2 + ... where
-    // the components (a, b, ...) are generated FIRST as Java ints and BOTH forms are rendered from
-    // them (never parsed back). The generator helper wraps both sides in toString(...) so the
-    // rendering is uniform and reader-safe even when Date arithmetic widens to DateTime (the
-    // Date + DAY TO SECOND family widens both forms symmetrically). Both forms ride one query via
-    // assertSingleSnapshotEquivalent (single-snapshot rule). Arithmetic rejections for kind pairs
-    // that are invalid on a pure Date column are tolerated through the constructor's
-    // addExpectedExpressionErrors catalog (probing such pairs out by construction is deferred).
     private void checkCompoundInterval(ClickHouseTable table, List<ClickHouseColumn> columns) throws SQLException {
         List<ClickHouseColumnReference> colRefs = columns.stream().map(c -> c.asColumnReference(table.getName()))
                 .collect(Collectors.toList());
@@ -517,27 +384,20 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         gen.addColumns(colRefs);
         String[] forms = gen.renderCompoundAndDecomposedInterval(colRefs);
         if (forms == null) {
-            // No Date / Date32 / DateTime / DateTime64 column on this table.
+
             throw new IgnoreMeException();
         }
         assertSingleSnapshotEquivalent(table, forms[0], forms[1], "COMPOUND-INTERVAL-" + forms[2]);
     }
 
-    // ----- Mode: OVERLAY keyword form == overlay() function form (Unit 6, 26.4 PR #101681) -----
-
-    // Pure parser-sugar identity: OVERLAY(s PLACING r FROM p [FOR l]) is by definition the SQL
-    // standard spelling of overlay(s, r, p[, l]); any value divergence is a parser/rewrite bug.
-    // Out-of-range and negative p/l are deliberately included -- the two forms must simply AGREE,
-    // whatever the function does with them (and since both forms ride one query, a server-side
-    // rejection hits both forms identically and is routed through the expected-error catalog).
     private void checkOverlayEquiv(ClickHouseTable table, List<ClickHouseColumn> columns) throws SQLException {
         String sSql = pickStringColumnSql(table, columns);
         if (sSql == null) {
             throw new IgnoreMeException();
         }
         String rLit = sqlQuote(randomShortAscii());
-        int p = (int) Randomly.getNotCachedInteger(-2, 11); // -2..10, includes 0 and out-of-range
-        Integer l = Randomly.getBoolean() ? (int) Randomly.getNotCachedInteger(-1, 9) : null; // -1..8 or absent
+        int p = (int) Randomly.getNotCachedInteger(-2, 11);
+        Integer l = Randomly.getBoolean() ? (int) Randomly.getNotCachedInteger(-1, 9) : null;
         assertSingleSnapshotEquivalent(table, overlayKeywordForm(sSql, rLit, p, l),
                 overlayFunctionForm(sSql, rLit, p, l), "OVERLAY-EQUIV p=" + p + " l=" + l);
     }
@@ -550,24 +410,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         return "overlay(" + sSql + ", " + rLit + ", " + p + (l == null ? "" : ", " + l) + ")";
     }
 
-    // ----- Mode: overlay() == substring/concat splice, ASCII-restricted (Unit 6) -----
-
-    // Metamorphic arm: overlay(sx, r, p, l) == concat(substring(sx, 1, p-1), r, substring(sx, p+l))
-    // -- the textbook splice definition -- restricted to a regime where the two are guaranteed to
-    // agree by construction:
-    // - sx is an ASCII-sanitised, length-capped derivation of the column
-    // (substring(replaceRegexpAll(s, '[^ -~]', '?'), 1, 8)): the SAME expression on both sides,
-    // so the sanitisation cannot cause divergence, and ASCII-only sidesteps byte-vs-UTF-8
-    // position semantics.
-    // - p in 1..4, l in 0..4 (positive in-range positions only; negative/out-of-range stay on the
-    // sugar-identity arm).
-    // - both forms are wrapped in if(length(sx) >= p + l - 1, <form>, 'skip') with the IDENTICAL
-    // guard: when the replaced range [p, p+l-1] is not fully inside sx, the splice definition's
-    // edge semantics (overlay clamping/appending vs substring truncation) are not obviously
-    // equivalent, so both sides structurally agree on the literal 'skip' instead. The guard is
-    // intentionally conservative (p <= length+1 would likely suffice); a degenerate
-    // 'skip' == 'skip' row is sound, just vacuous. All branches are String-typed -- no Variant
-    // common-type risk on the if().
     private void checkOverlaySplice(ClickHouseTable table, List<ClickHouseColumn> columns) throws SQLException {
         String sSql = pickStringColumnSql(table, columns);
         if (sSql == null) {
@@ -575,20 +417,16 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         }
         String sx = asciiCappedInput(sSql);
         String rLit = sqlQuote(randomShortAscii());
-        int p = 1 + (int) Randomly.getNotCachedInteger(0, 4); // 1..4
-        int l = (int) Randomly.getNotCachedInteger(0, 5); // 0..4
+        int p = 1 + (int) Randomly.getNotCachedInteger(0, 4);
+        int l = (int) Randomly.getNotCachedInteger(0, 5);
         assertSingleSnapshotEquivalent(table, guardedOverlayForm(sx, rLit, p, l), guardedSpliceForm(sx, rLit, p, l),
                 "OVERLAY-SPLICE p=" + p + " l=" + l);
     }
 
-    // ASCII-sanitised, length-capped input derivation. Applied identically on both sides of the
-    // splice identity, so it is semantics-neutral for the comparison.
     static String asciiCappedInput(String sSql) {
         return "substring(replaceRegexpAll(" + sSql + ", '[^ -~]', '?'), 1, 8)";
     }
 
-    // The shared in-range guard: the replaced range [p, p+l-1] must lie fully inside sx. p and l
-    // are Java ints, so the bound folds to a constant.
     static String spliceGuard(String sxSql, int p, int l) {
         return "(length(" + sxSql + ") >= " + (p + l - 1) + ")";
     }
@@ -603,13 +441,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
                 + ", substring(" + sxSql + ", " + (p + l) + ")), 'skip')";
     }
 
-    // ----- Mode: naturalSortKey comparator consistency (Unit 6, 26.3 PR #90322) -----
-
-    // Constant-only by design: both literals are built in Java from known numeric runs, the
-    // expected natural-order comparison is computed by the Java reference comparator below, and one
-    // constant query asserts naturalSortKey agrees. Constant-only keeps the expected value exactly
-    // computable; fleet column coverage comes from the generator's naturalSortKey emission in
-    // generateStringCall, not from this mode. A SELECT without FROM is trivially single-snapshot.
     private void checkNaturalSortKey() throws SQLException {
         String[] pair = buildNaturalSortPair();
         int cmp = naturalOrderCompare(pair[0], pair[1]);
@@ -619,13 +450,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
                 "NATURAL-SORT-KEY s1=" + sqlQuote(pair[0]) + " s2=" + sqlQuote(pair[1]));
     }
 
-    // Literal-pair shapes: version-like strings differing in digit runs (the 'v1.2' < 'v1.10'
-    // class), shared-prefix digit runs with different digit counts, no-digit strings (byte order),
-    // empty-vs-nonempty, and exact-equal strings. All shapes keep digit runs aligned against digit
-    // runs (or compare digit-free strings), so the assertion never depends on how naturalSortKey
-    // orders a digit run against a letter. Leading-zero digit runs ('007' vs '7') are EXCLUDED by
-    // construction -- Integer.toString never emits them -- because naturalSortKey's tie-break
-    // semantics for numerically-equal runs are undocumented; revisit after a head probe.
     static String[] buildNaturalSortPair() {
         int shape = (int) Randomly.getNotCachedInteger(0, 5);
         switch (shape) {
@@ -659,12 +483,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         return randomAsciiLetters();
     }
 
-    // Java reference comparator for natural sort order over ASCII strings: split into digit /
-    // non-digit runs; digit runs compare numerically (BigInteger, so arbitrarily long runs are
-    // safe); non-digit runs compare bytewise (char == byte for the ASCII-only inputs this oracle
-    // constructs); a string that is an exhausted prefix of the other sorts first. Numerically-equal
-    // digit runs of different lengths (leading zeros) tie-break shorter-first here, but
-    // buildNaturalSortPair never generates them (see above).
     static int naturalOrderCompare(String a, String b) {
         int i = 0;
         int j = 0;
@@ -704,9 +522,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         return c >= '0' && c <= '9';
     }
 
-    // Pick a plain String column (same ClickHouseDataType.String discipline as
-    // ClickHouseExpressionGenerator.generateStringCall; FixedString stays out) and render its
-    // quoted table-qualified reference, or null when the table has none.
     private String pickStringColumnSql(ClickHouseTable table, List<ClickHouseColumn> columns) {
         List<ClickHouseColumn> stringCols = columns.stream()
                 .filter(c -> c.getType().getType() == ClickHouseDataType.String).collect(Collectors.toList());
@@ -717,23 +532,11 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         return quote(table.getName()) + "." + quote(picked.getName());
     }
 
-    // Single-snapshot value-equivalence check shared by the ALGEBRAIC_ID, EXPR_REWRITE and
-    // MULTIIF_EQUIV modes (and the 26.x COMPOUND_INTERVAL / OVERLAY modes). Both expressions are
-    // projected as two columns of ONE SELECT, so they are
-    // evaluated against the same table snapshot. This is what makes the comparison sound under
-    // concurrent async mutations: a previous design read the original and transformed forms as two
-    // SEPARATE queries, and an in-flight `ALTER TABLE ... DELETE WHERE <truthy>` mutation completing
-    // between the two reads produced a spurious "16 rows vs 0 rows" mismatch (root-caused 2026-06-02
-    // on the reverse_reverse identity). Comparing two columns of the same query removes the race and
-    // halves the query count. Rows are compared positionally (no sort): both columns come from the
-    // same rows in the same order, and a per-row a!=b is the divergence.
     private void assertSingleSnapshotEquivalent(ClickHouseTable table, String origExpr, String transExpr, String label)
             throws SQLException {
         assertTwoColumnAgreement(origExpr, transExpr, " FROM " + quote(table.getName()), label);
     }
 
-    // Constant-only variant for table-independent identities (NATURAL_SORT_KEY): a SELECT without
-    // FROM evaluates both columns once against no table at all, which is trivially single-snapshot.
     private void assertConstantEquivalent(String origExpr, String transExpr, String label) throws SQLException {
         assertTwoColumnAgreement(origExpr, transExpr, "", label);
     }
@@ -766,11 +569,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         }
     }
 
-    // ----- Row collection and SQL helpers (shared with later units) -----
-
-    // Execute a query and return its rows as a Java-side sorted list of pipe-delimited strings.
-    // Sorting on the Java side avoids relying on an SQL ORDER BY, which would itself be subject to
-    // the constant-folding pipeline EET is testing.
     List<String> collectRows(String query) throws SQLException {
         List<String> rows = new ArrayList<>();
         try (Statement s = state.getConnection().createStatement(); ResultSet rs = s.executeQuery(query)) {
@@ -794,8 +592,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         return rows;
     }
 
-    // Bridge expected-error catalog matching: throw IgnoreMeException for known noise, propagate
-    // anything else as a real failure.
     SQLException maybeIgnore(SQLException ex) {
         if (ex.getMessage() != null && errors.errorIsExpected(ex.getMessage())) {
             throw new IgnoreMeException();
@@ -807,7 +603,6 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         return "`" + identifier.replace("`", "``") + "`";
     }
 
-    // Single-quote a string literal for embedding in SQL, with backslash and quote escaping.
     static String sqlQuote(String s) {
         return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'";
     }

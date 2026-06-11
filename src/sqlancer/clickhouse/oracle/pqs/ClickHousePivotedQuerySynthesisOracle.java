@@ -33,27 +33,6 @@ import sqlancer.common.query.ExpectedErrors;
 import sqlancer.common.query.Query;
 import sqlancer.common.query.SQLQueryAdapter;
 
-/**
- * Pivoted Query Synthesis (PQS) for ClickHouse, following Rigger &amp; Su, OSDI 2020.
- *
- * The classical SQLancer PQS implementation (e.g. SQLite3) requires every AST node to expose a Java-side
- * {@code getExpectedValue()} that mirrors the DBMS' evaluation semantics. ClickHouse's fork does not provide that for
- * most generated expressions, and reproducing all of ClickHouse's coercion / NULL / arithmetic rules in Java would be
- * an open-ended effort.
- *
- * Instead we delegate rectification to the server: for each randomly generated predicate we ask ClickHouse what the
- * predicate evaluates to on the pivot row by embedding the pivot row's values as literals in a one-row subquery and
- * running the predicate against it. Based on the TRUE / FALSE / NULL answer we either keep the predicate, negate it, or
- * wrap it in {@code IS NULL} so that the conjunction is guaranteed to hold for the pivot row.
- *
- * The pivot row may span 1-3 tables (paper Figure 1 / Section 3.1): each pivot "row" is the cross-product of one
- * randomly-selected row from each chosen table, and predicates reference table-qualified columns from any of them. The
- * optional query elaborations from Section 3.2 (DISTINCT, GROUP BY all pivot columns, ORDER BY) are attached
- * probabilistically; each preserves containment by construction.
- *
- * Containment is checked with {@code INTERSECT}, which treats NULLs as equal in ClickHouse and so handles nullable
- * columns without explicit {@code IS NOT DISTINCT FROM} comparisons.
- */
 public class ClickHousePivotedQuerySynthesisOracle extends
         PivotedQuerySynthesisBase<ClickHouseGlobalState, ClickHouseRowValue, ClickHouseExpression, SQLConnection> {
 
@@ -80,8 +59,6 @@ public class ClickHousePivotedQuerySynthesisOracle extends
             throw new IgnoreMeException();
         }
 
-        // Paper Section 3.1: the pivot row may consist of columns drawn from
-        // multiple tables / views. Choose 1-3 distinct tables.
         int desired = (int) Randomly.getNotCachedInteger(1, Math.min(nonEmpty.size(), MAX_PIVOT_TABLES) + 1);
         List<ClickHouseTable> pivotTables = Randomly.nonEmptySubset(nonEmpty, desired);
 
@@ -136,8 +113,7 @@ public class ClickHousePivotedQuerySynthesisOracle extends
 
     @Override
     protected String getExpectedValues(ClickHouseExpression expr) {
-        // ClickHouse expressions don't carry per-node expected values; the
-        // base class uses this only for the post-failure diagnostic log.
+
         return ClickHouseVisitor.asString(expr);
     }
 
@@ -148,18 +124,16 @@ public class ClickHousePivotedQuerySynthesisOracle extends
                 .collect(Collectors.joining(" AND "));
 
         StringBuilder sb = new StringBuilder("SELECT ");
-        // Optional DISTINCT (Section 3.2): preserves the pivot row.
+
         if (Randomly.getBooleanWithSmallProbability()) {
             sb.append("DISTINCT ");
         }
         sb.append(projection).append(" FROM ").append(from).append(" WHERE ").append(whereClause);
 
-        // Optional GROUP BY (Section 3.2): must include every pivot-row
-        // column to keep the row in the grouped result.
         if (Randomly.getBooleanWithSmallProbability()) {
             sb.append(" GROUP BY ").append(projection);
         }
-        // Optional ORDER BY (Section 3.2): does not influence membership.
+
         if (Randomly.getBooleanWithSmallProbability()) {
             sb.append(" ORDER BY ").append(Randomly.fromOptions("rand()", projection));
         }
@@ -176,15 +150,12 @@ public class ClickHousePivotedQuerySynthesisOracle extends
         try (Statement s = globalState.getConnection().createStatement();
                 ResultSet rs = s.executeQuery(sb.toString())) {
             if (!rs.next()) {
-                // Table is empty even though the schema reported it as non-empty;
-                // a concurrent test run may have truncated it.
+
                 throw new IgnoreMeException();
             }
             for (int i = 0; i < columns.size(); i++) {
                 ClickHouseColumn c = columns.get(i);
-                // ClickHouseSchema.getConstant covers the v1 primitives and throws IgnoreMeException
-                // for anything else, so the pivot attempt is abandoned quietly when a column type
-                // is outside the v1 round-trip set.
+
                 values.put(c, ClickHouseSchema.getConstant(rs, i + 1, c.getType().getType()));
             }
         } catch (SQLException e) {
@@ -196,24 +167,6 @@ public class ClickHousePivotedQuerySynthesisOracle extends
         return values;
     }
 
-    /**
-     * Asks ClickHouse what the predicate evaluates to on the pivot row, and returns an equivalent expression that is
-     * guaranteed to be TRUE on that row: {@code pred} itself if it was TRUE, {@code NOT pred} if it was FALSE, or
-     * {@code pred IS NULL} if it was NULL.
-     *
-     * <p>
-     * For a multi-table pivot, the probe builds a one-row alias per pivot table:
-     * {@code (SELECT lit AS c0, lit AS c1) AS t1, (SELECT lit AS c0) AS t2}, so table-qualified column references in
-     * {@code pred} resolve against the matching literal-typed subquery.
-     *
-     * @param pred
-     *            the random predicate to rectify
-     *
-     * @return an expression that evaluates to TRUE on the pivot row
-     *
-     * @throws SQLException
-     *             if the probe query fails with an unexpected error
-     */
     private ClickHouseExpression rectifyAgainstPivot(ClickHouseExpression pred) throws SQLException {
         String predSql = ClickHouseVisitor.asString(pred);
 
@@ -251,10 +204,7 @@ public class ClickHousePivotedQuerySynthesisOracle extends
             }
             return new ClickHouseUnaryPrefixOperation(pred, ClickHouseUnaryPrefixOperator.NOT);
         } catch (SQLException ex) {
-            // Type errors, overflows, regex-compile errors, MEMORY_LIMIT_EXCEEDED, etc. in the
-            // randomly-generated predicate are not bugs in ClickHouse — drop this attempt.
-            // Walk the cause chain via the centralised helper so deeply-nested CH exceptions
-            // (wrapped in a JDBC SQLException) get absorbed.
+
             if (sqlancer.clickhouse.ClickHouseErrors.isToleratedException(ex)) {
                 throw new IgnoreMeException();
             }

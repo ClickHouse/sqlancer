@@ -21,7 +21,6 @@ public class HiveSchema extends AbstractSchema<HiveGlobalState, HiveTable> {
 
     public enum HiveDataType {
 
-        // TODO: support more types, e.g. TIMESTAMP, DATE, VARCHAR, CHAR, BINARY, ARRAY, MAP, STRUCT, UNIONTYPE...
         STRING, INT, DOUBLE, BOOLEAN;
 
         public static HiveDataType getRandomType() {

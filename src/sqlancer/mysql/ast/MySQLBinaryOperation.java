@@ -75,7 +75,6 @@ public class MySQLBinaryOperation implements MySQLExpression {
         MySQLConstant leftExpected = left.getExpectedValue();
         MySQLConstant rightExpected = right.getExpectedValue();
 
-        /* workaround for https://bugs.mysql.com/bug.php?id=95960 */
         if (leftExpected.isString()) {
             String text = leftExpected.castAsString();
             while (text.startsWith(" ") || text.startsWith("\t")) {

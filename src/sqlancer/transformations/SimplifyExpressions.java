@@ -12,10 +12,6 @@ import net.sf.jsqlparser.statement.select.Select;
 import net.sf.jsqlparser.util.deparser.ExpressionDeParser;
 import net.sf.jsqlparser.util.deparser.SelectDeParser;
 
-/**
- * This transformation simplifies complicated expressions e.g: a + (b + c) -> b.
- */
-
 public class SimplifyExpressions extends JSQLParserBasedTransformation {
     public SimplifyExpressions() {
         super("simplify expressions. e.g. a + b -> a");

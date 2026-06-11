@@ -28,7 +28,6 @@ public class ASTBasedReducer<G extends GlobalState<O, ?, C>, O extends DBMSSpeci
     private Reproducer<G> reproducer;
 
     private List<Query<C>> reducedStatements;
-    // statement after reduction.
 
     public ASTBasedReducer(DatabaseProvider<G, O, C> provider) {
         this.provider = provider;
@@ -127,7 +126,7 @@ public class ASTBasedReducer<G extends GlobalState<O, ?, C>, O extends DBMSSpeci
                 try {
                     s.execute(newGlobalState);
                 } catch (Throwable ignoredException) {
-                    // ignore
+
                 }
             }
             try {

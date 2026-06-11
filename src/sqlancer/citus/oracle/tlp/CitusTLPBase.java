@@ -82,17 +82,14 @@ public class CitusTLPBase extends PostgresTLPBase {
         if (distributedTables.isEmpty()
                 || !referenceTables.isEmpty() && !Randomly.getBooleanWithRatherLowProbability()) {
             if (!localTables.isEmpty()) {
-                // joins including only local tables
-                // supports complex joins
+
                 targetTables = new PostgresTables(Randomly.nonEmptySubset(localTables));
             }
             if (!referenceTables.isEmpty()) {
-                // joins including reference tables
-                // supports complex joins
+
                 List<PostgresTable> targetTableList = new ArrayList<>(referenceTables);
                 if (!distributedTables.isEmpty()) {
-                    // joins including distributed and reference tables
-                    // supports complex joins
+
                     targetTableList.add(Randomly.fromList(new ArrayList<>(distributedTables.keySet())));
                 }
                 targetTables = new PostgresTables(Randomly.nonEmptySubset(targetTableList));
@@ -100,9 +97,7 @@ public class CitusTLPBase extends PostgresTLPBase {
             tables.addAll(targetTables.getTables());
             joins = getJoinStatements(state, targetTables.getColumns(), tables);
         } else {
-            // joins between distributed tables
-            // join including distribution columns
-            // supports complex joins if colocated
+
             tables.addAll(Randomly.nonEmptySubset(new ArrayList<>(distributedTables.keySet())));
             targetTables = new PostgresTables(tables);
             CitusTable fromTable = (CitusTable) Randomly.fromList(tables);
@@ -136,12 +131,12 @@ public class CitusTLPBase extends PostgresTLPBase {
             PostgresExpressionGenerator citusJoinGen) {
         PostgresExpression leftExpr = new PostgresColumnValue(fromTable.getDistributionColumn(), null);
         PostgresExpression rightExpr = new PostgresColumnValue(joinTable.getDistributionColumn(), null);
-        // JOIN over equality between the distribution columns of the tables being joined
+
         PostgresExpression equiJoinClause = new PostgresBinaryComparisonOperation(leftExpr, rightExpr,
                 PostgresBinaryComparisonOperation.PostgresBinaryComparisonOperator.EQUALS);
         PostgresExpression joinClause = null;
         if (Randomly.getBooleanWithSmallProbability()) {
-            // add randomly generated boolean statement to JOIN clause
+
             joinClause = new PostgresBinaryLogicalOperation(equiJoinClause,
                     citusJoinGen.generateExpression(PostgresDataType.BOOLEAN),
                     PostgresBinaryLogicalOperation.BinaryLogicalOperator.AND);
@@ -162,8 +157,7 @@ public class CitusTLPBase extends PostgresTLPBase {
             return null;
         }
         PostgresExpression rightExpr = new PostgresColumnValue(Randomly.fromList(candidateRightColumns), null);
-        // JOIN over equality between the distribution column of one table and a column that matches the data type from
-        // the other table being joined
+
         PostgresExpression joinClause = new PostgresBinaryComparisonOperation(leftExpr, rightExpr,
                 PostgresBinaryComparisonOperation.PostgresBinaryComparisonOperator.EQUALS);
         PostgresJoinType options = PostgresJoinType.INNER;
@@ -179,7 +173,7 @@ public class CitusTLPBase extends PostgresTLPBase {
         List<PostgresJoin> joinStatements = new ArrayList<>();
         PostgresExpressionGenerator citusJoinGen = new PostgresExpressionGenerator(globalState).setColumns(columns);
         joinTables.remove(fromTable);
-        // check if all tables being joined are colocated
+
         boolean allColocated = true;
         for (PostgresTable t : joinTables) {
             boolean colocated = distributedTables.get(fromTable).equals(distributedTables.get(t));
@@ -191,7 +185,7 @@ public class CitusTLPBase extends PostgresTLPBase {
             PostgresJoin j = null;
             if (allColocated) {
                 j = allColocatedJoins(table, fromTable, citusJoinGen);
-                // check if repartition joins are allowed if all tables are not colocated
+
             } else if (globalState.getRepartition()) {
                 j = repartitionJoins(table, fromTable);
             }
@@ -205,7 +199,7 @@ public class CitusTLPBase extends PostgresTLPBase {
 
     private void addSubqueryJoinStatements(PostgresGlobalState globalState, List<PostgresJoin> joinStatements,
             PostgresTable fromTable) {
-        // JOIN with subquery
+
         for (int i = 0; i < Randomly.smallNumber(); i++) {
             PostgresTables subqueryTables = new PostgresTables(Randomly.nonEmptySubset(localTables));
             List<PostgresColumn> columns = new ArrayList<>();

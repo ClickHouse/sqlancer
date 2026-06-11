@@ -18,41 +18,18 @@ import sqlancer.common.query.SQLancerResultSet;
 
 public final class ComparatorHelper {
 
-    /**
-     * Comparison semantics for {@link #assumeResultSetsAreEqual}.
-     *
-     * <p>
-     * Set-vs-multiset matters because TLP-style oracles compare a single original query against a UNION ALL of
-     * partition branches. With set semantics, a row produced K times by one side and once by the other looks equal.
-     * Multiset semantics catches the difference. SQL-result-set equality is structurally a multiset comparison; the
-     * historical {@link #SET} default exists to stay backwards-compatible with oracles whose underlying invariant is
-     * set-shaped (e.g. SELECT DISTINCT). Per-cell float normalisation handles aggregate-rendering differences in ULP
-     * modes.
-     */
     public enum ComparisonMode {
-        /** HashSet equality with float-canonicalization fallback. Historical default. */
+
         SET,
-        /** Multiset equality on raw strings with float-canonicalization fallback. */
+
         MULTISET,
-        /** Multiset equality after per-cell float canonicalization. Use for aggregate outputs. */
+
         ULP_TOLERANT_MULTISET
     }
 
     private ComparatorHelper() {
     }
 
-    /**
-     * Equivalent of {@code s.replaceAll("[\\.]0+$", "")} -- trim a literal dot followed by one or more trailing zeros
-     * at the end of the string. The original regex form dominated the SQLancer-side CPU profile
-     * (`Pattern.compile`/`Matcher.replaceAll` was ~24% of execution samples in the 2026-05-19 ClickHouse baseline,
-     * because it ran on every row of every oracle-emitted result set). Scanning from the end is constant-time for the
-     * common case of strings that don't end in '0' (single char compare) and at most O(n) for trailing-zero runs.
-     *
-     * @param s
-     *            the string to trim
-     *
-     * @return the string with a trailing dot followed by zeros removed, or the original string if no such suffix
-     */
     private static String trimTrailingDotZeros(String s) {
         int len = s.length();
         if (len < 2 || s.charAt(len - 1) != '0') {
@@ -82,19 +59,19 @@ public final class ComparatorHelper {
         if (a == b) {
             return true;
         }
-        // If the difference is less than epsilon, treat as equal.
+
         return Math.abs(a - b) < 0.001 * Math.max(Math.abs(a), Math.abs(b)) + 0.001;
     }
 
     public static List<String> getResultSetFirstColumnAsString(String queryString, ExpectedErrors errors,
             SQLGlobalState<?, ?> state) throws SQLException {
         if (state.getOptions().logEachSelect()) {
-            // TODO: refactor me
+
             state.getLogger().writeCurrent(queryString);
             try {
                 state.getLogger().getCurrentFileWriter().flush();
             } catch (IOException e) {
-                // TODO Auto-generated catch block
+
                 e.printStackTrace();
             }
         }
@@ -110,7 +87,7 @@ public final class ComparatorHelper {
             while (result.next()) {
                 String resultTemp = result.getString(1);
                 if (resultTemp != null) {
-                    // Remove trailing dot-zeros as many DBMS treat it as non-bugs.
+
                     resultTemp = trimTrailingDotZeros(resultTemp);
                 }
                 resultSet.add(resultTemp);
@@ -205,15 +182,6 @@ public final class ComparatorHelper {
         }
     }
 
-    // Floating-point summation is not associative: SUM over all rows and SUM over a UNION ALL of
-    // partition sub-sums combine partial sums in a different order, and even a single aggregate
-    // query's result wobbles purely with max_threads (the parallel partial-sum merge order). On
-    // ClickHouse aggregate oracles the observed divergence is ~1 ULP (relative ~1e-13..1e-16; proven
-    // by replaying a SUM(tan(c0)) reproducer across max_threads=1..16 and watching only the last
-    // digits move). The legacy string/representation canonicalization in ULP_TOLERANT_MULTISET does
-    // NOT absorb this -- two doubles one ULP apart have distinct shortest-round-trip strings. These
-    // tolerances are ~6 orders of magnitude tighter than the legacy equals() (1e-3 relative), so a
-    // genuine aggregation wrong-result stays visible while reorder noise is absorbed.
     private static final double FLOAT_REL_TOLERANCE = 1e-9;
     private static final double FLOAT_ABS_TOLERANCE = 1e-9;
 
@@ -225,11 +193,6 @@ public final class ComparatorHelper {
         return diff <= FLOAT_REL_TOLERANCE * Math.max(Math.abs(a), Math.abs(b)) + FLOAT_ABS_TOLERANCE;
     }
 
-    // Multiset equality that tolerates ULP-level float divergence. Non-numeric and non-finite
-    // (NaN/Infinity) entries are matched exactly as a multiset, so e.g. NaN-distinctness divergence
-    // is never masked; finite doubles are sorted and compared pairwise within tolerance. Integers
-    // are parsed as doubles too, but the minimum integer gap (1) dwarfs the tolerance, so distinct
-    // integers never collide.
     static boolean floatTolerantMultisetsEqual(List<String> a, List<String> b) {
         if (a.size() != b.size()) {
             return false;
@@ -323,8 +286,7 @@ public final class ComparatorHelper {
     public static void assumeResultSetsAreEqual(List<String> resultSet, List<String> secondResultSet,
             String originalQueryString, List<String> combinedString, SQLGlobalState<?, ?> state,
             UnaryOperator<String> canonicalizationRule) {
-        // Overloaded version of assumeResultSetsAreEqual that takes a canonicalization function which is applied to
-        // both result sets before their comparison.
+
         List<String> canonicalizedResultSet = resultSet.stream().map(canonicalizationRule).collect(Collectors.toList());
         List<String> canonicalizedSecondResultSet = secondResultSet.stream().map(canonicalizationRule)
                 .collect(Collectors.toList());
@@ -369,10 +331,6 @@ public final class ComparatorHelper {
         return secondResultSet;
     }
 
-    // Apply float normalization to every entry that parses as a finite double; pass through the
-    // rest. The cheap pre-check (must contain a digit AND a fraction marker '.', 'e', or 'E')
-    // avoids reformatting integer-looking strings like "50000" into "50000.0", which would
-    // create false-positive divergence on its own.
     private static Set<String> canonicalizeFloats(List<String> values) {
         Set<String> out = new HashSet<>(values.size() * 2);
         for (String v : values) {

@@ -63,10 +63,7 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
         if (inner) {
             sb.append("(");
         }
-        // WITH clause: alias-CTEs of the form `expr AS alias`. Each entry already carries the
-        // alias via ClickHouseAliasOperation; we just emit the comma-separated list and the
-        // SELECT that follows references the aliases by name through the standard column-
-        // reference path. Workstream 17.
+
         if (!select.getWithClauses().isEmpty()) {
             sb.append("WITH ");
             for (int i = 0; i < select.getWithClauses().size(); i++) {
@@ -95,15 +92,11 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
             sb.append(" FROM ");
             visit(fromList);
         }
-        // FINAL binds to the FROM table and precedes JOIN/PREWHERE/WHERE per ClickHouse grammar.
-        // The select object's FINAL flag is only set when the table is a MergeTree-family engine
-        // (the only family the table generator emits); plain MergeTree with no version column
-        // accepts FINAL as a no-op deduplication step.
+
         if (select.isFinal()) {
             sb.append(" FINAL");
         }
-        // ARRAY JOIN binds to the table before any regular JOIN per ClickHouse grammar. Default-empty;
-        // the generator never populates this field until type-system v2 introduces Array columns.
+
         List<ClickHouseExpression> arrayJoinExprs = select.getArrayJoinExprs();
         if (!arrayJoinExprs.isEmpty()) {
             sb.append(select.isArrayJoinLeft() ? " LEFT ARRAY JOIN " : " ARRAY JOIN ");
@@ -115,10 +108,7 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
                 visit(join);
             }
         }
-        // PREWHERE is ClickHouse-specific and is grammatically required to appear before WHERE. It
-        // is meaningfully distinct from WHERE -- see ClickHouseSelect#prewhereClause for why we
-        // generate it independently rather than relying on the server's optimize_move_to_prewhere
-        // rewrite.
+
         if (select.getPrewhereClause() != null) {
             sb.append(" PREWHERE ");
             visit(select.getPrewhereClause());
@@ -171,7 +161,7 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
 
     @Override
     public void visit(ClickHouseTableReference tableReference) {
-        sb.append(tableReference.getTable().getName()); // Original name, not alias.
+        sb.append(tableReference.getTable().getName());
         String alias = tableReference.getAlias();
         if (alias != null) {
             sb.append(" AS " + alias);
@@ -183,9 +173,7 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
     public void visit(ClickHouseAggregate aggregate) {
         List<ClickHouseAggregateCombinator> chain = aggregate.getChain();
         if (chain.isEmpty()) {
-            // Backward-compatible plain-aggregate rendering: getName() returns the enum's upper-case
-            // spelling for the historical five (SUM/COUNT/...) so oracles/tests matching `SUM(...)`
-            // stay stable, and the documented camelCase for newer functions (uniqExact/argMin/...).
+
             sb.append(aggregate.getFunc().getName());
             sb.append("(");
             visit(aggregate.getExpr());
@@ -196,12 +184,7 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
             sb.append(")");
             return;
         }
-        // Combinator-chain rendering: fold the suffixes into the function name (lower-cased base
-        // because ClickHouse's combinator-token convention is camelCase like `sumIf`), then emit
-        // the expression, any extra value args, and each combinator's extra args in declaration
-        // order inside one paren group. ClickHouse resolves the base function name case-
-        // insensitively, so lower-casing the base while keeping the suffix casing yields `sumIf`,
-        // `uniqexactIf`, etc.
+
         sb.append(aggregate.getFunc().getName().toLowerCase());
         for (ClickHouseAggregateCombinator combinator : chain) {
             sb.append(combinator.getSuffix().getTextual());
@@ -223,10 +206,7 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
 
     @Override
     public void visit(ClickHouseCastOperation cast) {
-        // Render the full compound type (e.g. `FixedString(5)`, `Decimal(9, 3)`, `Nullable(Int32)`)
-        // not just the root ClickHouseDataType enum -- the JDBC enum loses the parameter slots so
-        // `FixedString` alone would be rejected with "FixedString data type family must have
-        // exactly one argument".
+
         sb.append("CAST(");
         visit(cast.getExpression());
         sb.append(" AS ");
@@ -305,10 +285,7 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
             sb.append(".");
             sb.append(c.getColumn().getName());
         } else if (c.getTableAlias() != null) {
-            // Empty alias is the explicit "render unqualified" sentinel. Mutation predicates
-            // (ALTER ... UPDATE/DELETE WHERE) are parsed in a single-table scope where CH cannot
-            // resolve table-qualified identifiers (`t0.c0` -> UNKNOWN_IDENTIFIER, Code 47), so the
-            // mutation generator asks for bare column names via asColumnReference("").
+
             sb.append(c.getColumn().getName());
         } else if (c.getColumn().getTable() == null) {
             sb.append(c.getColumn().getName());
@@ -327,8 +304,7 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
 
     @Override
     public void visit(ClickHouseExpression.ClickHousePostfixText op) {
-        // Render as `expr text` when expr is present, otherwise just the text. Used by the geo
-        // function emitter to ship a pre-rendered SQL fragment without re-wrapping it.
+
         if (op.getExpression() != null) {
             visit(op.getExpression());
         }
@@ -420,8 +396,7 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
 
     @Override
     public void visit(sqlancer.clickhouse.ast.ClickHouseLambda lambda) {
-        // Render as `(p1, p2) -> body`. Single-param form `p -> body` is also valid in CH but we
-        // always parenthesise for unambiguity.
+
         sb.append("(");
         java.util.List<String> params = lambda.getParams();
         for (int i = 0; i < params.size(); i++) {

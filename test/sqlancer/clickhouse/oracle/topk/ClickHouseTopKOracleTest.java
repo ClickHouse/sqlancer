@@ -14,15 +14,7 @@ import sqlancer.clickhouse.oracle.topk.ClickHouseTopKOracle.Cell;
 import sqlancer.clickhouse.oracle.topk.ClickHouseTopKOracle.NullsOrder;
 import sqlancer.clickhouse.oracle.topk.ClickHouseTopKOracle.SortKey;
 
-/**
- * DB-free tests for the top-k oracle's static helpers: query rendering (the soundness rule says projection == ORDER BY
- * keys, so the rendered text is load-bearing), sort-key type eligibility (floats out, string-shaped keys classified for
- * the var-length arm, Nullable unwrapped), and the positional row comparison (no Java-side sort; SQL NULL distinct from
- * the literal string "NULL").
- */
 class ClickHouseTopKOracleTest {
-
-    // ----- (a) query rendering -----
 
     @Test
     void rendersSingleIntKeyAscWithLimit() {
@@ -60,8 +52,7 @@ class ClickHouseTopKOracleTest {
 
     @Test
     void joinClauseQualifiesProjectionAndOrderBy() {
-        // Fleet tables share c0/c1/... names, so under a join every column reference must be
-        // table-qualified or the query dies on ambiguity instead of testing top-k-through-join.
+
         String join = ClickHouseTopKOracle.renderLeftJoin("t0", "c1", "t1", "c2");
         assertEquals("LEFT JOIN t1 ON t0.`c1` = t1.`c2`", join);
         String sql = ClickHouseTopKOracle.renderQuery("t0", join,
@@ -78,14 +69,12 @@ class ClickHouseTopKOracleTest {
 
     @Test
     void projectionIsExactlyTheOrderByColumnsInOrder() {
-        // The soundness rule itself: same columns, same order, nothing else projected.
+
         String sql = ClickHouseTopKOracle.renderQuery("t0", null,
                 List.of(new SortKey("b", false, NullsOrder.DEFAULT), new SortKey("a", true, NullsOrder.DEFAULT)), 3,
                 -1, "");
         assertEquals("SELECT `b`, `a` FROM t0 ORDER BY `b` DESC, `a` ASC LIMIT 3", sql);
     }
-
-    // ----- (b) type eligibility -----
 
     @Test
     void floatKeysAreExcludedIncludingWrappedForms() {
@@ -138,8 +127,6 @@ class ClickHouseTopKOracleTest {
         assertFalse(ClickHouseTopKOracle.isNullableKey(new ClickHouseLancerDataType("LowCardinality(String)")));
     }
 
-    // ----- (c) positional list comparison -----
-
     @Test
     void equalListsReportNoDivergence() {
         List<List<Cell>> a = List.of(List.of(Cell.of("1"), Cell.NULL), List.of(Cell.of("2"), Cell.of("x")));
@@ -156,7 +143,7 @@ class ClickHouseTopKOracleTest {
 
     @Test
     void prefixListDivergesAtTheBoundary() {
-        // The missing-row-at-the-LIMIT-boundary shape: one arm returns a strict prefix of the other.
+
         List<List<Cell>> a = List.of(List.of(Cell.of("1")), List.of(Cell.of("2")));
         List<List<Cell>> b = List.of(List.of(Cell.of("1")), List.of(Cell.of("2")), List.of(Cell.of("3")));
         assertEquals(2, ClickHouseTopKOracle.firstDivergence(a, b));
@@ -167,8 +154,7 @@ class ClickHouseTopKOracleTest {
 
     @Test
     void orderMattersComparisonIsPositional() {
-        // Same multiset, different order MUST diverge -- the lists are ordered by contract and a
-        // Java-side sort is forbidden (ComparableTimSort NPE family on SQL NULLs).
+
         List<List<Cell>> a = List.of(List.of(Cell.of("1")), List.of(Cell.of("2")));
         List<List<Cell>> b = List.of(List.of(Cell.of("2")), List.of(Cell.of("1")));
         assertEquals(0, ClickHouseTopKOracle.firstDivergence(a, b));
@@ -176,13 +162,12 @@ class ClickHouseTopKOracleTest {
 
     @Test
     void sqlNullIsDistinctFromLiteralNullString() {
-        // Cell carries wasNull() as a flag, so a column whose VALUE is the string "NULL" cannot
-        // collide with SQL NULL.
+
         assertNotEquals(Cell.NULL, Cell.of("NULL"));
         List<List<Cell>> a = List.of(List.of(Cell.NULL));
         List<List<Cell>> b = List.of(List.of(Cell.of("NULL")));
         assertEquals(0, ClickHouseTopKOracle.firstDivergence(a, b));
-        // Both render as "NULL" in the human-readable message -- that is cosmetic only.
+
         assertEquals("NULL", ClickHouseTopKOracle.renderRowAt(a, 0));
         assertEquals("NULL", ClickHouseTopKOracle.renderRowAt(b, 0));
     }

@@ -5,18 +5,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 
-/**
- * Minimal {@link PreparedStatement} (which extends {@link java.sql.Statement}) that funnels every execute call through
- * the underlying {@link ClickHouseTransport}.
- *
- * sqlancer's executor calls one of {@code execute(sql)}, {@code executeQuery(sql)}, or {@code executeUpdate(sql)} on a
- * {@code java.sql.Statement}, plus the no-arg variants on the {@link PreparedStatement} the SQLQueryAdapter creates by
- * passing the SQL at preparation time. Nothing else is exercised.
- */
 final class ClickHouseTransportStatement implements PreparedStatement {
 
     private final ClickHouseTransportConnection con;
-    // null for plain Statement created via createStatement()
+
     private final String preparedSql;
     private ClickHouseTransportResultSet currentResultSet;
     private int currentUpdateCount = -1;
@@ -26,8 +18,6 @@ final class ClickHouseTransportStatement implements PreparedStatement {
         this.con = con;
         this.preparedSql = preparedSql;
     }
-
-    // ---- the methods sqlancer actually calls ----
 
     @Override
     public boolean execute() throws SQLException {
@@ -46,7 +36,7 @@ final class ClickHouseTransportStatement implements PreparedStatement {
 
     @Override
     public boolean execute(String sql) throws SQLException {
-        // sqlancer's executor uses .execute() for INSERT and DDL; treat as update.
+
         executeUpdateInternal(sql);
         return false;
     }
@@ -95,8 +85,6 @@ final class ClickHouseTransportStatement implements PreparedStatement {
         return preparedSql;
     }
 
-    // ---- everything else: throw, so silent no-ops don't mask gaps -----------------------------
-
     @Override
     public ResultSet getResultSet() {
         return currentResultSet;
@@ -124,11 +112,11 @@ final class ClickHouseTransportStatement implements PreparedStatement {
 
     @Override
     public void setMaxRows(int max) {
-        /* no-op */ }
+         }
 
     @Override
     public void setMaxFieldSize(int max) {
-        /* no-op */ }
+         }
 
     @Override
     public int getMaxFieldSize() {
@@ -142,15 +130,15 @@ final class ClickHouseTransportStatement implements PreparedStatement {
 
     @Override
     public void setQueryTimeout(int sec) {
-        /* no-op */ }
+         }
 
     @Override
     public void setEscapeProcessing(boolean enable) {
-        /* no-op */ }
+         }
 
     @Override
     public void cancel() {
-        /* no-op */ }
+         }
 
     @Override
     public SQLWarning getWarnings() {
@@ -159,15 +147,15 @@ final class ClickHouseTransportStatement implements PreparedStatement {
 
     @Override
     public void clearWarnings() {
-        /* no-op */ }
+         }
 
     @Override
     public void setCursorName(String name) {
-        /* no-op */ }
+         }
 
     @Override
     public void setFetchDirection(int dir) {
-        /* no-op */ }
+         }
 
     @Override
     public int getFetchDirection() {
@@ -176,7 +164,7 @@ final class ClickHouseTransportStatement implements PreparedStatement {
 
     @Override
     public void setFetchSize(int rows) {
-        /* no-op */ }
+         }
 
     @Override
     public int getFetchSize() {
@@ -225,11 +213,11 @@ final class ClickHouseTransportStatement implements PreparedStatement {
 
     @Override
     public void setPoolable(boolean p) {
-        /* no-op */ }
+         }
 
     @Override
     public void closeOnCompletion() {
-        /* no-op */ }
+         }
 
     @Override
     public boolean isCloseOnCompletion() {
@@ -281,7 +269,6 @@ final class ClickHouseTransportStatement implements PreparedStatement {
         return false;
     }
 
-    // ---- PreparedStatement-specific (parameter setters); sqlancer doesn't bind params ----
     @Override
     public void setNull(int p, int t) {
         unsupported("setNull");

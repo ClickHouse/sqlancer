@@ -76,7 +76,7 @@ public abstract class SQLite3Expression implements Expression<SQLite3Column> {
 
         @Override
         public SQLite3CollateSequence getImplicitCollateSequence() {
-            // https://www.sqlite.org/src/tktview/18ab5da2c05ad57d7f9d79c41d3138b141378543
+
             return expr.getImplicitCollateSequence();
         }
 
@@ -94,17 +94,10 @@ public abstract class SQLite3Expression implements Expression<SQLite3Column> {
         }
     }
 
-    /*
-     * See https://www.sqlite.org/datatype3.html 3.2
-     */
     public TypeAffinity getAffinity() {
         return TypeAffinity.NONE;
     }
 
-    /*
-     * See https://www.sqlite.org/datatype3.html#assigning_collating_sequences_from_sql 7.1
-     *
-     */
     public abstract SQLite3CollateSequence getExplicitCollateSequence();
 
     public SQLite3CollateSequence getImplicitCollateSequence() {
@@ -298,10 +291,6 @@ public abstract class SQLite3Expression implements Expression<SQLite3Column> {
             }
         }
 
-        /**
-         * An expression of the form "CAST(expr AS type)" has an affinity that is the same as a column with a declared
-         * type of "type".
-         */
         @Override
         public TypeAffinity getAffinity() {
             switch (type.type) {
@@ -479,9 +468,6 @@ public abstract class SQLite3Expression implements Expression<SQLite3Column> {
             return expression;
         }
 
-        // If either operand has an explicit collating function assignment using the
-        // postfix COLLATE operator, then the explicit collating function is used for
-        // comparison, with precedence to the collating function of the left operand.
         @Override
         public SQLite3CollateSequence getExplicitCollateSequence() {
             return collate;
@@ -653,8 +639,7 @@ public abstract class SQLite3Expression implements Expression<SQLite3Column> {
         }
 
         @Override
-        // The collating sequence used for expressions of the form "x IN (y, z, ...)" is
-        // the collating sequence of x.
+
         public SQLite3CollateSequence getExplicitCollateSequence() {
             if (left.getExplicitCollateSequence() != null) {
                 return left.getExplicitCollateSequence();
@@ -665,7 +650,7 @@ public abstract class SQLite3Expression implements Expression<SQLite3Column> {
 
         @Override
         public SQLite3Constant getExpectedValue() {
-            // TODO query as right hand side is not implemented
+
             if (left.getExpectedValue() == null) {
                 return null;
             }
@@ -677,7 +662,7 @@ public abstract class SQLite3Expression implements Expression<SQLite3Column> {
                 boolean containsNull = false;
                 for (SQLite3Expression expr : getRightExpressionList()) {
                     if (expr.getExpectedValue() == null) {
-                        return null; // TODO: we can still compute something if the value is already contained
+                        return null;
                     }
                     SQLite3CollateSequence collate = getExplicitCollateSequence();
                     if (collate == null) {
@@ -1017,7 +1002,7 @@ public abstract class SQLite3Expression implements Expression<SQLite3Column> {
                         }
 
                     case '*':
-                        // match
+
                         boolean foundMatch = match(str, regex, regexPosition, strPosition + 1);
                         if (!foundMatch) {
                             return match(str, regex, regexPosition + 1, strPosition);
@@ -1079,24 +1064,18 @@ public abstract class SQLite3Expression implements Expression<SQLite3Column> {
                     right = rightBeforeAffinity;
                 }
 
-                // If either operand has an explicit collating function assignment using the
-                // postfix COLLATE operator, then the explicit collating function is used for
-                // comparison, with precedence to the collating function of the left operand.
                 SQLite3CollateSequence seq = origLeft.getExplicitCollateSequence();
                 if (seq == null) {
                     seq = origRight.getExplicitCollateSequence();
                 }
-                // If either operand is a column, then the collating function of that column is
-                // used with precedence to the left operand. For the purposes of the previous
-                // sentence, a column name preceded by one or more unary "+" operators is still
-                // considered a column name.
+
                 if (seq == null) {
                     seq = origLeft.getImplicitCollateSequence();
                 }
                 if (seq == null) {
                     seq = origRight.getImplicitCollateSequence();
                 }
-                // Otherwise, the BINARY collating function is used for comparison.
+
                 if (seq == null) {
                     seq = SQLite3CollateSequence.BINARY;
                 }
@@ -1159,7 +1138,7 @@ public abstract class SQLite3Expression implements Expression<SQLite3Column> {
                     return null;
                 }
 
-            }, // division by zero results in zero
+            },
             REMAINDER("%") {
                 @Override
                 SQLite3Constant apply(SQLite3Constant left, SQLite3Constant right) {
@@ -1400,10 +1379,6 @@ public abstract class SQLite3Expression implements Expression<SQLite3Column> {
             return value;
         }
 
-        /*
-         * When an expression is a simple reference to a column of a real table (not a VIEW or subquery) then the
-         * expression has the same affinity as the table column.
-         */
         @Override
         public TypeAffinity getAffinity() {
             switch (column.getType()) {
@@ -1451,9 +1426,7 @@ public abstract class SQLite3Expression implements Expression<SQLite3Column> {
 
     public static ConstantTuple applyAffinities(TypeAffinity leftAffinity, TypeAffinity rightAffinity,
             SQLite3Constant leftBeforeAffinity, SQLite3Constant rightBeforeAffinity) {
-        // If one operand has INTEGER, REAL or NUMERIC affinity and the other operand
-        // has TEXT or BLOB or no affinity then NUMERIC affinity is applied to other
-        // operand.
+
         SQLite3Constant left = leftBeforeAffinity;
         SQLite3Constant right = rightBeforeAffinity;
         if (leftAffinity.isNumeric() && (rightAffinity == TypeAffinity.TEXT || rightAffinity == TypeAffinity.BLOB
@@ -1466,8 +1439,6 @@ public abstract class SQLite3Expression implements Expression<SQLite3Column> {
             assert left != null;
         }
 
-        // If one operand has TEXT affinity and the other has no affinity, then TEXT
-        // affinity is applied to the other operand.
         if (leftAffinity == TypeAffinity.TEXT && rightAffinity == TypeAffinity.NONE) {
             right = right.applyTextAffinity();
             if (right == null) {
@@ -1673,9 +1644,6 @@ public abstract class SQLite3Expression implements Expression<SQLite3Column> {
         }
     }
 
-    // The ExpressionBag is not a built-in SQL feature,
-    // but rather a utility class used in CODDTest's oracle construction
-    // to substitute expressions with their corresponding constant values.
     public static class SQLite3ExpressionBag extends SQLite3Expression {
         private SQLite3Expression innerExpr;
 

@@ -35,7 +35,6 @@ public class PostgresOrderByTerm implements PostgresExpression {
 
     }
 
-    // Constructor for window functions, might be removed in the future to have only one constructor
     public PostgresOrderByTerm(PostgresExpression expr, boolean ascending) {
         if (expr == null) {
             throw new IllegalArgumentException("Expression cannot be null");

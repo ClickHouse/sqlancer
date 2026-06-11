@@ -2,24 +2,24 @@ package sqlancer.databend;
 
 public final class DatabendBugs {
 
-    public static boolean bug9018; // https://github.com/datafuselabs/databend/issues/9018
-    public static boolean bug9162; // https://github.com/datafuselabs/databend/issues/9162
-    public static boolean bug9163; // https://github.com/datafuselabs/databend/issues/9163
-    public static boolean bug9164 = true; // https://github.com/datafuselabs/databend/issues/9164
-    public static boolean bug9196 = true; // https://github.com/datafuselabs/databend/issues/9196
-    public static boolean bug9232 = true; // https://github.com/datafuselabs/databend/issues/9232
-    public static boolean bug9224 = true; // https://github.com/datafuselabs/databend/issues/9224
-    public static boolean bug9226 = true; // https://github.com/datafuselabs/databend/issues/9226
-    public static boolean bug9234 = true; // https://github.com/datafuselabs/databend/issues/9234
-    public static boolean bug9235 = true; // https://github.com/datafuselabs/databend/issues/9235
-    public static boolean bug9236 = true; // https://github.com/datafuselabs/databend/issues/9236
-    public static boolean bug9264 = true; // https://github.com/datafuselabs/databend/issues/9264
-    public static boolean bug9806 = true; // https://github.com/datafuselabs/databend/issues/9806
-    public static boolean bug15568 = true; // https://github.com/datafuselabs/databend/issues/15568
-    public static boolean bug15569 = true; // https://github.com/datafuselabs/databend/issues/15569
-    public static boolean bug15570 = true; // https://github.com/datafuselabs/databend/issues/15570
-    public static boolean bug15572 = true; // https://github.com/datafuselabs/databend/issues/15572
-    public static boolean bug19773 = true; // https://github.com/databendlabs/databend/issues/19773
+    public static boolean bug9018;
+    public static boolean bug9162;
+    public static boolean bug9163;
+    public static boolean bug9164 = true;
+    public static boolean bug9196 = true;
+    public static boolean bug9232 = true;
+    public static boolean bug9224 = true;
+    public static boolean bug9226 = true;
+    public static boolean bug9234 = true;
+    public static boolean bug9235 = true;
+    public static boolean bug9236 = true;
+    public static boolean bug9264 = true;
+    public static boolean bug9806 = true;
+    public static boolean bug15568 = true;
+    public static boolean bug15569 = true;
+    public static boolean bug15570 = true;
+    public static boolean bug15572 = true;
+    public static boolean bug19773 = true;
 
     private DatabendBugs() {
     }

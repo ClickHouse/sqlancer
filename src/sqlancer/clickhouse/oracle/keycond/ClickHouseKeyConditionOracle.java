@@ -19,37 +19,6 @@ import sqlancer.clickhouse.gen.ClickHouseExpressionGenerator;
 import sqlancer.common.oracle.TestOracle;
 import sqlancer.common.query.ExpectedErrors;
 
-/**
- * KeyCondition / skip-index pruning oracle.
- *
- * <p>
- * ClickHouse uses the primary key and secondary skip-indices to prune granules at query time -- the
- * {@code KeyCondition} subsystem decides which parts and granules to read by analysing the predicate. Bugs in that
- * subsystem produce wrong results that look identical to an unindexed scan would, so they are invisible to oracles that
- * compare two indexed paths against each other (TLP, SEMR, ...).
- *
- * <p>
- * ClickHouse#92492 is the canonical recent example: {@code KeyCondition} mis-evaluated a regex with {@code ?} and
- * {@code
- * not} operators, dropping granules that should have matched. The fix landed in 25.x but the same shape can recur in
- * any monotonicity or function-tracking change to {@code KeyCondition.cpp}.
- *
- * <p>
- * The differential here is between
- *
- * <ol>
- * <li>the baseline query (KeyCondition can prune), and</li>
- * <li>the same query with every base-column reference wrapped in {@code materialize(col)} -- KeyCondition cannot
- * recognise {@code materialize(col)} as the underlying column and so falls back to a full scan, plus
- * {@code use_skip_indexes=0} and {@code force_primary_key=0} as a belt-and-braces defence.</li>
- * </ol>
- *
- * <p>
- * If the two row multisets disagree, KeyCondition pruned a granule it should have kept (or vice versa). The
- * single-table shape and the absence of GROUP BY / ORDER BY in the generated SELECT is intentional: it keeps the
- * failure attribution focused on the predicate <-> KeyCondition path. JOINs add their own row-cardinality variance
- * which would dilute the signal.
- */
 public class ClickHouseKeyConditionOracle implements TestOracle<ClickHouseGlobalState> {
 
     private final ClickHouseGlobalState state;
@@ -81,19 +50,12 @@ public class ClickHouseKeyConditionOracle implements TestOracle<ClickHouseGlobal
 
         ClickHouseSelect select = new ClickHouseSelect();
         select.setFromClause(tableRef);
-        // Project the first column only -- the oracle's contract is "the same multiset of values is
-        // visible to a granule-pruned and an unpruned scan", and one column makes both ends of the
-        // diff cheap.
+
         select.setFetchColumns(List.of(columns.get(0)));
         select.setWhereClause(predicate);
 
-        // Baseline: KeyCondition is free to prune.
         String baseline = ClickHouseToStringVisitor.asString(select);
 
-        // No-prune variant: render with column references wrapped in materialize(); attach
-        // belt-and-braces settings to suppress skip-index + primary-key forcing on top of the
-        // materialize wrap. force_primary_key=0 means "do not require PK use" rather than "do not
-        // use PK", which is what we want -- KeyCondition is already neutralised by materialize().
         String noPruneBody = MaterializedColumnVisitor.asString(select);
         String noPrune = noPruneBody + " SETTINGS use_skip_indexes = 0, force_primary_key = 0,"
                 + " use_query_condition_cache = 0";
@@ -102,24 +64,15 @@ public class ClickHouseKeyConditionOracle implements TestOracle<ClickHouseGlobal
         try {
             baseRows = ComparatorHelper.getResultSetFirstColumnAsString(baseline, errors, state);
         } catch (IgnoreMeException e) {
-            // A predicate that the server rejects (type mismatch, malformed function) is a generator
-            // slip, not a KeyCondition bug. Drop the iteration.
+
             throw e;
         }
         List<String> noPruneRows = ComparatorHelper.getResultSetFirstColumnAsString(noPrune, errors, state);
         ComparatorHelper.assumeResultSetsAreEqual(baseRows, noPruneRows, baseline, List.of(noPrune), state);
     }
 
-    // Render a ClickHouseSelect (or any expression) with every ClickHouseColumnReference wrapped
-    // in materialize(...). materialize() is an identity function on values but is opaque to
-    // KeyCondition's analysis, which is the entire point. Wrapping is only applied to base column
-    // references inside PREWHERE/WHERE/HAVING; project / GROUP BY / ORDER BY pass through
-    // unchanged so the column shape and group keys are preserved.
     static final class MaterializedColumnVisitor extends ClickHouseToStringVisitor {
 
-        // Depth counter rather than a bare boolean: when a subquery's PREWHERE/WHERE nests inside
-        // an outer PREWHERE/WHERE, exiting the inner predicate must NOT turn off wrapping for the
-        // outer one. Save-and-restore stack semantics via a counter is the simplest correct fix.
         private int predicateDepth;
 
         @Override

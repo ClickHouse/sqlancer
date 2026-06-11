@@ -20,17 +20,15 @@ public final class SparkErrors {
         errors.add("mismatched input");
         errors.add("due to data type mismatch");
 
-        // --- Invalid Literals
         errors.add("The value of the typed literal");
 
         errors.add("DATATYPE_MISMATCH");
         errors.add("cannot be cast to");
 
         errors.add("Overflow");
-        errors.add("Divide by zero"); // Common if spark.sql.ansi.enabled is true
+        errors.add("Divide by zero");
         errors.add("division by zero");
 
-        // --- Group By / Aggregation errors ---
         errors.add("grouping expressions");
         errors.add("expression is neither present in the group by");
         errors.add("is not a valid grouping expression");
@@ -53,8 +51,8 @@ public final class SparkErrors {
         errors.add("cannot be cast to");
         errors.add("Error running query");
         errors.add("The value of the typed literal");
-        errors.add("Cannot safely cast"); // Found in logs: Decimal -> Date
-        errors.add("AnalysisException"); // Spark throws this for almost all insert failures
+        errors.add("Cannot safely cast");
+        errors.add("AnalysisException");
 
         return errors;
     }

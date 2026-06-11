@@ -451,11 +451,7 @@ public abstract class SQLite3Constant extends SQLite3Expression {
         @Override
         public SQLite3Constant applyTextAffinity() {
             return this;
-            /*
-             * if (bytes.length == 0) { return this; } else { StringBuilder sb = new StringBuilder(); for (byte b :
-             * bytes) { if (isPrintableChar(b)) { sb.append((char) b); } } return
-             * SQLite3Constant.createTextConstant(sb.toString()); }
-             */
+
         }
 
         public boolean isPrintableChar(byte b) {

@@ -21,8 +21,7 @@ public class DatabendQueryPartitioningDistinctTester extends DatabendQueryPartit
     public void check() throws SQLException {
         super.check();
         select.setDistinct(true);
-        // TODO 后期可以使用and来进行扩展
-        // select.setWhereClause(DatabendExprToNode.cast(gen.generateExpression(DatabendSchema.DatabendDataType.BOOLEAN)));
+
         select.setWhereClause(null);
         String originalQueryString = DatabendToStringVisitor.asString(select);
 

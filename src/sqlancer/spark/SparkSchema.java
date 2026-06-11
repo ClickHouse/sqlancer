@@ -69,7 +69,7 @@ public class SparkSchema extends AbstractSchema<SparkGlobalState, SparkTable> {
         try (Statement s = con.createStatement()) {
             ResultSet tableRs = s.executeQuery("SHOW TABLES");
             while (tableRs.next()) {
-                // Spark SHOW TABLES output: database, tableName, isTemporary
+
                 String tableName = tableRs.getString("tableName");
                 tableNames.add(tableName);
             }
@@ -84,7 +84,7 @@ public class SparkSchema extends AbstractSchema<SparkGlobalState, SparkTable> {
                 while (rs.next()) {
                     String columnName = rs.getString("col_name");
                     String dataType = rs.getString("data_type");
-                    // Filter out Spark partition info or comments usually at bottom of describe
+
                     if (columnName.startsWith("#") || columnName.isEmpty()) {
                         continue;
                     }
@@ -116,7 +116,7 @@ public class SparkSchema extends AbstractSchema<SparkGlobalState, SparkTable> {
         if (upper.startsWith("DATE")) {
             return SparkDataType.DATE;
         }
-        return SparkDataType.STRING; // Fallback
+        return SparkDataType.STRING;
     }
 
 }

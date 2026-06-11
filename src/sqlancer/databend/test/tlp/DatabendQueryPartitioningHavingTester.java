@@ -27,10 +27,10 @@ public class DatabendQueryPartitioningHavingTester extends DatabendQueryPartitio
         if (Randomly.getBoolean()) {
             select.setWhereClause(gen.generateExpression(DatabendSchema.DatabendDataType.BOOLEAN));
         }
-        // boolean orderBy = Randomly.getBoolean();
-        boolean orderBy = false; // 关闭order by
-        if (orderBy) { // TODO 生成columns.size()的子集，有个错误：order by 后不能直接union，需要包装一层select
-            // select.setOrderByClauses(gen.generateOrderBys());
+
+        boolean orderBy = false;
+        if (orderBy) {
+
             List<DatabendExpression> constants = new ArrayList<>();
             constants.add(new DatabendConstant.DatabendIntConstant(
                     Randomly.smallNumber() % select.getFetchColumns().size() + 1));

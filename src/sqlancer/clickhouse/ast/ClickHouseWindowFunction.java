@@ -5,15 +5,6 @@ import java.util.List;
 
 import sqlancer.clickhouse.ClickHouseToStringVisitor;
 
-/**
- * Window function call: {@code func(args) OVER (PARTITION BY ... ORDER BY ... frame?)}.
- *
- * <p>
- * Workstream 19 of the 2026-05-27 coverage expansion plan. Minimal viable: name + optional argument expression +
- * partition/order lists. Frame clauses (ROWS/RANGE/GROUPS with UNBOUNDED/CURRENT_ROW/n_PRECEDING/n_FOLLOWING and
- * EXCLUDE NO_OTHERS/CURRENT_ROW/GROUP/TIES) are deferred -- the bug surface they reach (RANGE off-by-one on
- * Decimal/DateTime64 boundaries per the plan) needs a more careful generator.
- */
 public class ClickHouseWindowFunction extends ClickHouseExpression {
 
     public enum Kind {
@@ -22,7 +13,7 @@ public class ClickHouseWindowFunction extends ClickHouseExpression {
     }
 
     private final Kind kind;
-    private final ClickHouseExpression argument; // may be null for ROW_NUMBER / RANK / etc.
+    private final ClickHouseExpression argument;
     private final List<ClickHouseExpression> partitionBy;
     private final List<ClickHouseExpression> orderBy;
 

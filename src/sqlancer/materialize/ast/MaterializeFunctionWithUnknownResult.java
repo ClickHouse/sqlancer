@@ -9,8 +9,8 @@ import sqlancer.materialize.gen.MaterializeExpressionGenerator;
 
 public enum MaterializeFunctionWithUnknownResult {
 
-    CURRENT_DATABASE("current_database", MaterializeDataType.TEXT), // name
-    CURRENT_SCHEMA("current_schema", MaterializeDataType.TEXT), // name
+    CURRENT_DATABASE("current_database", MaterializeDataType.TEXT),
+    CURRENT_SCHEMA("current_schema", MaterializeDataType.TEXT),
     PG_BACKEND_PID("pg_backend_pid", MaterializeDataType.INT),
     PG_CURRENT_LOGFILE("pg_current_logfile", MaterializeDataType.TEXT),
     PG_IS_OTHER_TEMP_SCHEMA("pg_is_other_temp_schema", MaterializeDataType.BOOLEAN),
@@ -18,7 +18,6 @@ public enum MaterializeFunctionWithUnknownResult {
     PG_NOTIFICATION_QUEUE_USAGE("pg_notification_queue_usage", MaterializeDataType.REAL),
     PG_TRIGGER_DEPTH("pg_trigger_depth", MaterializeDataType.INT), VERSION("version", MaterializeDataType.TEXT),
 
-    //
     TO_CHAR("to_char", MaterializeDataType.TEXT, MaterializeDataType.TEXT, MaterializeDataType.TEXT) {
         @Override
         public MaterializeExpression[] getArguments(MaterializeDataType returnType, MaterializeExpressionGenerator gen,
@@ -29,7 +28,6 @@ public enum MaterializeFunctionWithUnknownResult {
         }
     },
 
-    // String functions
     ASCII("ascii", MaterializeDataType.INT, MaterializeDataType.TEXT),
     BTRIM("btrim", MaterializeDataType.TEXT, MaterializeDataType.TEXT, MaterializeDataType.TEXT),
     CHR("chr", MaterializeDataType.TEXT, MaterializeDataType.INT),
@@ -63,9 +61,9 @@ public enum MaterializeFunctionWithUnknownResult {
     TO_HEX("to_hex", MaterializeDataType.INT, MaterializeDataType.TEXT),
     TRANSLATE("translate", MaterializeDataType.TEXT, MaterializeDataType.TEXT, MaterializeDataType.TEXT,
             MaterializeDataType.TEXT),
-    // mathematical functions
+
     ABS("abs", MaterializeDataType.REAL, MaterializeDataType.REAL),
-    CBRT("cbrt", MaterializeDataType.REAL, MaterializeDataType.REAL), CEILING("ceiling", MaterializeDataType.REAL), //
+    CBRT("cbrt", MaterializeDataType.REAL, MaterializeDataType.REAL), CEILING("ceiling", MaterializeDataType.REAL),
     DEGREES("degrees", MaterializeDataType.REAL), EXP("exp", MaterializeDataType.REAL),
     LN("ln", MaterializeDataType.REAL), LOG("log", MaterializeDataType.REAL),
     LOG2("log", MaterializeDataType.REAL, MaterializeDataType.REAL), PI("pi", MaterializeDataType.REAL),
@@ -74,31 +72,29 @@ public enum MaterializeFunctionWithUnknownResult {
     TRUNC2("trunc", MaterializeDataType.REAL, MaterializeDataType.INT, MaterializeDataType.REAL),
     FLOOR("floor", MaterializeDataType.REAL),
 
-    // trigonometric functions - complete
-    ACOS("acos", MaterializeDataType.REAL), //
-    ACOSD("acosd", MaterializeDataType.REAL), //
-    ASIN("asin", MaterializeDataType.REAL), //
-    ASIND("asind", MaterializeDataType.REAL), //
-    ATAN("atan", MaterializeDataType.REAL), //
-    ATAND("atand", MaterializeDataType.REAL), //
-    ATAN2("atan2", MaterializeDataType.REAL, MaterializeDataType.REAL), //
-    ATAN2D("atan2d", MaterializeDataType.REAL, MaterializeDataType.REAL), //
-    COS("cos", MaterializeDataType.REAL), //
-    COSD("cosd", MaterializeDataType.REAL), //
-    COT("cot", MaterializeDataType.REAL), //
-    COTD("cotd", MaterializeDataType.REAL), //
-    SIN("sin", MaterializeDataType.REAL), //
-    SIND("sind", MaterializeDataType.REAL), //
-    TAN("tan", MaterializeDataType.REAL), //
-    TAND("tand", MaterializeDataType.REAL), //
+    ACOS("acos", MaterializeDataType.REAL),
+    ACOSD("acosd", MaterializeDataType.REAL),
+    ASIN("asin", MaterializeDataType.REAL),
+    ASIND("asind", MaterializeDataType.REAL),
+    ATAN("atan", MaterializeDataType.REAL),
+    ATAND("atand", MaterializeDataType.REAL),
+    ATAN2("atan2", MaterializeDataType.REAL, MaterializeDataType.REAL),
+    ATAN2D("atan2d", MaterializeDataType.REAL, MaterializeDataType.REAL),
+    COS("cos", MaterializeDataType.REAL),
+    COSD("cosd", MaterializeDataType.REAL),
+    COT("cot", MaterializeDataType.REAL),
+    COTD("cotd", MaterializeDataType.REAL),
+    SIN("sin", MaterializeDataType.REAL),
+    SIND("sind", MaterializeDataType.REAL),
+    TAN("tan", MaterializeDataType.REAL),
+    TAND("tand", MaterializeDataType.REAL),
 
-    // hyperbolic functions - complete
-    SINH("sinh", MaterializeDataType.REAL), //
-    COSH("cosh", MaterializeDataType.REAL), //
-    TANH("tanh", MaterializeDataType.REAL), //
-    ASINH("asinh", MaterializeDataType.REAL), //
-    ACOSH("acosh", MaterializeDataType.REAL), //
-    ATANH("atanh", MaterializeDataType.REAL), //
+    SINH("sinh", MaterializeDataType.REAL),
+    COSH("cosh", MaterializeDataType.REAL),
+    TANH("tanh", MaterializeDataType.REAL),
+    ASINH("asinh", MaterializeDataType.REAL),
+    ACOSH("acosh", MaterializeDataType.REAL),
+    ATANH("atanh", MaterializeDataType.REAL),
 
     GET_BIT("get_bit", MaterializeDataType.INT, MaterializeDataType.TEXT, MaterializeDataType.INT),
     GET_BYTE("get_byte", MaterializeDataType.INT, MaterializeDataType.TEXT, MaterializeDataType.INT),

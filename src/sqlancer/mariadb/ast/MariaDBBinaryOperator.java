@@ -9,12 +9,11 @@ public class MariaDBBinaryOperator implements MariaDBExpression {
     private MariaDBBinaryComparisonOperator op;
 
     public enum MariaDBBinaryComparisonOperator {
-        NOT_EQUAL("!="), LESS_THAN("<"), /* NULL_SAFE_EQUAL("<=>"), EQUALS("="), */ GREATER_THAN(">"),
+        NOT_EQUAL("!="), LESS_THAN("<"),  GREATER_THAN(">"),
         GREATER_THAN_EQUAL(">="),
 
-        // regex
         LIKE("LIKE"), RLIKE("RLIKE"), REGEXP("REGEXP"),
-        // PLUS("+");
+
         AND("AND"), OR("OR"), XOR("XOR"),
 
         BITWISE_AND("&"), LEFT_SHIFT("<<"), RIGHT_SHIFT(">>"), BITWISE_XOR("^"), BITWISE_OR("|");

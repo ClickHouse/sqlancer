@@ -20,9 +20,7 @@ class ClickHouseTextIndexLikeOracleTest {
 
     @Test
     void vocabularyTokensAreIndexEligible() {
-        // Every token must clear text_index_like_min_pattern_length = 4 and survive the
-        // splitByNonAlpha tokenizer as ONE token (alphanumeric only -- a separator inside a token
-        // would silently change what the index dictionary contains).
+
         assertEquals(16, ClickHouseTextIndexLikeOracle.TOKEN_VOCABULARY.size());
         for (String token : ClickHouseTextIndexLikeOracle.TOKEN_VOCABULARY) {
             assertTrue(token.length() >= 4, () -> token + " is shorter than the min pattern length");
@@ -38,7 +36,7 @@ class ClickHouseTextIndexLikeOracleTest {
         assertEquals("alpha", ClickHouseTextIndexLikeOracle.escapeStringLiteral("alpha"));
         assertEquals("a\\'b", ClickHouseTextIndexLikeOracle.escapeStringLiteral("a'b"));
         assertEquals("a\\\\b", ClickHouseTextIndexLikeOracle.escapeStringLiteral("a\\b"));
-        // Backslash-then-quote: the backslash is escaped first, so the quote's own escape survives.
+
         assertEquals("\\\\\\'", ClickHouseTextIndexLikeOracle.escapeStringLiteral("\\'"));
     }
 
@@ -48,9 +46,9 @@ class ClickHouseTextIndexLikeOracleTest {
         assertTrue(ClickHouseTextIndexLikeOracle.isGroundTruthComputable("%ab%"), "sub-4-char is still containment");
         assertTrue(ClickHouseTextIndexLikeOracle.isGroundTruthComputable("%va char%"),
                 "boundary fragment with space is still containment");
-        // `_` wildcards are agreement-only by design: their semantics are not modelled in Java.
+
         assertFalse(ClickHouseTextIndexLikeOracle.isGroundTruthComputable("%alp_a%"));
-        // Inner % / escapes / non-%...%-shaped patterns have no Java model either.
+
         assertFalse(ClickHouseTextIndexLikeOracle.isGroundTruthComputable("%al%pha%"));
         assertFalse(ClickHouseTextIndexLikeOracle.isGroundTruthComputable("%al\\pha%"));
         assertFalse(ClickHouseTextIndexLikeOracle.isGroundTruthComputable("alpha%"));
@@ -64,10 +62,9 @@ class ClickHouseTextIndexLikeOracleTest {
         assertEquals(2, ClickHouseTextIndexLikeOracle.computeExpectedMatches(corpus, "%alpha%", false));
         assertEquals(2, ClickHouseTextIndexLikeOracle.computeExpectedMatches(corpus, "%bravo%", false));
         assertEquals(0, ClickHouseTextIndexLikeOracle.computeExpectedMatches(corpus, "%november%", false));
-        // Boundary-spanning fragment: containment over the full row string, not per-token
-        // ("bravo charlie" contains "vo char" across the space).
+
         assertEquals(1, ClickHouseTextIndexLikeOracle.computeExpectedMatches(corpus, "%vo char%", false));
-        // Sub-4-char fragment: "al" appears only inside "alpha" (rows 1 and 3).
+
         assertEquals(2, ClickHouseTextIndexLikeOracle.computeExpectedMatches(corpus, "%al%", false));
     }
 
@@ -139,7 +136,7 @@ class ClickHouseTextIndexLikeOracleTest {
             assertEquals(PatternKind.UNDERSCORE_WILDCARD, p.getKind());
             assertTrue(p.getPattern().contains("_"));
             assertFalse(p.isGroundTruthComputable(), "`_` patterns must never claim a Java ground truth");
-            // Same length as the original token: exactly one char was replaced, none inserted.
+
             assertEquals("juliet".length() + 2, p.getPattern().length());
         }
     }
@@ -214,9 +211,9 @@ class ClickHouseTextIndexLikeOracleTest {
             LikePattern p = ClickHouseTextIndexLikeOracle.generatePattern(r, corpus,
                     ClickHouseTextIndexLikeOracle.TOKEN_VOCABULARY);
             seenKinds.add(p.getKind().name());
-            // ILIKE is exactly the case-flip arm; every other kind compares LIKE.
+
             assertEquals(p.getKind() == PatternKind.ILIKE_CASE_FLIP, p.isIlike());
-            // Computability is structural and kind-consistent: only `_` patterns lack ground truth.
+
             assertEquals(p.getKind() != PatternKind.UNDERSCORE_WILDCARD, p.isGroundTruthComputable(),
                     () -> p.getKind() + " computability wrong for " + p.getPattern());
         }
@@ -228,8 +225,7 @@ class ClickHouseTextIndexLikeOracleTest {
 
     @Test
     void generatePatternFallsBackToTokenOnEmptyCorpus() {
-        // The empty-table edge: BOUNDARY_SPAN needs a real row, so an empty corpus must never
-        // yield it (or throw).
+
         for (int i = 0; i < 400; i++) {
             Randomly r = new Randomly(911L + i);
             LikePattern p = ClickHouseTextIndexLikeOracle.generatePattern(r, List.of(),

@@ -6,22 +6,11 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 
-/**
- * Materialised {@link ResultSet} on top of {@link ClickHouseTransport.ResultData}.
- *
- * <p>
- * Only the methods sqlancer exercises are implemented; the rest throw to make accidental coverage gaps loud rather than
- * silent. Values are stored as the textual rendering produced by client-v2's
- * {@code RowBinaryWithNamesAndTypesFormatReader#getString(int)}, which matches CH's server-side text formatter
- * byte-for-byte. Numeric getters parse on demand. This sidesteps clickhouse-jdbc 0.9.8's UInt64-into-{@code long}
- * overflow bug we documented in the 2026-05-19 run (PQS oracle was crashing on legitimate values above
- * {@code Long.MAX_VALUE}).
- */
 final class ClickHouseTransportResultSet implements ResultSet {
 
     private final ClickHouseTransportStatement statement;
     private final ClickHouseTransport.ResultData data;
-    private int cursor = -1; // before first row
+    private int cursor = -1;
     private boolean closed;
     private boolean lastWasNull;
 
@@ -75,8 +64,7 @@ final class ClickHouseTransportResultSet implements ResultSet {
         try {
             return Integer.parseInt(s);
         } catch (NumberFormatException e) {
-            // Some integer-shaped columns come back as decimals ("42.0") under certain
-            // aggregate settings. Tolerate by routing through Double.
+
             return (int) Double.parseDouble(s);
         }
     }
@@ -92,9 +80,7 @@ final class ClickHouseTransportResultSet implements ResultSet {
         if (s == null) {
             return 0L;
         }
-        // Avoid clickhouse-jdbc's UInt64-overflow trap by clamping any UInt64 value > Long.MAX_VALUE
-        // to Long.MAX_VALUE rather than throwing. sqlancer's PQS oracle treats the long as a logical
-        // identifier, not arithmetic.
+
         try {
             return Long.parseLong(s);
         } catch (NumberFormatException e) {
@@ -132,7 +118,7 @@ final class ClickHouseTransportResultSet implements ResultSet {
     public int findColumn(String columnLabel) throws SQLException {
         for (int i = 0; i < data.columnNames.size(); i++) {
             if (data.columnNames.get(i).equals(columnLabel)) {
-                return i + 1; // 1-based per JDBC convention
+                return i + 1;
             }
         }
         throw new SQLException("Column '" + columnLabel + "' not found in result set");
@@ -158,8 +144,6 @@ final class ClickHouseTransportResultSet implements ResultSet {
         }
         return row.get(columnIndex - 1);
     }
-
-    // ---- minimal ResultSetMetaData ----------------------------------------------------------
 
     private static final class ClickHouseTransportResultSetMetaData implements ResultSetMetaData {
         private final ClickHouseTransport.ResultData data;
@@ -188,7 +172,6 @@ final class ClickHouseTransportResultSet implements ResultSet {
             return data.columnTypes.get(column - 1);
         }
 
-        // ---- the rest: throw, since sqlancer doesn't read them ----
         @Override
         public boolean isAutoIncrement(int c) {
             return false;
@@ -284,8 +267,6 @@ final class ClickHouseTransportResultSet implements ResultSet {
             return false;
         }
     }
-
-    // ---- everything else: throw -------------------------------------------------------------
 
     @Override
     public byte getByte(int c) {
@@ -416,7 +397,7 @@ final class ClickHouseTransportResultSet implements ResultSet {
 
     @Override
     public void clearWarnings() {
-        /* no-op */ }
+         }
 
     @Override
     public String getCursorName() {
@@ -521,7 +502,7 @@ final class ClickHouseTransportResultSet implements ResultSet {
 
     @Override
     public void setFetchDirection(int d) {
-        /* no-op */ }
+         }
 
     @Override
     public int getFetchDirection() {
@@ -530,7 +511,7 @@ final class ClickHouseTransportResultSet implements ResultSet {
 
     @Override
     public void setFetchSize(int rows) {
-        /* no-op */ }
+         }
 
     @Override
     public int getFetchSize() {

@@ -13,27 +13,6 @@ import sqlancer.common.oracle.TestOracle;
 import sqlancer.common.query.ExpectedErrors;
 import sqlancer.common.query.SQLQueryAdapter;
 
-/**
- * Schema-roundtrip oracle for the {@code data_type_default_nullable} regression family.
- *
- * <p>
- * ClickHouse#97287 (public) and private#53340 reported the same bug shape: when the connection has
- * {@code data_type_default_nullable=1}, an explicit {@code NOT NULL} modifier on a column was silently dropped, so a
- * column declared {@code c0 Int32 NOT NULL} was created as {@code Nullable(Int32)}. Single-query oracles cannot catch
- * this because no query is wrong -- the database itself is wrong.
- *
- * <p>
- * Per iteration: create two tables side-by-side, both declaring {@code c0 Int32 NOT NULL}. One CREATE runs under
- * {@code SETTINGS data_type_default_nullable = 0} (the conservative baseline) and the other under
- * {@code data_type_default_nullable = 1}. Read the resulting column type back from {@code system.columns}. Assert that
- * neither table's column is {@code Nullable(Int32)}. If the bug fires, the {@code _on} table's column type starts with
- * {@code Nullable(}.
- *
- * <p>
- * Both tables are dropped before the next iteration. The oracle is structurally independent of the random table
- * generator -- it does NOT pick a random pre-existing table -- so the failure attribution is precise: any failure here
- * is an assertion about the server's interpretation of {@code NOT NULL}, not about any oracle's random query.
- */
 public class ClickHouseSchemaRoundtripOracle implements TestOracle<ClickHouseGlobalState> {
 
     private static final AtomicLong COUNTER = new AtomicLong();
@@ -53,9 +32,7 @@ public class ClickHouseSchemaRoundtripOracle implements TestOracle<ClickHouseGlo
         String on = "schroundtrip_on_" + id;
         String fqOff = state.getDatabaseName() + "." + off;
         String fqOn = state.getDatabaseName() + "." + on;
-        // Use Memory engine: no ORDER BY / PRIMARY KEY required, no partitioning surface to
-        // perturb the result. The bug being chased is a DDL-time rewrite, not a runtime query
-        // optimisation, so the engine choice is irrelevant beyond minimising setup noise.
+
         String createOff = "CREATE TABLE " + fqOff + " (c0 Int32 NOT NULL, c1 String NOT NULL) ENGINE = Memory"
                 + " SETTINGS data_type_default_nullable = 0";
         String createOn = "CREATE TABLE " + fqOn + " (c0 Int32 NOT NULL, c1 String NOT NULL) ENGINE = Memory"
@@ -67,8 +44,7 @@ public class ClickHouseSchemaRoundtripOracle implements TestOracle<ClickHouseGlo
         boolean onCreated = false;
         try {
             if (state.getOptions().logEachSelect()) {
-                // writeCurrent → -cur.log (live tail); logStatement → state.getStatements()
-                // which is what the AssertionError dump pulls into the persistent .log.
+
                 state.getLogger().writeCurrent(createOff);
                 state.getLogger().writeCurrent(createOn);
                 state.getState().logStatement(createOff);
@@ -82,11 +58,10 @@ public class ClickHouseSchemaRoundtripOracle implements TestOracle<ClickHouseGlo
             List<String> typesOff = readColumnTypes(off);
             List<String> typesOn = readColumnTypes(on);
             if (typesOff.size() != 2 || typesOn.size() != 2) {
-                // system.columns didn't return both columns -- catalog drift; skip.
+
                 throw new IgnoreMeException();
             }
-            // The baseline must match too (any Nullable here is a deeper bug, but it's not the one
-            // we're hunting). Assert both halves.
+
             for (int i = 0; i < 2; i++) {
                 String tOff = typesOff.get(i);
                 String tOn = typesOn.get(i);
@@ -114,7 +89,7 @@ public class ClickHouseSchemaRoundtripOracle implements TestOracle<ClickHouseGlo
                     }
                     new SQLQueryAdapter(dropOff, errors, true).execute(state, false);
                 } catch (SQLException ignored) {
-                    // best-effort
+
                 }
             }
             if (onCreated) {
@@ -125,7 +100,7 @@ public class ClickHouseSchemaRoundtripOracle implements TestOracle<ClickHouseGlo
                     }
                     new SQLQueryAdapter(dropOn, errors, true).execute(state, false);
                 } catch (SQLException ignored) {
-                    // best-effort
+
                 }
             }
         }
@@ -145,9 +120,7 @@ public class ClickHouseSchemaRoundtripOracle implements TestOracle<ClickHouseGlo
             }
             throw e;
         }
-        // Defensive: a future ClickHouse rename of the schema view would make the list empty,
-        // which the caller treats as "iteration uninformative" via IgnoreMeException -- no false
-        // positive.
+
         return out;
     }
 }

@@ -11,11 +11,6 @@ import org.junit.jupiter.api.Test;
 import sqlancer.clickhouse.oracle.join.ClickHouseNaturalJoinOracle.JoinSpec;
 import sqlancer.clickhouse.oracle.join.ClickHouseNaturalJoinOracle.JoinVariant;
 
-/**
- * DB-free tests for the NATURAL JOIN rewrite-equivalence oracle's schema/rendering helpers: the computed USING list,
- * the exact SQL of all three comparison forms (plus the zero-shared CROSS parity arm), and the expected column count
- * for the {@code SELECT *} implicit-column-set invariant.
- */
 class ClickHouseNaturalJoinOracleTest {
 
     private static final String TA = "db.natj_1_a";
@@ -30,7 +25,7 @@ class ClickHouseNaturalJoinOracleTest {
         assertEquals(List.of("pb0", "pb1"), spec.bPrivateNames());
         assertEquals(List.of("sh0", "sh1", "pa0"), spec.tableColumnNames(true));
         assertEquals(List.of("sh0", "sh1", "pb0", "pb1"), spec.tableColumnNames(false));
-        // The USING list inside the rendered form is exactly the shared names, in order.
+
         assertTrue(ClickHouseNaturalJoinOracle.renderUsingForm(spec, TA, TB).endsWith("USING (sh0, sh1)"));
     }
 
@@ -57,15 +52,13 @@ class ClickHouseNaturalJoinOracleTest {
         assertEquals(
                 "SELECT toString(tuple(sh0, sh1, pa0)) FROM db.natj_1_a FULL JOIN db.natj_1_b USING (sh0, sh1)",
                 ClickHouseNaturalJoinOracle.renderUsingForm(spec, TA, TB));
-        // FULL is restricted to forms (1) vs (2): no side-qualified projection reproduces USING's
-        // matched-side-exposure semantics for FULL when shared columns can be legitimately NULL.
+
         assertFalse(ClickHouseNaturalJoinOracle.onFormApplicable(JoinVariant.FULL));
     }
 
     @Test
     void rendersZeroSharedCrossParity() {
-        // Zero common columns: NATURAL JOIN silently degenerates to CROSS JOIN -- the parity arm compares the
-        // plain NATURAL spelling against an explicit CROSS JOIN over the private columns only.
+
         JoinSpec spec = new JoinSpec(JoinVariant.INNER, List.of(), List.of("Int32"), List.of("String"));
         assertEquals("SELECT toString(tuple(pa0, pb0)) FROM db.natj_1_a NATURAL JOIN db.natj_1_b",
                 ClickHouseNaturalJoinOracle.renderNaturalForm(spec, TA, TB));
@@ -113,10 +106,10 @@ class ClickHouseNaturalJoinOracleTest {
                 new JoinSpec(JoinVariant.INNER, List.of("Int32"), List.of("Int32"), List.of("String"))));
         assertEquals(3, ClickHouseNaturalJoinOracle.expectedStarColumnCount(
                 new JoinSpec(JoinVariant.FULL, List.of("Int32", "Nullable(Int32)"), List.of("String"), List.of())));
-        // Zero shared: NATURAL == CROSS, every column of both sides survives.
+
         assertEquals(2, ClickHouseNaturalJoinOracle.expectedStarColumnCount(
                 new JoinSpec(JoinVariant.INNER, List.of(), List.of("Int32"), List.of("String"))));
-        // All shared: only the shared set, once.
+
         assertEquals(3, ClickHouseNaturalJoinOracle.expectedStarColumnCount(
                 new JoinSpec(JoinVariant.LEFT, List.of("Int32", "String", "Int32"), List.of(), List.of())));
     }
@@ -127,7 +120,7 @@ class ClickHouseNaturalJoinOracleTest {
         boolean sawAllShared = false;
         for (int i = 0; i < 500; i++) {
             JoinSpec spec = ClickHouseNaturalJoinOracle.generateSpec();
-            // Every column type comes from the supported scalar set.
+
             for (String t : spec.sharedTypes) {
                 assertTrue(ClickHouseNaturalJoinOracle.COLUMN_TYPES.contains(t), t);
             }
@@ -137,17 +130,16 @@ class ClickHouseNaturalJoinOracleTest {
             for (String t : spec.bPrivateTypes) {
                 assertTrue(ClickHouseNaturalJoinOracle.COLUMN_TYPES.contains(t), t);
             }
-            // Both tables must have at least one column; CREATE TABLE () is impossible.
+
             assertTrue(spec.tableColumnNames(true).size() >= 1);
             assertTrue(spec.tableColumnNames(false).size() >= 1);
-            // Bounded shapes: k in {0,1,2} with 0-2 privates, or all-shared with k in {1..3} and no privates.
+
             assertTrue(spec.sharedCount() <= 3);
             assertTrue(spec.aPrivateTypes.size() <= 2);
             assertTrue(spec.bPrivateTypes.size() <= 2);
             if (spec.sharedCount() == 0) {
                 sawZeroShared = true;
-                // The zero-shared (CROSS-degeneration) arm uses only the plain NATURAL JOIN spelling and needs
-                // private columns on both sides.
+
                 assertEquals(JoinVariant.INNER, spec.variant);
                 assertTrue(spec.aPrivateTypes.size() >= 1);
                 assertTrue(spec.bPrivateTypes.size() >= 1);

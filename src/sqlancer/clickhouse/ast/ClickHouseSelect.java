@@ -13,13 +13,7 @@ public class ClickHouseSelect extends ClickHouseExpression implements
 
     private ClickHouseSelect.SelectType fromOptions = ClickHouseSelect.SelectType.ALL;
     private List<ClickHouseExpression> fromClauses;
-    /**
-     * Optional {@code PREWHERE} clause -- ClickHouse-specific, emitted before {@code WHERE} and binding only to columns
-     * physically read from the base table. The split between {@code PREWHERE} and {@code WHERE} is not redundant: the
-     * regression family around the query-condition cache (ClickHouse#104781) is sensitive to where each predicate
-     * lives, so the generator emits this independently of {@code WHERE} rather than relying on the server's
-     * {@code optimize_move_to_prewhere} rewrite.
-     */
+
     private ClickHouseExpression prewhereClause;
     private ClickHouseExpression whereClause;
     private List<ClickHouseExpression> groupByClause = Collections.emptyList();
@@ -29,26 +23,12 @@ public class ClickHouseSelect extends ClickHouseExpression implements
     private List<ClickHouseExpression> fetchColumns = Collections.emptyList();
     private List<ClickHouseExpression.ClickHouseJoin> joinStatements = Collections.emptyList();
     private ClickHouseExpression havingClause;
-    /**
-     * Expressions for the optional {@code ARRAY JOIN} clause, emitted between FROM and any regular JOIN clauses per
-     * ClickHouse grammar. Default empty -- the visitor emits nothing when this list is empty. Activation is blocked on
-     * type-system v2 introducing an {@code Array(T)} constructor; the field exists now so the v2 work can flip
-     * {@code --test-array-join} on without re-touching the select AST.
-     */
+
     private List<ClickHouseExpression> arrayJoinExprs = Collections.emptyList();
     private boolean arrayJoinLeft;
-    /**
-     * Optional {@code WITH ...} CTE clause. Each entry is an alias-CTE of the form {@code expr AS alias}. Subquery-CTEs
-     * (the more common WITH form for analyzer-bound bug shapes) are out of scope for this minimal scaffolding -- they
-     * need FROM-target binding which would require restructuring the FROM list type. Workstream 17.
-     */
+
     private List<ClickHouseExpression> withClauses = Collections.emptyList();
-    /**
-     * If true, the rendered SELECT applies the {@code FINAL} modifier to the FROM table. Only valid for
-     * MergeTree-family engines; the table generator only emits MergeTree-family tables so this is unconditionally safe
-     * in the current generator. FINAL forces merge-on-read deduplication, which exercises a separate code path through
-     * skip-indexes, PREWHERE, row-policy, and lazy-materialization (see #97076, #98097, #91847).
-     */
+
     private boolean isFinal;
 
     public enum SelectType {

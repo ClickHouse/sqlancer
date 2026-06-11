@@ -136,40 +136,7 @@ public class YSQLFunction implements YSQLExpression {
             }
 
         },
-        // NULL_IF(2, "nullif") {
-        //
-        // @Override
-        // public YSQLConstant apply(YSQLConstant[] evaluatedArgs, YSQLExpression[] args) {
-        // YSQLConstant equals = evaluatedArgs[0].isEquals(evaluatedArgs[1]);
-        // if (equals.isBoolean() && equals.asBoolean()) {
-        // return YSQLConstant.createNullConstant();
-        // } else {
-        // // TODO: SELECT (nullif('1', FALSE)); yields '1', but should yield TRUE
-        // return evaluatedArgs[0];
-        // }
-        // }
-        //
-        // @Override
-        // public boolean supportsReturnType(YSQLDataType type) {
-        // return true;
-        // }
-        //
-        // @Override
-        // public YSQLDataType[] getInputTypesForReturnType(YSQLDataType returnType, int nrArguments) {
-        // return getType(nrArguments, returnType);
-        // }
-        //
-        // @Override
-        // public boolean checkArguments(YSQLExpression[] constants) {
-        // for (YSQLExpression e : constants) {
-        // if (!(e instanceof YSQLNullConstant)) {
-        // return true;
-        // }
-        // }
-        // return false;
-        // }
-        //
-        // },
+
         NUM_NONNULLS(1, "num_nonnulls") {
             @Override
             public YSQLConstant apply(YSQLConstant[] args, YSQLExpression... origArgs) {
@@ -245,12 +212,6 @@ public class YSQLFunction implements YSQLExpression {
             return types;
         }
 
-        /**
-         * Gets the number of arguments if the function is non-variadic. If the function is variadic, the minimum number
-         * of arguments is returned.
-         *
-         * @return the number of arguments
-         */
         public int getNrArgs() {
             return nrArgs;
         }

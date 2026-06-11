@@ -42,17 +42,6 @@ public final class PostgresExpectedValueVisitor implements PostgresVisitor {
         sb.append("\n");
     }
 
-    // @Override
-    // public void visit(PostgresExpression expr) {
-    // nrTabs++;
-    // try {
-    // super.visit(expr);
-    // } catch (IgnoreMeException e) {
-
-    // }
-    // nrTabs--;
-    // }
-
     @Override
     public void visit(PostgresConstant constant) {
         print(constant);

@@ -23,8 +23,6 @@ public class QuestDBQueryPartitioningWhereTester extends QuestDBQueryPartitionin
 
         List<String> resultSet = ComparatorHelper.getResultSetFirstColumnAsString(originalQueryString, errors, state);
 
-        // Ignore OrderBy for now
-
         select.setWhereClause(predicate);
         String firstQueryString = QuestDBToStringVisitor.asString(select);
         select.setWhereClause(negatedPredicate);

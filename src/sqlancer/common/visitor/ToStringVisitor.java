@@ -6,11 +6,6 @@ import sqlancer.common.visitor.UnaryOperation.OperatorKind;
 
 public abstract class ToStringVisitor<T> extends NodeVisitor<T> {
 
-    // Pre-size to 512 chars (~ p99 of observed SQLancer-generated SQL on ClickHouse, max seen
-    // ~770). The default StringBuilder capacity of 16 would force 7 grow-and-arraycopy cycles
-    // for a 1500-char query; pre-sizing makes the common path do zero reallocations. Costs ~1 KB
-    // up-front per visitor instance (a visitor is constructed per AST→SQL render and discarded
-    // immediately, so the buffer never escapes its allocation thread / safepoint).
     protected final StringBuilder sb = new StringBuilder(512);
 
     public void visit(BinaryOperation<T> op) {

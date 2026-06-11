@@ -14,11 +14,6 @@ import sqlancer.clickhouse.ClickHouseVisitor;
 import sqlancer.clickhouse.ast.ClickHouseAggregate.ClickHouseAggregateFunction;
 import sqlancer.common.schema.TableIndex;
 
-/**
- * Unit 3.1 coverage: the widened aggregate-function catalog renders correctly (single- and two-argument forms) and the
- * random-draw helpers preserve the soundness contract -- {@code getRandom()} stays restricted to the historical five,
- * and {@code getRandomScalar()} only ever returns single-argument, multiset-safe functions.
- */
 class ClickHouseAggregateFunctionTest {
 
     private static ClickHouseColumnReference column(String tableName, String colName) {

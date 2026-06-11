@@ -158,8 +158,7 @@ public class TestClickHouse {
     @Test
     public void testClickHouseMutuallyExclusive() {
         assumeTrue(TestConfig.isEnvironmentTrue(TestConfig.CLICKHOUSE_ENV));
-        // Inversion: this test asserts the run rejects the incompatible flag combination before
-        // any thread spawns. A return of 0 would mean the mutual-exclusion pre-flight gate is gone.
+
         assertNotEquals(0,
                 Main.executeMain("--timeout-seconds", "60", "--num-queries", TestConfig.NUM_QUERIES, "--num-threads",
                         "1", "--username", "default", "--password", "", "--database-prefix", "T17_", "clickhouse",

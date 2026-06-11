@@ -13,7 +13,7 @@ public class QuestDBToStringVisitor extends NewToStringVisitor<QuestDBExpression
             visit((QuestDBConstant) expr);
         } else if (expr instanceof QuestDBSelect) {
             visit((QuestDBSelect) expr);
-        } else { // TODO: maybe implement QuestDBJoin
+        } else {
             throw new AssertionError("Unknown class: " + expr.getClass());
         }
     }
@@ -40,18 +40,7 @@ public class QuestDBToStringVisitor extends NewToStringVisitor<QuestDBExpression
             sb.append(" WHERE ");
             visit(select.getWhereClause());
         }
-        // if (!select.getGroupByExpressions().isEmpty()) {
-        // sb.append(" GROUP BY ");
-        // visit(select.getGroupByExpressions());
-        // }
-        // if (select.getHavingClause() != null) {
-        // sb.append(" HAVING ");
-        // visit(select.getHavingClause());
-        // }
-        // if (!select.getOrderByClauses().isEmpty()) {
-        // sb.append(" ORDER BY ");
-        // visit(select.getOrderByClauses());
-        // }
+
         if (select.getLimitClause() != null) {
             sb.append(" LIMIT ");
             visit(select.getLimitClause());

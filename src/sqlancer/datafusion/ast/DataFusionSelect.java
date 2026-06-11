@@ -12,14 +12,8 @@ import sqlancer.datafusion.DataFusionToStringVisitor;
 
 public class DataFusionSelect extends SelectBase<DataFusionExpression> implements DataFusionExpression,
         Select<DataFusionJoin, DataFusionExpression, DataFusionTable, DataFusionColumn> {
-    public Optional<String> fetchColumnsString = Optional.empty(); // When available, override `fetchColumns` in base
+    public Optional<String> fetchColumnsString = Optional.empty();
 
-    /*
-     * If set fetch columns with string It will override `fetchColumns` in base class when
-     * `DataFusionToStringVisitor.asString()` is called
-     *
-     * This method can be helpful to mutate select in oracle checks: SELECT [expr] ... -> SELECT SUM[expr]
-     */
     public void setFetchColumnsString(String selectExpr) {
         this.fetchColumnsString = Optional.of(selectExpr);
     }

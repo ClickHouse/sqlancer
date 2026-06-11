@@ -18,9 +18,9 @@ public final class DatabendErrors {
         errors.add("/ by zero");
         errors.add("ORDER BY position");
         errors.add("GROUP BY position");
-        errors.add("no overload satisfies `not(Float64 NULL)`"); // TODO databend不允许出现not(float)，而a/b为float
+        errors.add("no overload satisfies `not(Float64 NULL)`");
         errors.add("no overload satisfies `not(Float64)`");
-        errors.add("number overflowed while evaluating function"); // 表达式数值溢出
+        errors.add("number overflowed while evaluating function");
         errors.add("Unable to get field named");
         errors.add("no overload satisfies `and_filters");
         if (DatabendBugs.bug9162) {
@@ -53,12 +53,6 @@ public final class DatabendErrors {
             errors.add("_eager_final_count");
         }
 
-        /*
-         * TODO column为not null 时，注意default不能为null DROP DATABASE IF EXISTS databend2; CREATE DATABASE databend2; USE
-         * databend2; CREATE TABLE t0(c0VARCHAR VARCHAR NULL, c1VARCHAR VARCHAR NULL, c2FLOAT FLOAT NOT NULL
-         * DEFAULT(NULL)); CREATE TABLE t1(c0INT BIGINT NULL); INSERT INTO t0(c1varchar, c0varchar) VALUES
-         * ('067596','19'), ('', '87');
-         */
         errors.add("Can't cast column from null into non-nullable type");
 
         return errors;
@@ -74,7 +68,7 @@ public final class DatabendErrors {
         errors.add("Division by zero");
         errors.add("/ by zero");
         errors.add("violates not-null constraint");
-        errors.add("number overflowed while evaluating function `"); // 不能在int16类型column上插入int64的数据
+        errors.add("number overflowed while evaluating function `");
 
         return errors;
     }

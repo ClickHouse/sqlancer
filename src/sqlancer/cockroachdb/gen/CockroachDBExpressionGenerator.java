@@ -100,10 +100,7 @@ public class CockroachDBExpressionGenerator extends
 
     @Override
     public CockroachDBExpression generateExpression(CockroachDBCompositeDataType type, int depth) {
-        // if (type == CockroachDBDataType.FLOAT &&
-        // Randomly.getBooleanWithRatherLowProbability()) {
-        // type = CockroachDBDataType.INT;
-        // }
+
         if (allowAggregates && Randomly.getBoolean()) {
             return getAggregate(type);
         }
@@ -149,12 +146,12 @@ public class CockroachDBExpressionGenerator extends
                         generateExpression(CockroachDBDataType.INT.get(), depth + 1),
                         CockroachDBBinaryArithmeticOperator.getRandom());
             case STRING:
-            case BYTES: // TODO split
+            case BYTES:
                 CockroachDBExpression stringExpr = generateStringExpression(depth);
                 if (Randomly.getBoolean()) {
                     stringExpr = new CockroachDBCollate(stringExpr, CockroachDBCommon.getRandomCollate());
                 }
-                return stringExpr; // TODO
+                return stringExpr;
             case FLOAT:
             case VARBIT:
             case BIT:
@@ -166,7 +163,7 @@ public class CockroachDBExpressionGenerator extends
             case TIME:
             case TIMETZ:
             case ARRAY:
-                return generateLeafNode(type); // TODO
+                return generateLeafNode(type);
             default:
                 throw new AssertionError(type);
             }
@@ -183,7 +180,7 @@ public class CockroachDBExpressionGenerator extends
             CockroachDBAggregateFunction agg) {
         List<CockroachDBDataType> types = agg.getTypes(type.getPrimitiveDataType());
         List<CockroachDBExpression> args = new ArrayList<>();
-        allowAggregates = false; //
+        allowAggregates = false;
         for (CockroachDBDataType argType : types) {
             args.add(generateExpression(argType.get()));
         }
@@ -238,7 +235,7 @@ public class CockroachDBExpressionGenerator extends
             CockroachDBExpression left = generateExpression(type, depth + 1);
             CockroachDBExpression right = generateExpression(type, depth + 1);
             return new CockroachDBBetweenOperation(expr, left, right, CockroachDBBetweenOperatorType.getRandom());
-        case MULTI_VALUED_COMPARISON: // TODO other operators
+        case MULTI_VALUED_COMPARISON:
             type = getRandomType();
             left = generateExpression(type, depth + 1);
             List<CockroachDBExpression> rightList = generateExpressions(type, Randomly.smallNumber() + 2, depth + 1);
@@ -293,12 +290,12 @@ public class CockroachDBExpressionGenerator extends
         switch (type.getPrimitiveDataType()) {
         case INT:
         case SERIAL:
-        case DECIMAL: // TODO: generate random decimals
+        case DECIMAL:
             return CockroachDBConstant.createIntConstant(globalState.getRandomly().getInteger());
         case BOOL:
             return CockroachDBConstant.createBooleanConstant(Randomly.getBoolean());
         case STRING:
-        case BYTES: // TODO: also generate byte constants
+        case BYTES:
             return getStringConstant();
         case FLOAT:
             return CockroachDBConstant.createFloatConstant(globalState.getRandomly().getDouble());
@@ -330,7 +327,7 @@ public class CockroachDBExpressionGenerator extends
             }
             return CockroachDBConstant.createArrayConstant(elements);
         case JSONB:
-            return CockroachDBConstant.createNullConstant(); // TODO
+            return CockroachDBConstant.createNullConstant();
         default:
             throw new AssertionError(type);
         }
@@ -483,7 +480,7 @@ public class CockroachDBExpressionGenerator extends
             mutators.add(this::mutateWhere);
             mutators.add(this::mutateOr);
         }
-        // mutators.add(this::mutateLimit);
+
         mutators.add(this::mutateDistinct);
 
         return Randomly.fromList(mutators).apply(select);
@@ -496,8 +493,6 @@ public class CockroachDBExpressionGenerator extends
 
         CockroachDBJoin join = (CockroachDBJoin) Randomly.fromList(select.getJoinList());
 
-        // CROSS does not need ON Condition, while other joins do
-        // To avoid Null pointer, generating a new new condition when mutating CROSS to other joins
         if (join.getJoinType() == JoinType.CROSS) {
             List<CockroachDBColumn> columns = new ArrayList<>();
             columns.addAll(((CockroachDBTableReference) join.getLeftTable()).getTable().getColumns());
@@ -508,9 +503,8 @@ public class CockroachDBExpressionGenerator extends
         }
 
         JoinType newJoinType = CockroachDBJoin.JoinType.INNER;
-        if (join.getJoinType() == JoinType.LEFT || join.getJoinType() == JoinType.RIGHT) { // No invariant relation
-                                                                                           // between LEFT and RIGHT
-                                                                                           // join
+        if (join.getJoinType() == JoinType.LEFT || join.getJoinType() == JoinType.RIGHT) {
+
             newJoinType = CockroachDBJoin.JoinType.getRandomExcept(JoinType.NATURAL, JoinType.CROSS, JoinType.LEFT,
                     JoinType.RIGHT);
         } else if (join.getJoinType() == JoinType.FULL) {
@@ -518,7 +512,7 @@ public class CockroachDBExpressionGenerator extends
         } else if (join.getJoinType() != JoinType.CROSS) {
             newJoinType = CockroachDBJoin.JoinType.getRandomExcept(JoinType.NATURAL, join.getJoinType());
         }
-        assert newJoinType != JoinType.NATURAL; // Natural Join is not supported for CERT
+        assert newJoinType != JoinType.NATURAL;
         boolean increase = join.getJoinType().ordinal() < newJoinType.ordinal();
         join.setJoinType(newJoinType);
         return increase;

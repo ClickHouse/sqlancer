@@ -22,7 +22,7 @@ public final class CockroachDBCreateStatisticsGenerator {
         sb.append(" FROM ");
         sb.append(randomTable.getName());
 
-        return new SQLQueryAdapter(sb.toString(), ExpectedErrors.from("overflow during Encode")); // https://github.com/cockroachdb/cockroach/issues/84078
+        return new SQLQueryAdapter(sb.toString(), ExpectedErrors.from("overflow during Encode"));
     }
 
 }

@@ -35,7 +35,7 @@ public final class PostgresAnalyzeGenerator {
                 sb.append(")");
             }
         }
-        // FIXME: bug in postgres?
+
         return new SQLQueryAdapter(sb.toString(), ExpectedErrors.from("deadlock"));
     }
 

@@ -40,7 +40,6 @@ public class PrestoQueryPartitioningBase extends TernaryLogicPartitioningOracleB
             return null;
         }
 
-        // TODO: check this
         switch (value) {
         case "-0.0":
             return "0.0";

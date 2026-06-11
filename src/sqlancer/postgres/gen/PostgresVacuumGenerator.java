@@ -19,8 +19,7 @@ public final class PostgresVacuumGenerator {
         PostgresTable table = globalState.getSchema().getRandomTable();
         StringBuilder sb = new StringBuilder("VACUUM ");
         if (Randomly.getBoolean()) {
-            // VACUUM [ ( { FULL | FREEZE | VERBOSE | ANALYZE | DISABLE_PAGE_SKIPPING } [,
-            // ...] ) ] [ table_name [ (column_name [, ...] ) ] ]
+
             sb.append("(");
             for (int i = 0; i < Randomly.smallNumber() + 1; i++) {
                 ArrayList<String> opts = new ArrayList<>(Arrays.asList("FULL", "FREEZE", "ANALYZE", "VERBOSE",
@@ -54,10 +53,8 @@ public final class PostgresVacuumGenerator {
         }
         ExpectedErrors errors = new ExpectedErrors();
         errors.add("VACUUM cannot run inside a transaction block");
-        errors.add("deadlock"); /*
-                                 * "FULL" commented out due to https://www.postgresql.org/message-id/CA%2Bu7OA6pL%
-                                 * 2B7Xm_NXHLenxffe3tCr3gTamVdr7zPjcWqW0RFM-A%40mail.gmail.com
-                                 */
+        errors.add("deadlock");
+
         errors.add("ERROR: ANALYZE option must be specified when a column list is provided");
         errors.add("VACUUM option DISABLE_PAGE_SKIPPING cannot be used with FULL");
         return new SQLQueryAdapter(sb.toString(), errors);

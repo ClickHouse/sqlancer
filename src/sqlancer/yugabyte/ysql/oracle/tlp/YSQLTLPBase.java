@@ -58,7 +58,7 @@ public class YSQLTLPBase extends TernaryLogicPartitioningOracleBase<YSQLExpressi
             YSQLJoin j = new YSQLJoin(new YSQLSelect.YSQLFromTable(table, Randomly.getBoolean()), joinClause, options);
             joinStatements.add(j);
         }
-        // JOIN subqueries
+
         for (int i = 0; i < Randomly.smallNumber(); i++) {
             YSQLTables subqueryTables = globalState.getSchema().getRandomTableNonEmptyTables();
             YSQLSelect.YSQLSubquery subquery = YSQLExpressionGenerator.createSubquery(globalState,

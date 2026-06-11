@@ -161,7 +161,7 @@ public class PostgresTableGenerator {
         }
         isPartitionedTable = true;
         sb.append(" PARTITION BY ");
-        // TODO "RANGE",
+
         String partitionOption = Randomly.fromOptions("RANGE", "LIST", "HASH");
         sb.append(partitionOption);
         sb.append("(");
@@ -192,10 +192,7 @@ public class PostgresTableGenerator {
     }
 
     private void generateUsing() {
-        /*
-         * Postgres does not allow specifying USING clause for partitioned tables since they don't have any storage
-         * associated with them
-         */
+
         if (isPartitionedTable) {
             return;
         }
@@ -230,7 +227,7 @@ public class PostgresTableGenerator {
     private void createColumnConstraint(PostgresDataType type, boolean serial) {
         List<ColumnConstraint> constraintSubset = Randomly.nonEmptySubset(ColumnConstraint.values());
         if (Randomly.getBoolean()) {
-            // make checks constraints less likely
+
             constraintSubset.remove(ColumnConstraint.CHECK);
         }
         if (!columnCanHavePrimaryKey || columnHasPrimaryKey) {
@@ -238,11 +235,11 @@ public class PostgresTableGenerator {
         }
         if (constraintSubset.contains(ColumnConstraint.GENERATED)
                 && constraintSubset.contains(ColumnConstraint.DEFAULT)) {
-            // otherwise: ERROR: both default and identity specified for column
+
             constraintSubset.remove(Randomly.fromOptions(ColumnConstraint.GENERATED, ColumnConstraint.DEFAULT));
         }
         if (constraintSubset.contains(ColumnConstraint.GENERATED) && type != PostgresDataType.INT) {
-            // otherwise: ERROR: identity column type must be smallint, integer, or bigint
+
             constraintSubset.remove(ColumnConstraint.GENERATED);
         }
         if (serial) {
@@ -270,7 +267,7 @@ public class PostgresTableGenerator {
                 sb.append(" (");
                 sb.append(PostgresVisitor.asString(PostgresExpressionGenerator.generateExpression(globalState, type)));
                 sb.append(")");
-                // CREATE TEMPORARY TABLE t1(c0 smallint DEFAULT ('566963878'));
+
                 errors.add("out of range");
                 errors.add("is a generated column");
                 break;

@@ -118,7 +118,6 @@ public class DorisNewExpressionGenerator extends TypedExpressionGenerator<DorisE
 
     @Override
     public DorisExpression generateExpression(DorisDataType type, int depth) {
-        // todo: case operation should be add into generateExpression
 
         if (Randomly.getBooleanWithRatherLowProbability() || depth >= maxDepth) {
             return generateLeafNode(type);
@@ -200,7 +199,7 @@ public class DorisNewExpressionGenerator extends TypedExpressionGenerator<DorisE
 
     private enum BooleanExpression {
         POSTFIX_OPERATOR, NOT, BINARY_LOGICAL_OPERATOR, BINARY_COMPARISON, LIKE, BETWEEN, IN_OPERATION;
-        // SIMILAR_TO, POSIX_REGEX, BINARY_RANGE_COMPARISON,FUNCTION, CAST,;
+
     }
 
     DorisExpression generateBooleanExpression(int depth) {
@@ -284,7 +283,7 @@ public class DorisNewExpressionGenerator extends TypedExpressionGenerator<DorisE
     }
 
     DorisExpression getComparison(int depth) {
-        // 跳过boolean
+
         DorisDataType dataType = Randomly.fromList(Arrays.asList(DorisDataType.values()).stream()
                 .filter(t -> t != DorisDataType.BOOLEAN).collect(Collectors.toList()));
         DorisExpression leftExpr = generateExpression(dataType, depth);
@@ -378,7 +377,6 @@ public class DorisNewExpressionGenerator extends TypedExpressionGenerator<DorisE
                     v = r.getDouble();
                 }
 
-                // e.g. format 1234.413232532 to qualify num 34.4132
                 String formatter = "%." + type.getDecimalScale() + "f";
                 String vStr = String.format(formatter, v);
                 int pointPos = vStr.indexOf('.');
@@ -395,14 +393,14 @@ public class DorisNewExpressionGenerator extends TypedExpressionGenerator<DorisE
             return DorisConstant.createNullConstant();
         case DATE:
             if (globalState.getDbmsSpecificOptions().testDateConstants) {
-                // [1970-01-01 08:00:00, 3000-01-01 00:00:00]
+
                 timestamp = globalState.getRandomly().getLong(0, 32503651200L);
                 return DorisConstant.createDateConstant(timestamp);
             }
             return DorisConstant.createNullConstant();
         case DATETIME:
             if (globalState.getDbmsSpecificOptions().testDateTimeConstants) {
-                // [1970-01-01 08:00:00, 3000-01-01 00:00:00]
+
                 timestamp = globalState.getRandomly().getLong(0, 32503651200L);
                 if (DorisBugs.bug36342) {
                     return DorisConstant.createDatetimeConstant(timestamp);

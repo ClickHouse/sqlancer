@@ -11,22 +11,8 @@ import sqlancer.clickhouse.ClickHouseSchema.ClickHouseColumn;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseLancerDataType;
 import sqlancer.clickhouse.ast.ClickHouseAggregate;
 
-/**
- * Typed algebraic-identity catalog for the combinator-identity oracle.
- *
- * <p>
- * Each entry pairs a combinator-form template with an equivalent rewrite that does not use the combinator. The
- * {@code safeForType} predicate filters out columns whose runtime type would make the rewrite version diverge (NULL
- * propagation, intermediate widening, etc.). The {@code settings} field records the
- * {@code aggregate_functions_null_for_empty} value the identity needs: {@code =1} is the default, but the
- * {@code -OrNull} family forces {@code =0} to avoid the setting double-encoding the empty-NULL semantics on top of the
- * combinator (plan, Unit 5).
- * </p>
- */
 final class ClickHouseCombinatorIdentities {
 
-    // Operand context passed to rewrite templates. `xSql` is the value/condition; `condSql` is the
-    // IF predicate (null when unused).
     record IdentityArgs(String xSql, String condSql) {
     }
 
@@ -39,20 +25,12 @@ final class ClickHouseCombinatorIdentities {
     static final String SETTINGS_NULL_FOR_EMPTY_ON = "aggregate_functions_null_for_empty=1, enable_optimize_predicate_expression=0";
     static final String SETTINGS_NULL_FOR_EMPTY_OFF = "aggregate_functions_null_for_empty=0, enable_optimize_predicate_expression=0";
 
-    /**
-     * v1 catalog. Each row is auditable independently: name, applicability predicates, settings, and the two SQL
-     * templates. New identities land as one-row additions. Multi-extra-arg chains (e.g., sumIfResample) are explicitly
-     * excluded -- the catalog's value comes from named simple rewrites, not from cross-product enumeration.
-     */
     static final List<Identity> CATALOG = List.of(
             new Identity("sumIf", fn -> fn == ClickHouseAggregate.ClickHouseAggregateFunction.SUM,
                     ClickHouseCombinatorIdentities::isNumericType, SETTINGS_NULL_FOR_EMPTY_ON, true,
                     args -> "sumIf(" + args.xSql() + ", " + args.condSql() + ")",
                     args -> "sum(if(" + args.condSql() + ", " + args.xSql() + ", 0))"),
-            // countIf is asymmetric vs the sum-family rewrite: countIf over empty input is 0 (count
-            // always returns 0 on empty regardless of null_for_empty), but sum(toUInt64(c)) over
-            // empty with null_for_empty=1 returns NULL. Pin null_for_empty=0 so the sum side also
-            // returns 0 on empty.
+
             new Identity("countIf", fn -> fn == ClickHouseAggregate.ClickHouseAggregateFunction.COUNT, t -> true,
                     SETTINGS_NULL_FOR_EMPTY_OFF, true, args -> "countIf(" + args.condSql() + ")",
                     args -> "sum(toUInt64(" + args.condSql() + "))"),
@@ -77,8 +55,6 @@ final class ClickHouseCombinatorIdentities {
     private ClickHouseCombinatorIdentities() {
     }
 
-    // Pick an identity whose predicates accept the (aggregate, column-type) pair. Returns empty
-    // when no entry in the catalog matches -- the caller treats that as IgnoreMeException.
     static Optional<Identity> pickIdentity(Randomly r, ClickHouseAggregate.ClickHouseAggregateFunction agg,
             ClickHouseLancerDataType colType) {
         List<Identity> eligible = CATALOG.stream().filter(id -> id.safeForFunc().test(agg))

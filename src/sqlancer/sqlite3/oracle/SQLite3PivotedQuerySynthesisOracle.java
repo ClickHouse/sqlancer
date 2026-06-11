@@ -69,8 +69,7 @@ public class SQLite3PivotedQuerySynthesisOracle
         SQLite3Select selectStatement = new SQLite3Select();
         selectStatement.setSelectType(Randomly.fromOptions(SQLite3Select.SelectType.values()));
         List<SQLite3Column> columns = randomFromTables.getColumns();
-        // filter out row ids from the select because the hinder the reduction process
-        // once a bug is found
+
         List<SQLite3Column> columnsWithoutRowid = columns.stream()
                 .filter(c -> !SQLite3Schema.ROWID_STRINGS.contains(c.getName())).collect(Collectors.toList());
         List<Join> joinStatements = getJoinStatements(globalState, tables, columnsWithoutRowid);
@@ -97,7 +96,7 @@ public class SQLite3PivotedQuerySynthesisOracle
             SQLite3Expression offsetClause = generateOffset();
             selectStatement.setOffsetClause(offsetClause);
         }
-        /* PQS does not check for ordering, so we can generate any ORDER BY clause */
+
         List<SQLite3Expression> orderBy = new SQLite3ExpressionGenerator(globalState).generateOrderBys();
         selectStatement.setOrderByClauses(orderBy);
         if (!groupByClause.isEmpty() && Randomly.getBoolean()) {
@@ -111,10 +110,10 @@ public class SQLite3PivotedQuerySynthesisOracle
         List<Join> joinStatements = new SQLite3ExpressionGenerator(globalState).getRandomJoinClauses(tables);
         for (Join j : joinStatements) {
             if (j.getType() == JoinType.NATURAL) {
-                /* NATURAL joins have no on clause and cannot be rectified */
+
                 j.setType(JoinType.INNER);
             }
-            // ensure that the join does not exclude the pivot row
+
             j.setOnClause(generateRectifiedExpression(columns, pivotRow, false));
         }
         errors.add("ON clause references tables to its right");
@@ -128,10 +127,6 @@ public class SQLite3PivotedQuerySynthesisOracle
             SQLite3Expression colName = new SQLite3ColumnName(c, pivotRow.getValues().get(c));
             if (testAggregateFunctions && Randomly.getBoolean()) {
 
-                /*
-                 * PQS cannot detect omitted or incorrectly-fetched duplicate rows, so we can generate DISTINCT
-                 * statements
-                 */
                 boolean generateDistinct = Randomly.getBooleanWithRatherLowProbability();
                 if (generateDistinct) {
                     colName = new SQLite3Distinct(colName);
@@ -183,7 +178,7 @@ public class SQLite3PivotedQuerySynthesisOracle
         globalState.getState().getLocalState()
                 .log("-- we expect the following expression to be contained in the result set: "
                         + checkForContainmentValues);
-        sb.append(" INTERSECT SELECT * FROM ("); // ANOTHER SELECT TO USE ORDER BY without restrictions
+        sb.append(" INTERSECT SELECT * FROM (");
         sb.append(query.getUnterminatedQueryString());
         sb.append(")");
         String resultingQueryString = sb.toString();
@@ -199,7 +194,7 @@ public class SQLite3PivotedQuerySynthesisOracle
             SQLite3Constant expectedValue = pivotRowExpression.get(i).getExpectedValue();
             String value = SQLite3Visitor.asString(expectedValue);
             if (value.contains("�") || value.contains("\0")) {
-                // encoding issues || Java does not completely strings with \0 characters
+
                 throw new IgnoreMeException();
             }
             sb.append(value);
@@ -227,7 +222,7 @@ public class SQLite3PivotedQuerySynthesisOracle
             return collect;
         }
         if (Randomly.getBoolean()) {
-            // ensure that we GROUP BY all columns
+
             List<SQLite3Expression> collect = columns.stream().map(c -> new SQLite3ColumnName(c, rw.getValues().get(c)))
                     .collect(Collectors.toList());
             if (Randomly.getBoolean()) {
@@ -242,16 +237,6 @@ public class SQLite3PivotedQuerySynthesisOracle
         }
     }
 
-    /**
-     * Generates a predicate that is guaranteed to evaluate to <code>true</code> for the given pivot row. PQS uses this
-     * method to generate predicates used in WHERE and JOIN clauses. See step 4 of the PQS paper.
-     *
-     * @param columns
-     * @param pivotRow
-     * @param allowAggregates
-     *
-     * @return an expression that evaluates to <code>true</code>.
-     */
     private SQLite3Expression generateRectifiedExpression(List<SQLite3Column> columns, SQLite3RowValue pivotRow,
             boolean allowAggregates) {
         SQLite3ExpressionGenerator gen = new SQLite3ExpressionGenerator(globalState).setRowValue(pivotRow)
@@ -262,20 +247,19 @@ public class SQLite3PivotedQuerySynthesisOracle
         SQLite3Expression expr = gen.generateResultKnownExpression();
         SQLite3Expression rectifiedPredicate;
         if (expr.getExpectedValue().isNull()) {
-            // the expr evaluates to NULL => rectify to "expr IS NULL"
+
             rectifiedPredicate = new SQLite3PostfixUnaryOperation(PostfixUnaryOperator.ISNULL, expr);
         } else if (SQLite3Cast.isTrue(expr.getExpectedValue()).get()) {
-            // the expr evaluates to TRUE => we can directly return it
+
             rectifiedPredicate = expr;
         } else {
-            // the expr evaluates to FALSE 0> rectify to "NOT expr"
+
             rectifiedPredicate = new SQLite3UnaryOperation(UnaryOperator.NOT, expr);
         }
         rectifiedPredicates.add(rectifiedPredicate);
         return rectifiedPredicate;
     }
 
-    //
     private SQLite3Expression generateWindowFunction(List<SQLite3Column> columns, SQLite3Expression colName,
             boolean allowFilter) {
         StringBuilder sb = new StringBuilder();
@@ -335,7 +319,7 @@ public class SQLite3PivotedQuerySynthesisOracle
             do {
                 orderingTerm = SQLite3Common.getOrderingTerm(columns, globalState);
             } while (orderingTerm.contains("ASC") || orderingTerm.contains("DESC"));
-            // TODO investigate
+
             sb.append(orderingTerm);
         }
     }

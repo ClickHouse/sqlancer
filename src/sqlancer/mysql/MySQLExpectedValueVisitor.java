@@ -172,7 +172,7 @@ public class MySQLExpectedValueVisitor implements MySQLVisitor {
 
     @Override
     public void visit(MySQLAggregate aggr) {
-        // PQS is currently unsupported for aggregates.
+
         throw new IgnoreMeException();
     }
 

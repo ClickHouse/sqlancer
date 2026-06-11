@@ -19,10 +19,7 @@ public class SparkTableGenerator extends AbstractTableGenerator<SparkColumn> {
 
     private enum ColumnConstraints {
         NOT_NULL, DEFAULT
-        // PRIMARY KEY and UNIQUE are often not supported in standard Spark file sources
-        // (Parquet/ORC)
-        // without specific catalogs (like Delta/Iceberg), so we limit to constraints
-        // Spark SQL widely accepts.
+
     }
 
     private final SparkGlobalState globalState;
@@ -56,11 +53,6 @@ public class SparkTableGenerator extends AbstractTableGenerator<SparkColumn> {
         sb.append(" ");
         appendColumnDefinitions(columnsToBeAdded);
         sb.append(" USING PARQUET");
-
-        // TODO: implement PARTITION BY clause
-        // TODO: implement CLUSTERED BY clauses
-        // TODO: implement ROW FORMAT and STORED AS clauses
-        // TODO: randomly add some predefined TABLEPROPERTIES
 
         SparkErrors.addExpressionErrors(errors);
     }

@@ -9,9 +9,6 @@ import java.util.List;
 
 import sqlancer.common.query.Query;
 
-/**
- * A standalone tool to reduce bug-triggering SQL statements using the delta debugging algorithm.
- */
 public class StandaloneReducer {
     private int partitionNum = 2;
     private final StateToReproduce originalState;
@@ -28,11 +25,6 @@ public class StandaloneReducer {
                 : Paths.get(inputPath.toString().replaceAll("\\.ser$", ".sql"));
     }
 
-    /**
-     * Performs the main reduction algorithm using partition-based delta debugging.
-     *
-     * @return List of reduced SQL statements that still trigger bugs.
-     */
     public List<Query<?>> reduce() throws Exception {
         List<Query<?>> queries = new ArrayList<>(originalState.getStatements());
         if (queries.size() <= 1) {
@@ -91,7 +83,6 @@ public class StandaloneReducer {
         return queries;
     }
 
-    // Test if bug still exists with reduced query set
     @SuppressWarnings("unchecked")
     private <G extends GlobalState<O, ?, C>, O extends DBMSSpecificOptions<?>, C extends SQLancerDBConnection> boolean testExceptionStillExists(
             List<Query<?>> queries) {
@@ -106,12 +97,11 @@ public class StandaloneReducer {
                         Query<C> typedQuery = (Query<C>) query;
                         typedQuery.execute(globalState);
                     } catch (Throwable e) {
-                        // Any exception not declared as an expected error by the query indicates that an (unexpected)
-                        // exception still exists
+
                         return true;
                     }
                 }
-                // No exception occurred
+
                 return false;
             }
         } catch (Throwable e) {

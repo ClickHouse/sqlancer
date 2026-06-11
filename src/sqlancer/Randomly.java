@@ -106,8 +106,6 @@ public final class Randomly {
         return useCaching && getNextLong(0, 3) == 1;
     }
 
-    // CACHING END
-
     public static <T> T fromList(List<T> list) {
         return list.get((int) getNextLong(0, list.size()));
     }
@@ -176,7 +174,7 @@ public final class Randomly {
     }
 
     public static int smallNumber() {
-        // no need to cache for small numbers
+
         return (int) (Math.abs(getThreadRandom().get().nextGaussian())) * 2;
     }
 
@@ -190,7 +188,7 @@ public final class Randomly {
 
     private static ThreadLocal<Random> getThreadRandom() {
         if (THREAD_RANDOM.get() == null) {
-            // a static method has been called, before Randomly was instantiated
+
             THREAD_RANDOM.set(new Random());
         }
         return THREAD_RANDOM;
@@ -449,7 +447,6 @@ public final class Randomly {
         return (int) getLong(left, right);
     }
 
-    // TODO redundant?
     public long getLong(long left, long right) {
         if (left == right) {
             return left;
@@ -528,9 +525,6 @@ public final class Randomly {
         }
     }
 
-    // see https://stackoverflow.com/a/2546158
-    // uniformity does not seem to be important for us
-    // SQLancer previously used ThreadLocalRandom.current().nextLong(lower, upper)
     private static long getNextLong(long lower, long upper) {
         if (lower > upper) {
             throw new IllegalArgumentException(lower + " " + upper);

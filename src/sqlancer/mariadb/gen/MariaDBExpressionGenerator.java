@@ -53,13 +53,9 @@ public class MariaDBExpressionGenerator
         }
         switch (option) {
         case REAL:
-            // FIXME: bug workaround for MDEV-21032
+
             return MariaDBConstant.createIntConstant(r.getInteger());
-        // double val;
-        // do {
-        // val = r.getDouble();
-        // } while (Double.isInfinite(val));
-        // return MariaDBConstant.createDoubleConstant(val);
+
         case INT:
             return MariaDBConstant.createIntConstant(r.getInteger());
         case VARCHAR:

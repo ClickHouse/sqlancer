@@ -10,41 +10,26 @@ import sqlancer.sqlite3.SQLite3GlobalState;
 
 public class SQLite3PragmaGenerator {
 
-    /**
-     * Not all pragmas are generated.
-     *
-     * <ul>
-     * <li>case_sensitive_like is not generated since the tool discovered that it has some conceptual issues, see
-     * https://www.sqlite.org/src/info/a340eef47b0cad5.</li>
-     * <li>legacy_alter_table is not generated since it does not work well with the ALTER command (see docs)</li>
-     * <li>journal_mode=off is generated, since it can corrupt the database, see
-     * https://www.sqlite.org/src/tktview?name=f4ec250930</li>
-     * <li>temp_store deletes all existing temporary tables</li>
-     * </ul>
-     */
     private enum Pragma {
-        APPLICATION_ID, //
-        AUTO_VACUUM, //
-        AUTOMATIC_INDEX, //
-        BUSY_TIMEOUT, //
-        CACHE_SIZE, //
-        CACHE_SPILL_ENABLED, //
-        CACHE_SPILL_SIZE, /* CASE_SENSITIVE_LIKE */ CELL_SIZE_CHECK, CHECKPOINT_FULLSYNC, DEFAULT_CACHE_SIZE,
-        DEFER_FOREIGN_KEY, /*
-                            * ENCODING,
-                            */
+        APPLICATION_ID,
+        AUTO_VACUUM,
+        AUTOMATIC_INDEX,
+        BUSY_TIMEOUT,
+        CACHE_SIZE,
+        CACHE_SPILL_ENABLED,
+        CACHE_SPILL_SIZE,  CELL_SIZE_CHECK, CHECKPOINT_FULLSYNC, DEFAULT_CACHE_SIZE,
+        DEFER_FOREIGN_KEY,
+
         FOREIGN_KEYS, IGNORE_CHECK_CONSTRAINTS, INCREMENTAL_VACUUM, INTEGRITY_CHECK, JOURNAL_MODE, JOURNAL_SIZE_LIMIT,
-        /*
-         * LEGACY_ALTER_TABLE
-         */ OPTIMIZE, LEGACY_FORMAT, LOCKING_MODE, MMAP_SIZE, RECURSIVE_TRIGGERS, REVERSE_UNORDERED_SELECTS,
-        SECURE_DELETE, SHRINK_MEMORY, SOFT_HEAP_LIMIT, //
-        STATS, //
+
+ OPTIMIZE, LEGACY_FORMAT, LOCKING_MODE, MMAP_SIZE, RECURSIVE_TRIGGERS, REVERSE_UNORDERED_SELECTS,
+        SECURE_DELETE, SHRINK_MEMORY, SOFT_HEAP_LIMIT,
+        STATS,
         SHORT_COLUMN_NAMES,
-        /* TEMP_STORE, */ //
-        THREADS, //
-        WAL_AUTOCHECKPOINT, //
-        WAL_CHECKPOINT; //
-        // WRITEABLE_SCHEMA
+
+        THREADS,
+        WAL_AUTOCHECKPOINT,
+        WAL_CHECKPOINT;
 
     }
 
@@ -118,17 +103,7 @@ public class SQLite3PragmaGenerator {
         case DEFER_FOREIGN_KEY:
             createPragma("defer_foreign_keys", () -> getRandomTextBoolean());
             break;
-        // TODO: [SQLITE_ERROR] SQL error or missing database (attached databases must
-        // use the same text encoding as main database)
-        // case ENCODING:
-        // sb.append("PRAGMA main.encoding = \"");
-        // String encoding = Randomly.fromOptions("UTF-8", "UTF-16", "UTF-16be", "UTF-16le");
-        // sb.append(encoding);
-        // sb.append("\";\n");
-        // sb.append("PRAGMA temp.encoding = \"");
-        // sb.append(encoding);
-        // sb.append("\"");
-        // break;
+
         case FOREIGN_KEYS:
             createPragma("foreign_keys", () -> getRandomTextBoolean());
             break;
@@ -146,8 +121,7 @@ public class SQLite3PragmaGenerator {
             createPragma("integrity_check", () -> null);
             break;
         case JOURNAL_MODE:
-            // OFF is no longer generated, since it might corrupt the database upon failed
-            // index creation, see https://www.sqlite.org/src/tktview?name=f4ec250930.
+
             createPragma("journal_mode", () -> Randomly.fromOptions("DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL"));
             errors.add("from within a transaction");
             break;
@@ -200,9 +174,7 @@ public class SQLite3PragmaGenerator {
         case STATS:
             createPragma("stats", () -> null);
             break;
-        // case TEMP_STORE:
-        // createPragma("temp_store", () -> Randomly.fromOptions("DEFAULT", "FILE", "MEMORY"));
-        // break;
+
         case THREADS:
             createPragma("threads", () -> Randomly.getNonCachedInteger());
             break;

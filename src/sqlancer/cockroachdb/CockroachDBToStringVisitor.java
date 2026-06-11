@@ -183,7 +183,7 @@ public class CockroachDBToStringVisitor extends ToStringVisitor<CockroachDBExpre
             break;
         case NATURAL:
             sb.append(" NATURAL ");
-            // potentiallyAddHint(false);
+
             sb.append("JOIN ");
             visit(join.getRightTable());
             break;

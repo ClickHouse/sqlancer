@@ -28,9 +28,7 @@ class ClickHouseSessionSettingsErrorsTest {
 
     @Test
     void doesNotAbsorbUnrelatedErrors() {
-        // Load-bearing negative assertion: if someone reintroduces the bare token "Setting" or
-        // "out of range" as a substring, these messages would be silently absorbed and real bugs
-        // would be hidden.
+
         ExpectedErrors errors = ExpectedErrors.newErrors().build();
         ClickHouseErrors.addSessionSettingsErrors(errors);
         assertFalse(errors.errorIsExpected("Cannot convert string"));

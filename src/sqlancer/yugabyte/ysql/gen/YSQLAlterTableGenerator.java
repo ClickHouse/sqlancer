@@ -43,13 +43,13 @@ public class YSQLAlterTableGenerator {
         errors.add("does not accept data type");
         errors.add("does not exist for access method");
         errors.add("could not find cast from");
-        errors.add("does not exist"); // TODO: investigate
+        errors.add("does not exist");
         errors.add("constraints on permanent tables may reference only permanent tables");
         List<Action> action;
         if (Randomly.getBoolean()) {
             action = Randomly.nonEmptySubset(Action.values());
         } else {
-            // make it more likely that the ALTER TABLE succeeds
+
             action = Randomly.subset(Randomly.smallNumber(), Action.values());
         }
         if (randomTable.getColumns().size() == 1) {
@@ -169,15 +169,14 @@ public class YSQLAlterTableGenerator {
     }
 
     protected enum Action {
-        // ALTER_TABLE_ADD_COLUMN, // [ COLUMN ] column data_type [ COLLATE collation ] [
-        // column_constraint [ ... ] ]
-        ALTER_TABLE_DROP_COLUMN, // DROP [ COLUMN ] [ IF EXISTS ] column [ RESTRICT | CASCADE ]
-        ADD_TABLE_CONSTRAINT, // ADD table_constraint [ NOT VALID ]
-        ADD_TABLE_CONSTRAINT_USING_INDEX, // ADD table_constraint_using_index
-        DISABLE_ROW_LEVEL_SECURITY, // DISABLE ROW LEVEL SECURITY
-        ENABLE_ROW_LEVEL_SECURITY, // ENABLE ROW LEVEL SECURITY
-        FORCE_ROW_LEVEL_SECURITY, // FORCE ROW LEVEL SECURITY
-        NO_FORCE_ROW_LEVEL_SECURITY, // NO FORCE ROW LEVEL SECURITY
+
+        ALTER_TABLE_DROP_COLUMN,
+        ADD_TABLE_CONSTRAINT,
+        ADD_TABLE_CONSTRAINT_USING_INDEX,
+        DISABLE_ROW_LEVEL_SECURITY,
+        ENABLE_ROW_LEVEL_SECURITY,
+        FORCE_ROW_LEVEL_SECURITY,
+        NO_FORCE_ROW_LEVEL_SECURITY,
     }
 
 }

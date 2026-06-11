@@ -20,7 +20,7 @@ public class TestRandomly {
 
     private static final int NR_MIN_RUNS = 100000;
 
-    @Test // test that every option is picked
+    @Test
     public void testFromOptions() {
         Integer[] options = { 1, 2, 3 };
         List<Integer> remainingOptions = new ArrayList<>(Arrays.asList(options));
@@ -41,7 +41,7 @@ public class TestRandomly {
         int i = 0;
         do {
             List<Integer> subset = Randomly.subset(optionList);
-            assertEquals(optionList.size(), 3); // check that the original set hasn't been modified
+            assertEquals(optionList.size(), 3);
             assertTrue(optionList.containsAll(subset));
             if (subset.isEmpty()) {
                 encounteredEmptySubset = true;
@@ -88,7 +88,7 @@ public class TestRandomly {
         assertTrue(encounteredSpace, "Space was not encountered");
     }
 
-    @Test // TODO: also generate and check for NaN
+    @Test
     public void testDouble() {
         Randomly r = new Randomly();
         boolean encounteredZero = false;
@@ -195,7 +195,7 @@ public class TestRandomly {
     @Test
     public void testInteger() {
         Randomly r = new Randomly();
-        // TODO: we should throw an exception instead
+
         assertEquals(0, r.getInteger(0, 0));
         assertEquals(0, r.getInteger(0, 1));
     }
@@ -203,7 +203,7 @@ public class TestRandomly {
     @Test
     public void testLong() {
         Randomly r = new Randomly();
-        // TODO: we should throw an exception instead
+
         assertEquals(0, r.getLong(0, 0));
         assertEquals(0, r.getLong(0, 1));
     }
@@ -218,7 +218,7 @@ public class TestRandomly {
         }
     }
 
-    @Test // check that when given a seed, each thread computes a consistent result
+    @Test
     public void testSeed() {
         int seed = 123;
         Randomly r = new Randomly(seed);

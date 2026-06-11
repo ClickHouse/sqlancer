@@ -36,8 +36,7 @@ public class DatabendProvider extends SQLProviderAdapter<DatabendGlobalState, Da
     public enum Action implements AbstractAction<DatabendGlobalState> {
 
         INSERT(DatabendInsertGenerator::getQuery), DELETE(DatabendDeleteGenerator::generate),
-        // TODO 等待databend实现update
-        // UPDATE(DatabendUpdateGenerator::getQuery), //
+
         CREATE_VIEW(DatabendViewGenerator::generate), EXPLAIN((g) -> {
             ExpectedErrors errors = new ExpectedErrors();
             DatabendErrors.addExpressionErrors(errors);
@@ -67,9 +66,7 @@ public class DatabendProvider extends SQLProviderAdapter<DatabendGlobalState, Da
             return r.getInteger(0, globalState.getOptions().getMaxNumberInserts());
         case EXPLAIN:
             return r.getInteger(0, 2);
-        // TODO 等待databend实现update && delete
-        // case UPDATE:
-        // return r.getInteger(0, globalState.getDbmsSpecificOptions().maxNumUpdates + 1);
+
         case DELETE:
             return r.getInteger(0, globalState.getDbmsSpecificOptions().maxNumDeletes + 1);
         case CREATE_VIEW:
@@ -98,7 +95,7 @@ public class DatabendProvider extends SQLProviderAdapter<DatabendGlobalState, Da
             } while (!success);
         }
         if (globalState.getSchema().getDatabaseTables().isEmpty()) {
-            throw new IgnoreMeException(); // TODO
+            throw new IgnoreMeException();
         }
         StatementExecutor<DatabendGlobalState, Action> se = new StatementExecutor<>(globalState, Action.values(),
                 DatabendProvider::mapActions, (q) -> {
@@ -106,7 +103,7 @@ public class DatabendProvider extends SQLProviderAdapter<DatabendGlobalState, Da
                         throw new IgnoreMeException();
                     }
                 });
-        se.executeStatements(); // 增删改一些数据（按权重随机选取算法）
+        se.executeStatements();
     }
 
     @Override
@@ -146,7 +143,7 @@ public class DatabendProvider extends SQLProviderAdapter<DatabendGlobalState, Da
 
     @Override
     public String getDBMSName() {
-        return "databend"; // 用于DatabendOptions
+        return "databend";
     }
 
 }

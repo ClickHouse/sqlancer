@@ -179,12 +179,7 @@ public class ClickHouseBinaryComparisonOperation extends ClickHouseExpression
             }
 
         },
-        // IN / NOT IN against a subquery RHS. The right operand is a pre-rendered
-        // `(SELECT ...)` fragment (ClickHouseRawText) with no constant value, so the PQS-style
-        // expected-value computation is intentionally left as the no-op base `apply` (returns
-        // null) -- these operators are emitted only by generatePredicate's IN-subquery branch and
-        // are deliberately excluded from getRandomOperator() so a generic comparison can never
-        // pick them with a scalar RHS (which would be invalid SQL).
+
         IN("IN"), NOT_IN("NOT IN");
 
         private final String[] textRepresentation;
@@ -198,8 +193,7 @@ public class ClickHouseBinaryComparisonOperation extends ClickHouseExpression
         }
 
         public static ClickHouseBinaryComparisonOperator getRandomOperator() {
-            // Excludes IN / NOT_IN: those require a subquery/set RHS and are emitted only by the
-            // dedicated IN-subquery predicate branch, never by a generic scalar comparison.
+
             return Randomly.fromOptions(SMALLER, SMALLER_EQUALS, GREATER, GREATER_EQUALS, EQUALS, NOT_EQUALS, LIKE);
         }
 

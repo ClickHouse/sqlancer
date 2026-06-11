@@ -1,8 +1,5 @@
 package sqlancer.clickhouse.ast;
 
-/**
- * Access-control DDL: CREATE/ALTER/DROP QUOTA / SETTINGS PROFILE / ROW POLICY. Workstream 12.
- */
 public class ClickHouseAccessDdlStatement extends ClickHouseDdlStatement {
 
     public enum Kind {

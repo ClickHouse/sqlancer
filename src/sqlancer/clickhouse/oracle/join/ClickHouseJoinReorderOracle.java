@@ -17,82 +17,16 @@ import sqlancer.common.oracle.TestOracle;
 import sqlancer.common.query.ExpectedErrors;
 import sqlancer.common.query.SQLQueryAdapter;
 
-/**
- * Join-reorder differential oracle: targets the 26.3 extension of join-order swapping to ANTI/SEMI/FULL joins
- * (PR #97498). The wrong-result class is proven live by the 26.5 fix PR #101504 (reordering produced wrong results),
- * and the crash class by the still-open #106426 ({@code LOGICAL_ERROR "Join restriction violated"} in
- * {@code JoinOrderOptimizer::solveGreedy}).
- *
- * <p>
- * Self-contained (Shape C, MutationAnalyzer lifecycle): per {@code check()} it creates 3-4 private AtomicLong-suffixed
- * plain-MergeTree tables {@code <db>.jreord_<id>_t{0..3}} ({@code k} Int32 or Nullable(Int32), {@code v} Int32,
- * {@code s} String), seeds them with a small key domain (0-9, occasional out-of-domain outlier for
- * disjoint-range FULL coverage), deliberate NULL keys on the Nullable tables, duplicate keys, and skewed
- * cardinalities -- t0 large (200-400 rows), t1..t3 tiny (0-5 rows). The cardinality asymmetry is what drives the
- * optimizer's reordering decisions (and is the exact #106426 trigger shape).
- *
- * <p>
- * One query per iteration: a chain of 2-3 joins over distinct aliases with kinds drawn from {INNER, LEFT, FULL,
- * LEFT SEMI, LEFT ANTI, RIGHT SEMI, RIGHT ANTI}, equality ON clauses ({@code a<x>.k = a<i>.k}, {@code x < i}), and an
- * occasional (~30%) cross-relation WHERE over two different tables' {@code v} columns. The same query text runs under
- * three SETTINGS arms and the three result multisets are compared pairwise:
- * <ol>
- * <li>{@code query_plan_optimize_join_order_limit = 10} -- reordering on (the default);</li>
- * <li>{@code query_plan_optimize_join_order_limit = 0} -- reordering off (the reference plan);</li>
- * <li>{@code query_plan_optimize_join_order_limit = 10, query_plan_optimize_join_order_randomize = 1} -- the 26.4
- * test knob that shuffles the chosen order, forcing orders the cost model would never pick.</li>
- * </ol>
- *
- * <p>
- * <b>Projection determinism rules.</b> SEMI/ANTI join outputs are only deterministic as a set of rows of one side:
- * <ul>
- * <li>LEFT SEMI keeps left rows that have a match, but the right-side non-key columns come from "some" match --
- * non-deterministic under duplicate right keys. LEFT ANTI keeps left rows without a match (right side
- * default-filled). For both, the deterministic projection surface is the leftmost (driving) table.</li>
- * <li>RIGHT SEMI/ANTI mirror this: they keep right-table rows, so only the right table of that join is
- * deterministic.</li>
- * <li>INNER/LEFT/FULL impose no restriction.</li>
- * </ul>
- * The projected table set is the intersection of every join's allowed set ({@link #deterministicTables}); if the
- * chain mixes constraints so that no table is deterministic for every join, the query projects {@code count()} only.
- * The projection is rendered as a single {@code toString(tuple(<qualified k,v,s columns>))} column so the multiset
- * compare runs over plain strings (tuple-rendered strings are never SQL NULL, so sorting is safe).
- *
- * <p>
- * ON clauses and the cross-relation WHERE stay sound through SEMI/ANTI because they only touch columns that remain
- * deterministic: ON clauses use only {@code k} equality -- through a SEMI join the matched {@code k} is pinned by the
- * equality itself, and through an ANTI join the other side's {@code k} is default-filled (0 / NULL) deterministically
- * -- and the WHERE only references {@code v} columns of tables in the deterministic set.
- *
- * <p>
- * ~25% of iterations run {@code ADD STATISTICS IF NOT EXISTS ... TYPE minmax} + {@code MATERIALIZE STATISTICS} on the
- * big table after seeding (reordering is stats-driven; since 26.4 auto-stats exist, materializing makes the cost
- * model see the skew). The stats step is best-effort: a tolerated failure skips the step, never the iteration.
- *
- * <p>
- * Error tolerance mirrors MutationAnalyzer's layering: a narrow shared baseline (session-settings family -- the
- * randomize knob is 26.4+ and unknown on older images -- UNKNOWN_TABLE, MEMORY_LIMIT, TIMEOUT) plus, on the SELECT
- * arms ONLY, the known-open #106426 pin {@code "Join restriction violated"} routed to {@link IgnoreMeException}.
- * <b>Remove the pin when #106426 is fixed on head</b> (check:
- * {@code gh issue view 106426 --repo ClickHouse/ClickHouse --json state -q .state}).
- */
 public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalState> {
 
     private static final AtomicLong JREORD_COUNTER = new AtomicLong();
     private static final int DIFF_LIMIT = 20;
 
-    // The three arms. Limit=10 is the server default, spelled explicitly so the arm survives a
-    // future default change; limit=0 disables reordering entirely (the reference plan);
-    // randomize=1 (26.4 test knob) shuffles the chosen order so cost-model-implausible orders get
-    // traffic too.
     static final String ARM_REORDER_ON = "SETTINGS query_plan_optimize_join_order_limit = 10";
     static final String ARM_REORDER_OFF = "SETTINGS query_plan_optimize_join_order_limit = 0";
     static final String ARM_REORDER_RANDOMIZE = "SETTINGS query_plan_optimize_join_order_limit = 10, "
             + "query_plan_optimize_join_order_randomize = 1";
 
-    /**
-     * Join kinds under test. {@code sql} is the exact join clause keyword sequence.
-     */
     enum JoinKind {
         INNER("INNER JOIN"), LEFT("LEFT JOIN"), FULL("FULL JOIN"), LEFT_SEMI("LEFT SEMI JOIN"),
         LEFT_ANTI("LEFT ANTI JOIN"), RIGHT_SEMI("RIGHT SEMI JOIN"), RIGHT_ANTI("RIGHT ANTI JOIN");
@@ -120,16 +54,6 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
         }
     }
 
-    // Alias indices still "live" (their key column carries meaningful, non-defaulted values) when
-    // the next join is applied, after running {@code precedingKinds} from the base alias a0. A
-    // SEMI/ANTI join consumes one side: LEFT SEMI/ANTI keep the accumulated left and DROP the
-    // just-joined right table (alias j+1); RIGHT SEMI/ANTI keep the right table (alias j+1) and DROP
-    // the entire accumulated left side. ClickHouse default-fills a dropped side's columns (NULL for
-    // Nullable, 0 otherwise -- verified on head 26.6.1.611), so referencing a dropped alias in a
-    // later ON is well-defined but join-order-fragile: that is exactly the #107073 family (LEFT
-    // ANTI / RIGHT SEMI / INNER ON a0.k=a3.k flips 0 vs 1; and the LEFT / RIGHT SEMI / FULL ON
-    // a0.k=a3.k variant the 10h run surfaced). Constraining every ON to a live alias keeps full
-    // SEMI/ANTI reorder coverage WITHOUT re-generating that filed bug as per-run noise.
     static List<Integer> liveAliasesBeforeJoin(List<JoinKind> precedingKinds) {
         TreeSet<Integer> live = new TreeSet<>();
         live.add(0);
@@ -137,14 +61,14 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
             switch (precedingKinds.get(j)) {
             case LEFT_SEMI:
             case LEFT_ANTI:
-                // right table (alias j+1) consumed; accumulated left stays live
+
                 break;
             case RIGHT_SEMI:
             case RIGHT_ANTI:
                 live.clear();
                 live.add(j + 1);
                 break;
-            default: // INNER / LEFT / FULL keep both sides
+            default:
                 live.add(j + 1);
                 break;
             }
@@ -152,12 +76,6 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
         return new ArrayList<>(live);
     }
 
-    // True if any join's ON references an alias that a preceding SEMI/ANTI already dropped -- the
-    // #107073 trigger. Used to gate-detect (tests) and, when the opt-in flag is off, to avoid
-    // generating the shape. PERMANENT soundness rule (2026-06-11): #107073 was closed upstream as
-    // by-design -- columns read from a SEMI/ANTI join's eliminated side are ANY-like (filled from
-    // whichever matching row arrives first), so any legal plan change flips the result and a
-    // differential comparison over that shape is unsound. Do not remove.
     static boolean referencesDroppedAlias(List<JoinKind> kinds, List<Integer> onLeft) {
         for (int i = 0; i < onLeft.size(); i++) {
             if (!liveAliasesBeforeJoin(kinds.subList(0, i)).contains(onLeft.get(i))) {
@@ -168,51 +86,33 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
     }
 
     private final ClickHouseGlobalState state;
-    // Three tolerance sets, deliberately scoped (MutationAnalyzer layering):
-    //   readErrors   -- CREATE / INSERT / DROP. No #106426 pin here: a "Join restriction violated"
-    //                   on a setup statement would be a NEW finding and must surface.
-    //   selectErrors -- the three SELECT arms only. Baseline + the #106426 pin.
-    //   statsErrors  -- the two stats statements only. Baseline + the stats-DDL rejection family.
+
     private final ExpectedErrors readErrors = new ExpectedErrors();
     private final ExpectedErrors selectErrors = new ExpectedErrors();
     private final ExpectedErrors statsErrors = new ExpectedErrors();
 
     public ClickHouseJoinReorderOracle(ClickHouseGlobalState state) {
         this.state = state;
-        // Narrow shared baseline (no global expression list -- every statement is hand-built
-        // static SQL, so analyzer/JOIN-shaped messages can only mean a bug and must surface):
+
         for (ExpectedErrors e : List.of(readErrors, selectErrors, statsErrors)) {
-            // query_plan_optimize_join_order_randomize is 26.4+; on older images the arm degrades
-            // to IgnoreMe instead of a fake finding.
+
             ClickHouseErrors.addSessionSettingsErrors(e);
-            // Per-thread database drop/recreate race (same as the MV / PatchPart / MutationAnalyzer
-            // oracles): reads hitting a dropped namespace are not reorder bugs.
+
             e.add("UNKNOWN_TABLE");
             e.add("Unknown table expression identifier");
-            // Code 241 load-shedding under the squeezed dev-vm container cap (-m=6g): environment
-            // artifact, not a reorder bug. A tolerated arm failure aborts the iteration via
-            // IgnoreMe, so it cannot fake a multiset match.
+
             e.add("(MEMORY_LIMIT_EXCEEDED)");
             e.add("memory limit exceeded");
-            // A load-shed timeout on any statement is an environment artifact here (no statement
-            // in this oracle has a deadlock-shaped finding the way MutationAnalyzer's shape (b)
-            // does).
+
             e.add("TIMEOUT_EXCEEDED");
             e.add("Timeout exceeded");
         }
-        // SELECT-arms-only known-open pin: #106426, LOGICAL_ERROR "Join restriction violated" in
-        // JoinOrderOptimizer::solveGreedy -- filed, still open, and this oracle's skewed-cardinality
-        // chains are exactly its trigger shape. Routed to IgnoreMe so already-filed noise does not
-        // kill workers. Deliberately a narrow message substring, never the bare LOGICAL_ERROR token,
-        // and kept OFF readErrors/statsErrors. REMOVE when #106426 is fixed on head.
+
         selectErrors.add("Join restriction violated");
-        // Stats-statement-only: ADD/MATERIALIZE STATISTICS rejections (experimental flag off on
-        // older images, unsupported kind/type) just skip the stats step.
+
         ClickHouseErrors.addStatisticsErrors(statsErrors);
         statsErrors.add("already contains statistics");
-        // Sync stats DDL surfaces failures of unrelated stuck mutations plus metadata
-        // re-validation rejections (StatsToggle precedent, 2026-06-10 smoke); both just skip the
-        // best-effort stats step. Private tables make these unlikely here, but the belt is cheap.
+
         statsErrors.add("Exception happened during execution of mutation");
         statsErrors.add("UNFINISHED");
         statsErrors.add("contains a duplicate expression");
@@ -229,9 +129,7 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
         for (int i = 0; i < numTables; i++) {
             tables.add(db + ".jreord_" + id + "_t" + i);
         }
-        // Nullable(Int32) key on some tables; force at least one so the NULL-key join semantics
-        // (NULL never matches -- the rows ANTI keeps, the rows FULL leaves unmatched) get traffic
-        // every iteration.
+
         boolean[] nullableKey = new boolean[numTables];
         boolean anyNullable = false;
         for (int i = 0; i < numTables; i++) {
@@ -254,9 +152,6 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
             }
             seedTables(tables, nullableKey);
 
-            // Stats interplay (~25%): reordering is cost-model-driven; materializing minmax stats
-            // on the big table makes the model see the cardinality skew. Best-effort -- a tolerated
-            // failure skips the step, never the iteration.
             if (Randomly.getNotCachedInteger(0, 100) < 25) {
                 materializeStatsBestEffort(tables.get(0));
             }
@@ -268,12 +163,7 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
             boolean allowDroppedKeyRef = state.getClickHouseOptions().joinReorderAllowDroppedKeyRef;
             List<Integer> onLeft = new ArrayList<>();
             for (int i = 0; i < numJoins; i++) {
-                // ON for join i (alias a<i+1>) references the k of an earlier alias. By default we
-                // restrict to aliases still LIVE at this point (liveAliasesBeforeJoin), so the ON
-                // never reads a key that a preceding SEMI/ANTI dropped -- per the ClickHouse#107073
-                // closure, eliminated-side columns are ANY-like by design, so a query reading one is
-                // legally non-deterministic and cannot be diffed. The opt-in flag reverts to the
-                // unconstrained pick to demonstrate that documented non-determinism.
+
                 List<Integer> candidates = allowDroppedKeyRef
                         ? java.util.stream.IntStream.rangeClosed(0, i).boxed().collect(java.util.stream.Collectors.toList())
                         : liveAliasesBeforeJoin(kinds.subList(0, i));
@@ -282,9 +172,7 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
             List<Integer> det = deterministicTables(kinds);
             String where = null;
             if (det.size() >= 2 && Randomly.getNotCachedInteger(0, 100) < 30) {
-                // Cross-relation WHERE over two different tables' v columns (the #101504/#106426
-                // shape). Restricted to the deterministic set so the filter outcome cannot differ
-                // across arms; v is Int32, so no float noise.
+
                 int aIdx = det.get((int) Randomly.getNotCachedInteger(0, det.size()));
                 int bIdx = aIdx;
                 while (bIdx == aIdx) {
@@ -313,18 +201,14 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
                 try {
                     new SQLQueryAdapter("DROP TABLE IF EXISTS " + t, readErrors, true).execute(state);
                 } catch (Exception | AssertionError ignored) {
-                    // Best effort; AssertionError too, because SQLQueryAdapter.execute() throws an
-                    // AssertionError (not an exception) on an untolerated error, and a DROP hitting
-                    // e.g. a transport failure must not write a misleading reproducer or abort
-                    // cleanup of the sibling tables.
+
                 }
             }
         }
     }
 
     private void seedTables(List<String> tables, boolean[] nullableKey) throws SQLException {
-        // t0 big: 200-400 rows over key domain 0-9 (heavy duplication), ~1/11 NULL keys when the
-        // key is Nullable. Single INSERT = one part.
+
         long bigRows = 200 + Randomly.getNotCachedInteger(0, 201);
         String keyExpr = nullableKey[0] ? "if(number % 11 = 0, NULL, toInt32(number % 10))" : "toInt32(number % 10)";
         String seedBig = "INSERT INTO " + tables.get(0) + " SELECT " + keyExpr
@@ -333,12 +217,10 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
         if (!new SQLQueryAdapter(seedBig, readErrors, true).execute(state)) {
             throw new IgnoreMeException();
         }
-        // t1..t3 tiny: 1-5 VALUES rows (occasionally 0 -- the empty-table-in-the-chain edge case).
-        // Keys mostly in-domain with duplicates, ~10% out-of-domain outlier (disjoint-range FULL
-        // coverage), ~25% NULL on Nullable tables.
+
         for (int i = 1; i < tables.size(); i++) {
             if (Randomly.getNotCachedInteger(0, 100) < 10) {
-                continue; // empty table in the chain
+                continue;
             }
             int rows = 1 + (int) Randomly.getNotCachedInteger(0, 5);
             StringBuilder values = new StringBuilder();
@@ -366,12 +248,11 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
     }
 
     private void materializeStatsBestEffort(String table) throws SQLException {
-        // Mirrors ClickHouseStatisticsGenerator's ALTER forms; ADD first because MATERIALIZE
-        // needs the statistics object to exist on images without 26.4 auto-stats.
+
         String add = "ALTER TABLE " + table + " ADD STATISTICS IF NOT EXISTS v TYPE minmax";
         logStmt(add);
         if (!new SQLQueryAdapter(add, statsErrors, false).execute(state)) {
-            return; // tolerated rejection: skip the stats step, keep the iteration
+            return;
         }
         String materialize = "ALTER TABLE " + table + " MATERIALIZE STATISTICS v SETTINGS mutations_sync = 1";
         logStmt(materialize);
@@ -394,17 +275,6 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
                 chain, firstRows.size(), secondRows.size(), firstQuery, secondQuery, diff.size(), diff));
     }
 
-    /**
-     * Alias indices (0-based; alias {@code a<i>} reads table i) whose columns are deterministic under every join of
-     * the chain. INNER/LEFT/FULL allow every table; LEFT SEMI/ANTI restrict to the leftmost (driving) table; RIGHT
-     * SEMI/ANTI restrict to the right table of that join. The result is the intersection; empty means no table is
-     * deterministic for every join and the query must project {@code count()} only.
-     *
-     * @param kinds
-     *            the join-kind chain; join i attaches alias {@code a<i+1>}
-     *
-     * @return sorted alias indices whose columns may be projected/filtered without arm-dependent values
-     */
     static List<Integer> deterministicTables(List<JoinKind> kinds) {
         TreeSet<Integer> allowed = new TreeSet<>();
         for (int i = 0; i <= kinds.size(); i++) {
@@ -427,16 +297,6 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
         return new ArrayList<>(allowed);
     }
 
-    /**
-     * Single-column projection over the deterministic alias set: {@code toString(tuple(...))} over the qualified
-     * k/v/s columns, or {@code toString(count())} when no table is deterministic. The tuple-rendered string is never
-     * SQL NULL, so the multiset compare can sort plain Java strings.
-     *
-     * @param deterministicAliases
-     *            output of {@link #deterministicTables}
-     *
-     * @return the single projection expression
-     */
     static String renderProjection(List<Integer> deterministicAliases) {
         if (deterministicAliases.isEmpty()) {
             return "toString(count())";
@@ -455,23 +315,6 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
         return sb.append("))").toString();
     }
 
-    /**
-     * Renders the full query for one arm.
-     *
-     * @param kinds
-     *            the join-kind chain; join i attaches alias {@code a<i+1>}
-     * @param tableNames
-     *            fully qualified table names, one per alias ({@code kinds.size() + 1} entries)
-     * @param onLeftAliases
-     *            per join i, the alias index referenced on the left side of its {@code ON} equality (must be
-     *            {@code <= i})
-     * @param whereOrNull
-     *            cross-relation WHERE condition, or null for none
-     * @param settingsSuffix
-     *            one of the ARM_* SETTINGS strings
-     *
-     * @return the complete SELECT text
-     */
     static String renderQuery(List<JoinKind> kinds, List<String> tableNames, List<Integer> onLeftAliases,
             String whereOrNull, String settingsSuffix) {
         StringBuilder sb = new StringBuilder("SELECT ").append(renderProjection(deterministicTables(kinds)));
@@ -488,21 +331,6 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
         return sb.append(" ").append(settingsSuffix).toString();
     }
 
-    /**
-     * Multiset difference of two string lists: empty iff the lists are equal as multisets. Each returned entry is
-     * {@code "<value> (+<n> first|second)"} for a value over-represented on one side, capped at {@code limit} entries
-     * in sorted value order. Null entries (cannot occur for tuple-rendered strings, but defensive) sort as the
-     * literal {@code "\\N"}.
-     *
-     * @param first
-     *            rows of the first arm
-     * @param second
-     *            rows of the second arm
-     * @param limit
-     *            maximum number of differing entries to report
-     *
-     * @return empty list iff the multisets are equal; otherwise the bounded diff
-     */
     static List<String> multisetDiff(List<String> first, List<String> second, int limit) {
         Map<String, Long> counts = new TreeMap<>();
         for (String s : first) {

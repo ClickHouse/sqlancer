@@ -92,15 +92,6 @@ public class MySQLBinaryComparisonOperation implements MySQLExpression {
             }
 
         };
-        // https://bugs.mysql.com/bug.php?id=95908
-        /*
-         * IS_EQUALS_NULL_SAFE("<=>") {
-         *
-         * @Override public MySQLConstant getExpectedValue(MySQLConstant leftVal, MySQLConstant rightVal) { return
-         * leftVal.isEqualsNullSafe(rightVal); }
-         *
-         * };
-         */
 
         private final String textRepresentation;
 

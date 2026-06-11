@@ -16,7 +16,6 @@ import sqlancer.clickhouse.ast.ClickHouseUnaryPostfixOperation;
 import sqlancer.clickhouse.ast.ClickHouseUnaryPrefixOperation;
 
 public interface ClickHouseVisitor {
-    // TODO remove these default methods
 
     default void visit(ClickHouseBinaryComparisonOperation op) {
 

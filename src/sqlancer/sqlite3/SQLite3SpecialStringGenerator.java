@@ -14,7 +14,7 @@ public final class SQLite3SpecialStringGenerator {
     public static String generate() {
         StringBuilder sb = new StringBuilder();
         switch (Randomly.fromOptions(Options.values())) {
-        case TIME_DATE_REGEX: // https://www.sqlite.org/lang_datefunc.html
+        case TIME_DATE_REGEX:
             return Randomly.fromOptions("%d", "%f", "%H", "%j", "%J", "%m", "%M", "%s", "%S", "%w", "%W", "%Y", "%%");
         case NOW:
             return "now";

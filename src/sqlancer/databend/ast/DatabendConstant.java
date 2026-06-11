@@ -49,8 +49,7 @@ public abstract class DatabendConstant implements DatabendExpression {
     }
 
     protected Timestamp truncateTimestamp(long val) {
-        // Databend supports `date` and `timestamp` type where the year cannot exceed `9999`,
-        // the value is truncated to ensure generate legitimate `date` and `timestamp` value.
+
         long t = val % 253380000000000L;
         return new Timestamp(t);
     }
@@ -58,8 +57,6 @@ public abstract class DatabendConstant implements DatabendExpression {
     public abstract DatabendConstant isEquals(DatabendConstant rightVal);
 
     public abstract DatabendConstant isLessThan(DatabendConstant rightVal);
-
-    // public abstract String getTextRepresentation();
 
     public static class DatabendNullConstant extends DatabendConstant {
 
@@ -93,10 +90,6 @@ public abstract class DatabendConstant implements DatabendExpression {
             return DatabendDataType.NULL;
         }
 
-        // @Override
-        // public DatabendConstant getExpectedValue() {
-        // return super.getExpectedValue();
-        // }
     }
 
     public static class DatabendIntConstant extends DatabendConstant {
@@ -307,7 +300,7 @@ public abstract class DatabendConstant implements DatabendExpression {
             } else if (rightVal.isString()) {
                 return DatabendConstant.createBooleanConstant(value.contentEquals(rightVal.asString()));
             } else {
-                // TODO 可以比较 date和timestamp类型，待添加
+
                 throw new AssertionError(rightVal);
             }
         }

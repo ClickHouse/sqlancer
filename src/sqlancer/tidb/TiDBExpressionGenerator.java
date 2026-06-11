@@ -49,12 +49,12 @@ public class TiDBExpressionGenerator extends UntypedExpressionGenerator<TiDBExpr
         CERTGenerator<TiDBSelect, TiDBJoin, TiDBExpression, TiDBTable, TiDBColumn> {
 
     private enum Gen {
-        UNARY_PREFIX, //
-        UNARY_POSTFIX, //
-        CONSTANT, //
-        COLUMN, //
+        UNARY_PREFIX,
+        UNARY_POSTFIX,
+        CONSTANT,
+        COLUMN,
         COMPARISON, REGEX, FUNCTION, BINARY_LOGICAL, BINARY_BIT, CAST, DEFAULT, CASE
-        // BINARY_ARITHMETIC
+
     }
 
     private final TiDBGlobalState globalState;
@@ -227,9 +227,9 @@ public class TiDBExpressionGenerator extends UntypedExpressionGenerator<TiDBExpr
             return new TiDBBinaryLogicalOperation(generateExpression(depth + 1), generateExpression(depth + 1),
                     TiDBBinaryLogicalOperator.getRandom());
         case CAST:
-            return new TiDBCastOperation(generateExpression(depth + 1), Randomly.fromOptions("BINARY", // https://github.com/tidb-challenge-program/bug-hunting-issue/issues/52
-                    "CHAR", "DATE", "DATETIME", "TIME", // https://github.com/tidb-challenge-program/bug-hunting-issue/issues/13
-                    "DECIMAL", "SIGNED", "UNSIGNED" /* https://github.com/pingcap/tidb/issues/16028 */));
+            return new TiDBCastOperation(generateExpression(depth + 1), Randomly.fromOptions("BINARY",
+                    "CHAR", "DATE", "DATETIME", "TIME",
+                    "DECIMAL", "SIGNED", "UNSIGNED" ));
         case CASE:
             int nr = Randomly.fromOptions(1, 2);
             return new TiDBCase(generateExpression(depth + 1), generateExpressions(nr, depth + 1),
@@ -265,7 +265,6 @@ public class TiDBExpressionGenerator extends UntypedExpressionGenerator<TiDBExpr
             mutators.add(this::mutateOr);
         }
         mutators.add(this::mutateLimit);
-        // mutators.add(this::mutateDistinct);
 
         return Randomly.fromList(mutators).apply(select);
     }
@@ -279,9 +278,6 @@ public class TiDBExpressionGenerator extends UntypedExpressionGenerator<TiDBExpr
             return false;
         }
 
-        // CROSS does not need ON Condition, while other joins do
-        // To avoid Null pointer, generating a new new condition when mutating CROSS to
-        // other joins
         if (join.getJoinType() == JoinType.CROSS) {
             List<TiDBColumn> columns = new ArrayList<>();
             columns.addAll(((TiDBTableReference) join.getLeftTable()).getTable().getColumns());
@@ -291,14 +287,13 @@ public class TiDBExpressionGenerator extends UntypedExpressionGenerator<TiDBExpr
         }
 
         JoinType newJoinType = TiDBJoin.JoinType.INNER;
-        if (join.getJoinType() == JoinType.LEFT || join.getJoinType() == JoinType.RIGHT) { // No invarient relation
-                                                                                           // between LEFT and RIGHT
-                                                                                           // join
+        if (join.getJoinType() == JoinType.LEFT || join.getJoinType() == JoinType.RIGHT) {
+
             newJoinType = JoinType.getRandomExcept(JoinType.NATURAL, JoinType.LEFT, JoinType.RIGHT);
         } else {
             newJoinType = JoinType.getRandomExcept(JoinType.NATURAL, join.getJoinType());
         }
-        assert newJoinType != JoinType.NATURAL; // Natural Join is not supported for CERT
+        assert newJoinType != JoinType.NATURAL;
         boolean increase = join.getJoinType().ordinal() < newJoinType.ordinal();
         join.setJoinType(newJoinType);
         if (newJoinType == JoinType.CROSS) {

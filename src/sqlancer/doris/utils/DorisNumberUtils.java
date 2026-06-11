@@ -47,12 +47,12 @@ public final class DorisNumberUtils {
     }
 
     public static String dateTextToDatetimeText(String date) {
-        // '2021-03-12' -> '2021-03-12 00:00:00'
+
         return date + " 00:00:00";
     }
 
     public static String datetimeTextToDateText(String datetime) {
-        // '2021-03-12 00:00:00' -> '2021-03-12'
+
         return datetime.substring(0, 10);
     }
 

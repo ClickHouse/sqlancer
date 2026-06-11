@@ -19,8 +19,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 class ClickHouseBinaryComparisonOperationTest {
 
-    // Unit 1.1: IN / NOT IN subquery predicate operators.
-
     @Test
     void inOperatorTextRepresentation() {
         assertEquals("IN", ClickHouseBinaryComparisonOperator.IN.getTextRepresentation());
@@ -29,7 +27,7 @@ class ClickHouseBinaryComparisonOperationTest {
 
     @Test
     void getRandomOperatorNeverReturnsInOrNotIn() {
-        // IN / NOT IN require a subquery/set RHS; a generic scalar comparison must never pick them.
+
         for (int i = 0; i < 2000; i++) {
             ClickHouseBinaryComparisonOperator op = ClickHouseBinaryComparisonOperator.getRandomOperator();
             assertNotEquals(ClickHouseBinaryComparisonOperator.IN, op);

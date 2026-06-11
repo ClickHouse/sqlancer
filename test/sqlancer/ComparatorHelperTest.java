@@ -10,9 +10,6 @@ import org.junit.jupiter.api.Test;
 
 class ComparatorHelperTest {
 
-    // The reproducer that motivated the fix: SUM(tan(c0)) wobbles by ~1 ULP with parallel
-    // partial-sum merge order. The whole-table sum and the UNION-ALL-of-partition-sums must
-    // be treated as equal.
     @Test
     void ulpApartSumsAreEqual() {
         assertTrue(ComparatorHelper.floatTolerantMultisetsEqual(Collections.singletonList("1336.994494222314"),
@@ -27,7 +24,7 @@ class ComparatorHelperTest {
     void genuinelyDifferentFloatsAreNotEqual() {
         assertFalse(ComparatorHelper.floatTolerantMultisetsEqual(Collections.singletonList("1336.99"),
                 Collections.singletonList("1340.00")));
-        // A real wrong-result that differs in the 7th significant digit is far outside tolerance.
+
         assertFalse(ComparatorHelper.floatTolerantMultisetsEqual(Collections.singletonList("1336.9944"),
                 Collections.singletonList("1336.9954")));
     }
@@ -40,7 +37,7 @@ class ComparatorHelperTest {
 
     @Test
     void nonFiniteAndNonNumericMatchExactly() {
-        // NaN/Infinity are kept as exact-match tokens so NaN-distinctness divergence is not masked.
+
         assertTrue(
                 ComparatorHelper.floatTolerantMultisetsEqual(Arrays.asList("nan", "1.0"), Arrays.asList("1.0", "nan")));
         assertFalse(ComparatorHelper.floatTolerantMultisetsEqual(Collections.singletonList("nan"),

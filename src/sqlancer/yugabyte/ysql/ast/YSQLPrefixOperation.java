@@ -64,7 +64,7 @@ public class YSQLPrefixOperation implements YSQLExpression {
 
             @Override
             protected YSQLConstant getExpectedValue(YSQLConstant expectedValue) {
-                // TODO: actual converts to double precision
+
                 return expectedValue;
             }
 
@@ -78,7 +78,7 @@ public class YSQLPrefixOperation implements YSQLExpression {
             @Override
             protected YSQLConstant getExpectedValue(YSQLConstant expectedValue) {
                 if (expectedValue.isNull()) {
-                    // TODO
+
                     throw new IgnoreMeException();
                 }
                 if (expectedValue.isInt() && expectedValue.asInt() == Long.MIN_VALUE) {

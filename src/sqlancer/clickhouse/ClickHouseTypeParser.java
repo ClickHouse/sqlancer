@@ -13,29 +13,6 @@ import sqlancer.clickhouse.ClickHouseType.Nullable;
 import sqlancer.clickhouse.ClickHouseType.Primitive;
 import sqlancer.clickhouse.ClickHouseType.Unknown;
 
-/**
- * Hand-written recursive-descent parser for ClickHouse type strings, v2 grammar.
- *
- * <p>
- * Recognises the v2 primitive kinds (every {@link Kind} name, case-sensitive ClickHouse spelling), the parameterised
- * primitives {@link FixedString}, {@link Decimal}/{@code Decimal32}/{@code Decimal64}/{@code Decimal128}/
- * {@code Decimal256}, {@link DateTime64Type}, and the wrappers {@link Array}, {@link Nullable}, {@link LowCardinality}.
- * Anything outside that surface is preserved verbatim as {@link Unknown} -- the parser never throws on unrecognised
- * input.
- * </p>
- *
- * <p>
- * Bracketed argument lists are scanned with a balanced-paren walker so nested wrappers (e.g.
- * {@code Array(Nullable(Decimal(9, 3)))}) parse correctly. Single-quoted strings inside arguments are skipped verbatim
- * (used by Enum and timezone-bearing DateTime forms, neither of which the parser materialises -- they fall through to
- * {@link Unknown}).
- * </p>
- *
- * <p>
- * Codec / DEFAULT / ALIAS / MATERIALIZED suffixes are out of scope here; they are stripped at the {@code DESCRIBE} row
- * level in {@code ClickHouseSchema.getTableColumns} before the type string reaches the parser.
- * </p>
- */
 public final class ClickHouseTypeParser {
 
     private static final Map<String, Kind> PRIMITIVES = new HashMap<>();
@@ -49,8 +26,6 @@ public final class ClickHouseTypeParser {
     private ClickHouseTypeParser() {
     }
 
-    // Parse a ClickHouse type string into a ClickHouseType. Returns Unknown for any input that does
-    // not match the v2 grammar -- never throws.
     public static ClickHouseType parse(String typeString) {
         if (typeString == null) {
             return new Unknown("");
@@ -64,7 +39,7 @@ public final class ClickHouseTypeParser {
         if (s.isEmpty()) {
             return null;
         }
-        // Wrappers first: Nullable / LowCardinality / Array each take exactly one type argument.
+
         String inner = stripSingleArgWrapper(s, "Nullable");
         if (inner != null) {
             ClickHouseType t = tryParseRecognised(inner.trim());
@@ -80,7 +55,7 @@ public final class ClickHouseTypeParser {
             ClickHouseType t = tryParseRecognised(inner.trim());
             return t != null ? new Array(t) : null;
         }
-        // Parameterised primitives.
+
         ClickHouseType fs = tryParseFixedString(s);
         if (fs != null) {
             return fs;
@@ -93,25 +68,19 @@ public final class ClickHouseTypeParser {
         if (dt64 != null) {
             return dt64;
         }
-        // (Simple)AggregateFunction(func, T...). Reflected from system catalog after CREATE so the
-        // re-read schema carries the proper state type rather than collapsing to Unknown (which
-        // would make INSERT generation skip the column and the AggregateStateRoundtrip oracle ignore
-        // it). Unit 3.2.
+
         ClickHouseType agg = tryParseAggregateFunction(s);
         if (agg != null) {
             return agg;
         }
-        // Plain DateTime can carry an optional timezone arg: DateTime('Europe/Moscow'). For now we
-        // collapse both forms onto the bare DateTime kind -- the timezone is a presentation detail
-        // and the value domain is the same. If timezone-bearing forms appear we strip them; if any
-        // other arg appears, fall through to Unknown.
+
         if (s.equals("DateTime")) {
             return new Primitive(Kind.DateTime);
         }
         if (s.startsWith("DateTime(") && s.endsWith(")")) {
             return new Primitive(Kind.DateTime);
         }
-        // Bare kind name.
+
         Kind kind = PRIMITIVES.get(s);
         if (kind != null) {
             return new Primitive(kind);
@@ -119,15 +88,12 @@ public final class ClickHouseTypeParser {
         return null;
     }
 
-    // Strips `Name(...)` returning the contents between the outermost parens, or null if the input
-    // does not match a single balanced `Name(...)` block. Validates that the closing paren is the
-    // last character and that parens balance, so e.g. `Name(a, b)Suffix` returns null.
     private static String stripSingleArgWrapper(String s, String wrapperName) {
         String prefix = wrapperName + "(";
         if (!s.startsWith(prefix) || !s.endsWith(")")) {
             return null;
         }
-        // Verify the outermost paren block spans exactly from prefix.length()-1 to length()-1.
+
         int depth = 0;
         boolean inString = false;
         for (int i = prefix.length() - 1; i < s.length(); i++) {
@@ -170,9 +136,6 @@ public final class ClickHouseTypeParser {
         }
     }
 
-    // Decimal(P, S), Decimal32(S), Decimal64(S), Decimal128(S), Decimal256(S). The aliased forms
-    // pin precision to a width-derived ceiling; we materialise them with the (P, S) representation
-    // ClickHouse normalises to internally.
     private static ClickHouseType tryParseDecimal(String s) {
         if (!s.startsWith("Decimal") || !s.endsWith(")")) {
             return null;
@@ -217,11 +180,6 @@ public final class ClickHouseTypeParser {
         }
     }
 
-    // SimpleAggregateFunction(func, T) -> SimpleAggregateFunctionType(func, parse(T)).
-    // AggregateFunction(func[, T...]) -> AggregateFunctionType(func, [parse(T)...]). The first
-    // top-level token is the function spec (kept verbatim -- it may itself be parametric, e.g.
-    // `quantiles(0.5, 0.9)`); the remaining tokens are argument types. Returns null if any argument
-    // type is unrecognised so the whole thing falls through to Unknown rather than a partial parse.
     private static ClickHouseType tryParseAggregateFunction(String s) {
         boolean simple = s.startsWith("SimpleAggregateFunction(");
         boolean full = !simple && s.startsWith("AggregateFunction(");
@@ -256,9 +214,6 @@ public final class ClickHouseTypeParser {
         return new ClickHouseType.AggregateFunctionType(funcName, args);
     }
 
-    // Split on top-level (depth-0, outside single-quoted strings) commas. Used by the
-    // (Simple)AggregateFunction parser so a comma inside a nested parametric function or type
-    // argument does not split a token.
     private static java.util.List<String> splitTopLevel(String body) {
         java.util.List<String> out = new java.util.ArrayList<>();
         int depth = 0;
@@ -292,7 +247,7 @@ public final class ClickHouseTypeParser {
             return null;
         }
         String body = s.substring("DateTime64(".length(), s.length() - 1).trim();
-        // Optional timezone arg: DateTime64(3, 'UTC'). Take the leading integer; drop the rest.
+
         int comma = body.indexOf(',');
         String precPart = comma < 0 ? body : body.substring(0, comma).trim();
         try {

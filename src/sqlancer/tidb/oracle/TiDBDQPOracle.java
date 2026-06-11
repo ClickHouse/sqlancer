@@ -35,7 +35,7 @@ public class TiDBDQPOracle implements TestOracle<TiDBGlobalState> {
 
     @Override
     public void check() throws SQLException {
-        // Randomly generate a query
+
         TiDBTables tables = state.getSchema().getRandomTableNonEmptyTables();
         gen = new TiDBExpressionGenerator(state).setColumns(tables.getColumns());
         select = new TiDBSelect();

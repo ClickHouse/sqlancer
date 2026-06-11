@@ -16,21 +16,6 @@ import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
 import sqlancer.common.oracle.TestOracle;
 import sqlancer.common.query.ExpectedErrors;
 
-/**
- * Dictionary differential oracle. Asserts:
- *
- * <pre>
- *   SELECT dictGet('d', 'col', t.k) FROM t  ==  SELECT src.col FROM t LEFT JOIN src ON t.k = src.k
- * </pre>
- *
- * for a transient CLICKHOUSE-sourced dictionary {@code d} mapping {@code src.k -> src.col}. Creates the dictionary in
- * setup, runs both queries, drops the dictionary in teardown.
- *
- * <p>
- * Workstream 14 of the 2026-05-27 coverage expansion plan. Picks a source table with an integer-typed column to serve
- * as the key; the dictionary's value column is any other column. LIFETIME is pinned to 0 (static) to make replays
- * deterministic; SEMR-style randomization of LIFETIME is left for a follow-up sweep.
- */
 public class ClickHouseDictGetVsJoinOracle implements TestOracle<ClickHouseGlobalState> {
 
     private static final AtomicLong DICT_COUNTER = new AtomicLong();
@@ -51,7 +36,7 @@ public class ClickHouseDictGetVsJoinOracle implements TestOracle<ClickHouseGloba
             throw new IgnoreMeException();
         }
         ClickHouseTable srcTable = Randomly.fromList(tables);
-        // Find a UInt-like key column and a different value column.
+
         List<ClickHouseColumn> intCols = srcTable.getColumns().stream().filter(c -> {
             com.clickhouse.data.ClickHouseDataType t = c.getType().getType();
             return t == com.clickhouse.data.ClickHouseDataType.UInt32
@@ -63,10 +48,7 @@ public class ClickHouseDictGetVsJoinOracle implements TestOracle<ClickHouseGloba
             throw new IgnoreMeException();
         }
         ClickHouseColumn keyCol = Randomly.fromList(intCols);
-        // Value column must be String -- the dict declares the value column as String, so any
-        // non-String source column forces a CAST whose rendering may differ from the JOIN's
-        // direct read (the 1h-run DictGetVsJoin failure was Float64 source rendering as
-        // '-4.3236323E8' on one path and '-432363230' on the other).
+
         List<ClickHouseColumn> stringCols = srcTable.getColumns().stream()
                 .filter(c -> c != keyCol && c.getType().getType() == com.clickhouse.data.ClickHouseDataType.String)
                 .collect(Collectors.toList());
@@ -78,12 +60,6 @@ public class ClickHouseDictGetVsJoinOracle implements TestOracle<ClickHouseGloba
         String fqSrc = state.getDatabaseName() + "." + srcTable.getName();
         String fqDict = state.getDatabaseName() + "." + dictName;
 
-        // Unit 1.4: vary the dictionary LAYOUT across simple-key hash layouts that all use the
-        // identical single-key dictGet invariant, so dictGet == JOIN exercises the HASHED vs
-        // SPARSE_HASHED storage/serialization code paths rather than only HASHED. COMPLEX_KEY_HASHED
-        // (tuple key) and RANGE_HASHED (range_min/range_max columns) need a different dictGet call
-        // shape and are deferred to a follow-up; FLAT is excluded because it allocates an array
-        // sized to the max key and would fail on the large random keys sqlancer inserts.
         String layout = Randomly.fromOptions("HASHED()", "SPARSE_HASHED()");
         String createDict = String.format(
                 "CREATE DICTIONARY %s (%s UInt64, %s String) PRIMARY KEY %s "
@@ -102,11 +78,7 @@ public class ClickHouseDictGetVsJoinOracle implements TestOracle<ClickHouseGloba
         }
 
         try {
-            // The dictionary is keyed by keyCol; if the source table has duplicate keys, the
-            // dictionary's HASHED layout dedupes (one value per key, last-write-wins on the
-            // initial scan) but ANY LEFT JOIN's "one right row per left key" pick can be a
-            // different row, producing spurious mismatches. Pre-check uniqueness and skip the
-            // iteration when duplicates exist.
+
             boolean uniqueKey;
             try (Statement s = state.getConnection().createStatement(); java.sql.ResultSet rs = s
                     .executeQuery("SELECT count() = count(DISTINCT " + keyCol.getName() + ") FROM " + fqSrc)) {
@@ -118,9 +90,6 @@ public class ClickHouseDictGetVsJoinOracle implements TestOracle<ClickHouseGloba
                 throw new IgnoreMeException();
             }
 
-            // Sound shape: count the rows for which the dictGet result equals the source's
-            // value, vs total source rows. If the dictionary correctly mirrors the source,
-            // those counts should match.
             String lhs = String.format("SELECT dictGet('%s', '%s', toUInt64(%s)) FROM %s ORDER BY %s", fqDict,
                     valCol.getName(), keyCol.getName(), fqSrc, keyCol.getName());
             String rhs = String.format("SELECT src.%s FROM %s t ANY LEFT JOIN %s src ON t.%s = src.%s ORDER BY src.%s",
@@ -133,7 +102,7 @@ public class ClickHouseDictGetVsJoinOracle implements TestOracle<ClickHouseGloba
             try (Statement s = state.getConnection().createStatement()) {
                 s.execute("DROP DICTIONARY IF EXISTS " + fqDict);
             } catch (SQLException ignored) {
-                // teardown failure is not a bug
+
             }
         }
     }

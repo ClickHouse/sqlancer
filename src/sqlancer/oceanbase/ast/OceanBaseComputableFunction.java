@@ -87,7 +87,7 @@ public class OceanBaseComputableFunction implements OceanBaseExpression {
                     result = args[1];
                 } else {
                     result = args[0];
-                } // args[0] and args[1] both null, if type is varchar, return null of varchar
+                }
                 return castToMostGeneralType(result, origArgs);
             }
 
@@ -115,15 +115,7 @@ public class OceanBaseComputableFunction implements OceanBaseExpression {
                 OceanBaseExpression[] typeExpressions, BinaryOperator<OceanBaseConstant> op) {
             boolean containsNull = Stream.of(evaluatedArgs).anyMatch(arg -> arg.isNull());
             if (containsNull) {
-                // IFNULL(GREATEST('aa',NULL), 0) -> '0'
-                // case1:c1 is float，value is NULL;select COALESCE(GREATEST(NULL, concat(t1.c1)), 1) from t1;->'1'
-                // select COALESCE(GREATEST(1, concat(t1.c1)), 1) from t1;->1
-                // select COALESCE(GREATEST('0', 1, concat(t1.c1)), 1) from t1;->1
-                // select COALESCE(GREATEST('0', concat(t1.c1)), 1) from t1;->'1'
-                // select COALESCE(GREATEST(NULL, concat(t1.c1)), 1) from t1;->'1'
-                // case2: c0 is decimal,value is NULL
-                // select IFNULL(GREATEST("iffI|2&nBJLQQ", c0, '0'), 1) from t0;->1
-                // select IFNULL(GREATEST("iffI|2&nBJLQQ", NULL, '0'), 1) from t0;->'1'
+
                 OceanBaseDataType type;
                 boolean allVarchar = true;
                 for (OceanBaseExpression expr : typeExpressions) {
@@ -147,10 +139,7 @@ public class OceanBaseComputableFunction implements OceanBaseExpression {
                 }
             }
             OceanBaseConstant least = evaluatedArgs[1];
-            /*
-             * select least(1,'H8*GPLuBjDj#Xem]W'); -> 0 select least('1','H8*GPLuBjDj#Xem]W'); ->1 select
-             * LEAST('000000000001', 'b', 1);->0
-             */
+
             OceanBaseDataType dataType = evaluatedArgs[0].getType();
             boolean sameDataType = true;
             for (OceanBaseConstant arg : evaluatedArgs) {
@@ -166,7 +155,7 @@ public class OceanBaseComputableFunction implements OceanBaseExpression {
                     left = least;
                     right = arg;
                 } else {
-                    // select GREATEST('1.47529e18', -1188315266);->1.47529e18
+
                     if (least.getType() == OceanBaseDataType.VARCHAR) {
                         left = least.castAsDouble();
                     } else {

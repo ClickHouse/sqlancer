@@ -63,7 +63,7 @@ public abstract class MySQLConstant implements MySQLExpression {
         public MySQLDoubleConstant(double val) {
             this.val = val;
             if (Double.isInfinite(val) || Double.isNaN(val)) {
-                // seems to not be supported by MySQL
+
                 throw new IgnoreMeException();
             }
         }
@@ -96,18 +96,18 @@ public abstract class MySQLConstant implements MySQLExpression {
 
         @Override
         public boolean asBooleanNotNull() {
-            // TODO implement as cast
+
             for (int i = value.length(); i >= 0; i--) {
                 try {
                     String substring = value.substring(0, i);
                     Double val = Double.valueOf(substring);
                     return val != 0 && !Double.isNaN(val);
                 } catch (NumberFormatException e) {
-                    // ignore
+
                 }
             }
             return false;
-            // return castAs(CastType.SIGNED).getInt() != 0;
+
         }
 
         @Override
@@ -128,7 +128,7 @@ public abstract class MySQLConstant implements MySQLExpression {
             } else if (rightVal.isInt()) {
                 checkIfSmallFloatingPointText();
                 if (asBooleanNotNull()) {
-                    // TODO support SELECT .123 = '.123'; by converting to floating point
+
                     throw new IgnoreMeException();
                 }
                 return castAs(CastType.SIGNED).isEquals(rightVal);
@@ -155,7 +155,7 @@ public abstract class MySQLConstant implements MySQLExpression {
                 String value = this.value;
                 while (value.startsWith(" ") || value.startsWith("\t") || value.startsWith("\n")) {
                     if (value.startsWith("\n")) {
-                        /* workaround for https://bugs.mysql.com/bug.php?id=96294 */
+
                         throw new IgnoreMeException();
                     }
                     value = value.substring(1);
@@ -166,7 +166,7 @@ public abstract class MySQLConstant implements MySQLExpression {
                         long val = Long.parseLong(substring);
                         return MySQLConstant.createIntConstant(val, type == CastType.SIGNED);
                     } catch (NumberFormatException e) {
-                        // ignore
+
                     }
                 }
                 return MySQLConstant.createIntConstant(0, type == CastType.SIGNED);
@@ -191,16 +191,13 @@ public abstract class MySQLConstant implements MySQLExpression {
                 return MySQLConstant.createNullConstant();
             } else if (rightVal.isInt()) {
                 if (asBooleanNotNull()) {
-                    // TODO uspport floating point
+
                     throw new IgnoreMeException();
                 }
                 checkIfSmallFloatingPointText();
                 return castAs(rightVal.isSigned() ? CastType.SIGNED : CastType.UNSIGNED).isLessThan(rightVal);
             } else if (rightVal.isString()) {
-                // unexpected result for '-' < "!";
-                // return
-                // MySQLConstant.createBoolean(value.compareToIgnoreCase(rightVal.getString()) <
-                // 0);
+
                 throw new IgnoreMeException();
             } else {
                 throw new AssertionError(rightVal);
@@ -260,7 +257,7 @@ public abstract class MySQLConstant implements MySQLExpression {
                 return MySQLConstant.createNullConstant();
             } else if (rightVal.isString()) {
                 if (rightVal.asBooleanNotNull()) {
-                    // TODO support SELECT .123 = '.123'; by converting to floating point
+
                     throw new IgnoreMeException();
                 }
                 return isEquals(rightVal.castAs(CastType.SIGNED));
@@ -316,13 +313,13 @@ public abstract class MySQLConstant implements MySQLExpression {
                 } else {
                     return MySQLConstant.createBoolean(new BigInteger(getStringRepr())
                             .compareTo(new BigInteger(((MySQLIntConstant) rightVal).getStringRepr())) < 0);
-                    // return MySQLConstant.createBoolean(Long.compareUnsigned(value, intVal) < 0);
+
                 }
             } else if (rightVal.isNull()) {
                 return MySQLConstant.createNullConstant();
             } else if (rightVal.isString()) {
                 if (rightVal.asBooleanNotNull()) {
-                    // TODO support float
+
                     throw new IgnoreMeException();
                 }
                 return isLessThan(rightVal.castAs(isSigned ? CastType.SIGNED : CastType.UNSIGNED));

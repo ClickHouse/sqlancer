@@ -9,9 +9,6 @@ import sqlancer.common.ast.FunctionNode;
 import sqlancer.postgres.PostgresSchema.PostgresDataType;
 import sqlancer.postgres.ast.PostgresAggregate.PostgresAggregateFunction;
 
-/**
- * @see <a href="https://www.sqlite.org/lang_aggfunc.html">Built-in Aggregate Functions</a>
- */
 public class PostgresAggregate extends FunctionNode<PostgresAggregateFunction, PostgresExpression>
         implements PostgresExpression {
 
@@ -19,7 +16,7 @@ public class PostgresAggregate extends FunctionNode<PostgresAggregateFunction, P
         AVG(PostgresDataType.INT, PostgresDataType.FLOAT, PostgresDataType.REAL, PostgresDataType.DECIMAL),
         BIT_AND(PostgresDataType.INT), BIT_OR(PostgresDataType.INT), BOOL_AND(PostgresDataType.BOOLEAN),
         BOOL_OR(PostgresDataType.BOOLEAN), COUNT(PostgresDataType.INT), EVERY(PostgresDataType.BOOLEAN), MAX, MIN,
-        // STRING_AGG
+
         SUM(PostgresDataType.INT, PostgresDataType.FLOAT, PostgresDataType.REAL, PostgresDataType.DECIMAL);
 
         private PostgresDataType[] supportedReturnTypes;

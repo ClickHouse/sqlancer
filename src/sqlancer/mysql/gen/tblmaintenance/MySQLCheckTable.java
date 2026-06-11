@@ -8,9 +8,6 @@ import sqlancer.common.query.SQLQueryAdapter;
 import sqlancer.mysql.MySQLGlobalState;
 import sqlancer.mysql.MySQLSchema.MySQLTable;
 
-/**
- * @see <a href="https://dev.mysql.com/doc/refman/8.0/en/check-table.html">CHECK TABLE Statement</a>
- */
 public class MySQLCheckTable {
 
     private final List<MySQLTable> tables;
@@ -24,16 +21,6 @@ public class MySQLCheckTable {
         return new MySQLCheckTable(globalState.getSchema().getDatabaseTablesRandomSubsetNotEmpty()).generate();
     }
 
-    // CHECK TABLE tbl_name [, tbl_name] ... [option] ...
-    //
-    // option: {
-    // FOR UPGRADE
-    // | QUICK
-    // | FAST
-    // | MEDIUM
-    // | EXTENDED
-    // | CHANGED
-    // }
     private SQLQueryAdapter generate() {
         sb.append("CHECK TABLE ");
         sb.append(tables.stream().map(t -> t.getName()).collect(Collectors.joining(", ")));

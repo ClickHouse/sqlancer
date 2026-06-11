@@ -14,13 +14,8 @@ public class DorisFunctionOperation implements DorisExpression {
     private DorisFunction function;
     private List<DorisExpression> args;
 
-    // https://doris.apache.org/zh-CN/docs/dev/summary/basic-summary
     public enum DorisFunction {
 
-        // Array functions, https://doris.apache.org/docs/dev/sql-manual/sql-functions/array-functions/array
-        // Skip now
-
-        // Date functions, https://doris.apache.org/docs/dev/sql-manual/sql-functions/date-time-functions/convert_tz/
         CONVERT_TZ(false, DorisDataType.DATETIME, DorisDataType.DATETIME, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         CURDATE(false, DorisDataType.DATE), CURRENT_DATE(false, DorisDataType.DATE),
         CURTIME(false, DorisDataType.VARCHAR), CURRENT_TIME(false, DorisDataType.VARCHAR),
@@ -48,7 +43,7 @@ public class DorisFunctionOperation implements DorisExpression {
         TO_DATE(false, DorisDataType.DATE, DorisDataType.DATETIME),
         TO_DAYS(false, DorisDataType.INT, DorisDataType.DATETIME),
         TIME_TO_SEC(false, DorisDataType.INT, DorisDataType.DATETIME),
-        // EXTRACT(1), // select extract(year from '2022-09-22 17:01:30') as year, currently not considered
+
         MAKEDATE(false, DorisDataType.DATE, DorisDataType.INT, DorisDataType.INT),
         STR_TO_DATE(false, DorisDataType.DATETIME, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         TIME_ROUND(false, DorisDataType.DATETIME, DorisDataType.DATETIME),
@@ -60,7 +55,7 @@ public class DorisFunctionOperation implements DorisExpression {
         DATE_TRUNC(false, DorisDataType.DATETIME, DorisDataType.DATETIME, DorisDataType.VARCHAR),
         DATE_FORMAT(false, DorisDataType.VARCHAR, DorisDataType.DATETIME, DorisDataType.VARCHAR),
         DATEDIFF(false, DorisDataType.DATETIME, DorisDataType.DATETIME, DorisDataType.DATETIME),
-        // MICROSECONDS_ADD(false),
+
         MINUTES_ADD(false, DorisDataType.DATETIME, DorisDataType.DATETIME, DorisDataType.INT),
         MINUTES_DIFF(false, DorisDataType.INT, DorisDataType.DATETIME, DorisDataType.DATETIME),
         MINUTES_SUB(false, DorisDataType.DATETIME, DorisDataType.DATETIME, DorisDataType.INT),
@@ -83,10 +78,6 @@ public class DorisFunctionOperation implements DorisExpression {
         YEARS_DIFF(false, DorisDataType.INT, DorisDataType.DATETIME, DorisDataType.DATETIME),
         YEARS_SUB(false, DorisDataType.DATETIME, DorisDataType.DATETIME, DorisDataType.INT),
 
-        // GIS functions, https://doris.apache.org/docs/dev/sql-manual/sql-functions/spatial-functions/st_x
-        // Skip now
-
-        // String functions, https://doris.apache.org/docs/dev/sql-manual/sql-functions/string-functions/to_base64
         TO_BASE64(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         FROM_BASE64(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         ASCII(false, DorisDataType.INT, DorisDataType.VARCHAR), LENGTH(false, DorisDataType.INT, DorisDataType.VARCHAR),
@@ -120,7 +111,7 @@ public class DorisFunctionOperation implements DorisExpression {
         ELT(true, DorisDataType.VARCHAR, DorisDataType.INT, DorisDataType.VARCHAR),
         INSTR(false, DorisDataType.INT, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         LOCATE(false, DorisDataType.INT, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
-        // FIELD(1, true),
+
         FIND_IN_SET(false, DorisDataType.INT, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         REPLACE(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         LEFT(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR, DorisDataType.INT),
@@ -128,50 +119,33 @@ public class DorisFunctionOperation implements DorisExpression {
         STRLEFT(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR, DorisDataType.INT),
         STRRIGHT(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR, DorisDataType.INT),
         SPLIT_PART(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR, DorisDataType.VARCHAR, DorisDataType.INT),
-        // SPLIT_BY_STRING(2),
+
         SUBSTRING_INDEX(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR, DorisDataType.VARCHAR, DorisDataType.INT),
         MONEY_FORMAT(false, DorisDataType.VARCHAR, DorisDataType.DECIMAL),
         PARSE_URL(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         CONVERT_TO(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         EXTRACT_URL_PARAMETER(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         UUID(false, DorisDataType.VARCHAR), SPACE(false, DorisDataType.VARCHAR, DorisDataType.INT),
-        // SLEEP(1),
+
         ESQUERY(false, DorisDataType.BOOLEAN, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         MASK(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         MASK_FIRST_N(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         MASK_LAST_N(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
-        // MULTI_SEARCH_ALL_POSITIONS(2),
-        // MULTI_MATCH_ANY(2),
 
-        // BITMAP functions, https://doris.apache.org/zh-CN/docs/dev/sql-manual/sql-functions/bitmap-functions/to_bitmap
-        // skip now
-
-        // Bitwise functions, https://doris.apache.org/zh-CN/docs/dev/sql-manual/sql-functions/bitwise-functions/bitand
         BITAND(false, DorisDataType.INT, DorisDataType.INT, DorisDataType.INT),
         BITOR(false, DorisDataType.INT, DorisDataType.INT, DorisDataType.INT),
         BITXOR(false, DorisDataType.INT, DorisDataType.INT, DorisDataType.INT),
         BITNOT(false, DorisDataType.INT, DorisDataType.INT),
 
-        // condition funtions
-        // case(),
         COALESCE(true, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         IF(false, DorisDataType.VARCHAR, DorisDataType.BOOLEAN, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         IFNULL(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         NVL(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
         NULLIF(false, DorisDataType.VARCHAR, DorisDataType.VARCHAR, DorisDataType.VARCHAR),
 
-        // JSON Functions, https://doris.apache.org/zh-CN/docs/dev/sql-manual/sql-functions/json-functions/jsonb_parse
-        // skip now
-
-        // Hash functions,
-        // https://doris.apache.org/zh-CN/docs/dev/sql-manual/sql-functions/hash-functions/murmur_hash3_32
         MURMUR_HASH3_32(true, DorisDataType.INT, DorisDataType.VARCHAR),
         MURMUR_HASH3_64(true, DorisDataType.INT, DorisDataType.VARCHAR),
 
-        // HLL functions, https://doris.apache.org/zh-CN/docs/dev/sql-manual/sql-functions/hll-functions/hll_cardinality
-        // skip now
-
-        // Math functions, https://doris.apache.org/zh-CN/docs/dev/sql-manual/sql-functions/math-functions/conv
         CONV(false, DorisDataType.VARCHAR, DorisDataType.INT, DorisDataType.INT, DorisDataType.INT),
         BIN(false, DorisDataType.VARCHAR, DorisDataType.INT), SIN(false, DorisDataType.FLOAT, DorisDataType.FLOAT),
         COS(false, DorisDataType.FLOAT, DorisDataType.FLOAT), TAN(false, DorisDataType.FLOAT, DorisDataType.FLOAT),
@@ -196,11 +170,7 @@ public class DorisFunctionOperation implements DorisExpression {
         GREATEST(true, DorisDataType.FLOAT, DorisDataType.FLOAT), LEAST(true, DorisDataType.FLOAT, DorisDataType.FLOAT),
         RANDOM(false, DorisDataType.FLOAT), MOD(false, DorisDataType.FLOAT, DorisDataType.FLOAT, DorisDataType.FLOAT);
 
-        // encrypt-digest-functions,
-        // https://doris.apache.org/zh-CN/docs/dev/sql-manual/sql-functions/encrypt-digest-functions/aes
-        // skip now
-
-        private boolean isVariadic; // If isVALid is true, then treat the last argumentTypes as an infinite type
+        private boolean isVariadic;
         private DorisDataType returnType;
         private DorisDataType[] argumentTypes;
         private String functionName;

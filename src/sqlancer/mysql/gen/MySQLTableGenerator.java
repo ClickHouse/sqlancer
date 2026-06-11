@@ -46,7 +46,7 @@ public class MySQLTableGenerator {
         ExpectedErrors errors = new ExpectedErrors();
 
         sb.append("CREATE");
-        // TODO support temporary tables in the schema
+
         sb.append(" TABLE");
         if (Randomly.getBoolean()) {
             sb.append(" IF NOT EXISTS");
@@ -70,8 +70,8 @@ public class MySQLTableGenerator {
             appendTableOptions();
             appendPartitionOptions();
             if (engine == MySQLEngine.CSV && (tableHasNullableColumn || setPrimaryKey)) {
-                if (true) { // TODO
-                    // results in an error
+                if (true) {
+
                     throw new IgnoreMeException();
                 }
             } else if (engine == MySQLEngine.ARCHIVE && (tableHasNullableColumn || keysSpecified > 1)) {
@@ -116,11 +116,7 @@ public class MySQLTableGenerator {
                 sb.append(" LINEAR");
             }
             sb.append(" HASH(");
-            // TODO: consider arbitrary expressions
-            // MySQLExpression expr =
-            // MySQLRandomExpressionGenerator.generateRandomExpression(Collections.emptyList(),
-            // null, r);
-            // sb.append(MySQLVisitor.asString(expr));
+
             sb.append(Randomly.fromList(columns));
             sb.append(")");
             break;
@@ -143,12 +139,12 @@ public class MySQLTableGenerator {
     }
 
     private enum TableOptions {
-        AUTO_INCREMENT, AVG_ROW_LENGTH, CHECKSUM, COMPRESSION, DELAY_KEY_WRITE, /* ENCRYPTION, */ ENGINE, INSERT_METHOD,
+        AUTO_INCREMENT, AVG_ROW_LENGTH, CHECKSUM, COMPRESSION, DELAY_KEY_WRITE,  ENGINE, INSERT_METHOD,
         KEY_BLOCK_SIZE, MAX_ROWS, MIN_ROWS, PACK_KEYS, STATS_AUTO_RECALC, STATS_PERSISTENT, STATS_SAMPLE_PAGES;
 
         public static List<TableOptions> getRandomTableOptions() {
             List<TableOptions> options;
-            // try to ensure that usually, only a few of these options are generated
+
             if (Randomly.getBooleanWithSmallProbability()) {
                 options = Randomly.subset(TableOptions.values());
             } else {
@@ -174,7 +170,7 @@ public class MySQLTableGenerator {
                 sb.append("AUTO_INCREMENT = ");
                 sb.append(r.getPositiveInteger());
                 break;
-            // The valid range for avg_row_length is [0,4294967295]
+
             case AVG_ROW_LENGTH:
                 sb.append("AVG_ROW_LENGTH = ");
                 sb.append(r.getLong(0, 4294967295L + 1));
@@ -192,26 +188,18 @@ public class MySQLTableGenerator {
                 sb.append(Randomly.fromOptions(0, 1));
                 break;
             case ENGINE:
-                // FEDERATED: java.sql.SQLSyntaxErrorException: Unknown storage engine
-                // 'FEDERATED'
-                // "NDB": java.sql.SQLSyntaxErrorException: Unknown storage engine 'NDB'
-                // "EXAMPLE": java.sql.SQLSyntaxErrorException: Unknown storage engine 'EXAMPLE'
-                // "MERGE": java.sql.SQLException: Table 't0' is read only
+
                 String fromOptions = Randomly.fromOptions("InnoDB", "MyISAM", "MEMORY", "HEAP", "CSV", "ARCHIVE");
                 this.engine = MySQLEngine.get(fromOptions);
                 sb.append("ENGINE = ");
                 sb.append(fromOptions);
                 break;
-            // case ENCRYPTION:
-            // sb.append("ENCRYPTION = '");
-            // sb.append(Randomly.fromOptions("Y", "N"));
-            // sb.append("'");
-            // break;
+
             case INSERT_METHOD:
                 sb.append("INSERT_METHOD = ");
                 sb.append(Randomly.fromOptions("NO", "FIRST", "LAST"));
                 break;
-            // The valid range for key_block_size is [0,65535]
+
             case KEY_BLOCK_SIZE:
                 sb.append("KEY_BLOCK_SIZE = ");
                 sb.append(r.getInteger(0, 65535 + 1));
@@ -266,7 +254,7 @@ public class MySQLTableGenerator {
             tableHasNullableColumn = true;
         }
         if (isTextType) {
-            // TODO: restriction due to the limited key length
+
             columnOptions.remove(ColumnOptions.PRIMARY_KEY);
             columnOptions.remove(ColumnOptions.UNIQUE);
         }
@@ -274,7 +262,7 @@ public class MySQLTableGenerator {
             sb.append(" ");
             switch (o) {
             case NULL_OR_NOT_NULL:
-                // PRIMARY KEYs cannot be NULL
+
                 if (!columnHasPrimaryKey) {
                     if (Randomly.getBoolean()) {
                         sb.append("NULL");
@@ -293,7 +281,7 @@ public class MySQLTableGenerator {
                 }
                 break;
             case COMMENT:
-                // TODO: generate randomly
+
                 sb.append(String.format("COMMENT '%s' ", "asdf"));
                 break;
             case COLUMN_FORMAT:
@@ -305,7 +293,7 @@ public class MySQLTableGenerator {
                 sb.append(Randomly.fromOptions("DISK", "MEMORY"));
                 break;
             case PRIMARY_KEY:
-                // PRIMARY KEYs cannot be NULL
+
                 if (allowPrimaryKey && !setPrimaryKey && !isNull) {
                     sb.append("PRIMARY KEY");
                     setPrimaryKey = true;
@@ -336,8 +324,8 @@ public class MySQLTableGenerator {
             sb.append(Randomly.fromOptions("TINYINT", "SMALLINT", "MEDIUMINT", "INT", "BIGINT"));
             if (Randomly.getBoolean()) {
                 sb.append("(");
-                sb.append(Randomly.getNotCachedInteger(0, 255)); // Display width out of range for column 'c0' (max =
-                // 255)
+                sb.append(Randomly.getNotCachedInteger(0, 255));
+
                 sb.append(")");
             }
             break;
@@ -368,13 +356,13 @@ public class MySQLTableGenerator {
     public static void optionallyAddPrecisionAndScale(StringBuilder sb) {
         if (Randomly.getBoolean() && !MySQLBugs.bug99183) {
             sb.append("(");
-            // The maximum number of digits (M) for DECIMAL is 65
+
             long m = Randomly.getNotCachedInteger(1, 65);
             sb.append(m);
             sb.append(", ");
-            // The maximum number of supported decimals (D) is 30
+
             long nCandidate = Randomly.getNotCachedInteger(1, 30);
-            // For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'c0').
+
             long n = Math.min(nCandidate, m);
             sb.append(n);
             sb.append(")");
