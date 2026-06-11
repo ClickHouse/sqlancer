@@ -143,6 +143,9 @@ class ClickHouseSessionSettingsTest {
         assertFalse(semr.contains("apply_mutations_on_fly"));
         // Float-ULP noise: reorders arithmetic inside aggregates (TLPGroupBy authoring rule).
         assertFalse(semr.contains("optimize_arithmetic_operations_in_aggregate_functions"));
+        // Documented result-CHANGING when 0 (approximate FINAL results by contract); only
+        // use_skip_indexes_if_final itself is SEMR-safe, and only with exact_mode at its default.
+        assertFalse(semr.contains("use_skip_indexes_if_final_exact_mode"));
         // 'any'/'break' overflow modes change results; 'throw' is pure untolerated-error noise.
         assertFalse(catalogNames().contains("max_rows_to_group_by"));
         assertFalse(catalogNames().contains("group_by_overflow_mode"));

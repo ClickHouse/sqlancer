@@ -116,7 +116,7 @@ before acting** — when an issue is fixed/closed, delete its entry from this li
   ALTER TABLE a UPDATE m = 1 WHERE k IN (SELECT x.k FROM (SELECT k FROM b) AS x
     JOIN b AS e ON e.k = x.k JOIN (SELECT k FROM b) AS y ON y.k = e.k);  -- Code 49 LOGICAL_ERROR
   ```
-- **[#106419](https://github.com/ClickHouse/ClickHouse/issues/106419)** — `WHERE toStartOf{Year,Month,Quarter}(Date32) < const` returns 0 rows after a merge when the column has pre-1970 values (Date32→Date narrowing overflows; monotonic-filter range poisoned). Needs a **merge-formed part**.
+- **[#106419](https://github.com/ClickHouse/ClickHouse/issues/106419)** — `WHERE toStartOf{Year,Month,Quarter}(Date32) < const` returns 0 rows after a merge when the column has pre-1970 values (Date32→Date narrowing overflows; monotonic-filter range poisoned). Needs a **merge-formed part**. **GATED** (2026-06-11): the `ExtendedDatetime` oracle deliberately constructs this exact surface (private Date32 table, pre-1970 outlier part, optional `OPTIMIZE FINAL`); its setting=0 arm on a merged+pre-1970 table is skipped unless `--extended-datetime-known-overflow-arm` is true, and the non-merged pre-1970 arm pins part topology with `SYSTEM STOP MERGES` so a background merge can't re-form the filed shape behind the gate. Set the flag true to re-confirm; **REMOVE the gate when #106419 is fixed on head.**
   ```sql
   CREATE TABLE t (c1 Date32) ENGINE=MergeTree ORDER BY tuple();
   INSERT INTO t SELECT toDate32('1971-01-01')+toIntervalDay(number%18000) FROM numbers(9991);

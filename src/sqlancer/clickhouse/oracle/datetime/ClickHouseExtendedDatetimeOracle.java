@@ -48,7 +48,9 @@ import sqlancer.common.query.SQLQueryAdapter;
  * <b>Known-open-bug gate</b> (JoinReorder precedent): the exact filed combination -- merge-formed part + pre-1970
  * values + setting {@code = 0} -- still reproduces #106419 on head, so with
  * {@code --extended-datetime-known-overflow-arm} false (the default) that one arm is skipped and everything else
- * (non-merged pre-1970, merged post-1970-only, and the whole {@code = 1} surface) keeps running. Set the flag true to
+ * (non-merged pre-1970, merged post-1970-only, and the whole {@code = 1} surface) keeps running. Because a
+ * <i>background</i> merge would form the same merge-formed part behind the gate's back, the non-merged pre-1970 arm
+ * additionally freezes its part topology with {@code SYSTEM STOP MERGES} on the private table. Set the flag true to
  * re-confirm the filed bug; remove the gate when #106419 is fixed on head.
  */
 public class ClickHouseExtendedDatetimeOracle implements TestOracle<ClickHouseGlobalState> {
@@ -108,10 +110,28 @@ public class ClickHouseExtendedDatetimeOracle implements TestOracle<ClickHouseGl
         String seedPre = "INSERT INTO " + t + " SELECT toDate32('1905-01-01') + toIntervalDay(number * 30) "
                 + "FROM numbers(9)";
 
+        boolean gateActive = pre1970 && !merged && !state.getClickHouseOptions().extendedDatetimeKnownOverflowArm;
+
         try {
-            for (String stmt : List.of(create, seedA, seedB)) {
+            logStmt(create);
+            if (!new SQLQueryAdapter(create, errors, true).execute(state)) {
+                throw new IgnoreMeException();
+            }
+            if (gateActive) {
+                // The #106419 gate keys on `merged`, but a BACKGROUND merge would form the same
+                // merge-formed part regardless and re-fire the filed bug through the supposedly
+                // ungated pre-1970/non-merged/setting=0 arm. Freeze the part topology for the
+                // table's whole lifetime (the stop dies with the DROP). Issued before the INSERTs
+                // so no merge can sneak in between seeding and the count pair.
+                String stopMerges = "SYSTEM STOP MERGES " + t;
+                logStmt(stopMerges);
+                if (!new SQLQueryAdapter(stopMerges, errors, false).execute(state)) {
+                    throw new IgnoreMeException();
+                }
+            }
+            for (String stmt : List.of(seedA, seedB)) {
                 logStmt(stmt);
-                if (!new SQLQueryAdapter(stmt, errors, stmt.startsWith("CREATE")).execute(state)) {
+                if (!new SQLQueryAdapter(stmt, errors, false).execute(state)) {
                     throw new IgnoreMeException();
                 }
             }

@@ -62,12 +62,9 @@ public class ClickHouseAggregateStateRoundtripOracle implements TestOracle<Click
         // numeric type.
         String aggName = Randomly.fromOptions("min", "max", "count", "sum");
         if (aggName.equals("sum")) {
-            List<ClickHouseColumn> intCols = numericCols.stream().filter(c -> {
-                com.clickhouse.data.ClickHouseDataType t = c.getType().getType();
-                return t != com.clickhouse.data.ClickHouseDataType.Float32
-                        && t != com.clickhouse.data.ClickHouseDataType.Float64
-                        && t != com.clickhouse.data.ClickHouseDataType.Decimal;
-            }).collect(Collectors.toList());
+            List<ClickHouseColumn> intCols = numericCols.stream()
+                    .filter(sqlancer.clickhouse.ClickHouseTypeFilters::isExactIntegerFamily)
+                    .collect(Collectors.toList());
             if (intCols.isEmpty()) {
                 throw new IgnoreMeException();
             }

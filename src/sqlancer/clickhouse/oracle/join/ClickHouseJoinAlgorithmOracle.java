@@ -47,7 +47,9 @@ public class ClickHouseJoinAlgorithmOracle extends ClickHouseTLPBase {
     // memory at the server makes the unsupported corner trip a tolerated error
     // (TOO_MANY_ROWS_OR_BYTES / SET_SIZE_LIMIT_EXCEEDED / MEMORY_LIMIT_EXCEEDED) instead of
     // OOM-killing the JVM. Tolerated by the patterns added in the ctor below.
-    private static final String CAPS = "max_result_rows = 1000000, result_overflow_mode = 'throw', "
+    // Package-visible: shared with the JoinUseNulls oracle, which appends the same caps to its
+    // setting-toggle pair for the same JVM-OOM reason.
+    static final String CAPS = "max_result_rows = 1000000, result_overflow_mode = 'throw', "
             + "max_bytes_in_join = 268435456, max_memory_usage = 1073741824";
 
     public ClickHouseJoinAlgorithmOracle(ClickHouseGlobalState state) {
@@ -62,12 +64,17 @@ public class ClickHouseJoinAlgorithmOracle extends ClickHouseTLPBase {
         errors.add("Join algorithm");
         errors.add("is not supported");
         errors.add("is not implemented");
-        // Caps appended to every algorithm-sweep query. See CAPS constant.
+        addResourceCapErrors(errors);
+    }
+
+    // Tolerances for tripping the CAPS limits: an over-budget join iteration is uninformative, not
+    // a wrong-result bug. Shared with the JoinUseNulls oracle.
+    static void addResourceCapErrors(sqlancer.common.query.ExpectedErrors errors) {
         errors.add("Limit for result exceeded");
         errors.add("Limit for JOIN exceeded");
         errors.add("Memory limit");
         errors.add("memory limit exceeded");
-        errors.add("MEMORY_LIMIT_EXCEEDED");
+        errors.add("(MEMORY_LIMIT_EXCEEDED)");
     }
 
     @Override
@@ -112,7 +119,9 @@ public class ClickHouseJoinAlgorithmOracle extends ClickHouseTLPBase {
         ComparatorHelper.assumeResultSetsAreEqual(rowsHash, rowsGrace, qHash, List.of(qGrace), state);
     }
 
-    private static boolean isAlgorithmDeterministic(ClickHouseJoin.JoinType type) {
+    // Package-visible: the JoinUseNulls oracle skips the same shapes for the same reason (which
+    // matched row ANY/SEMI pick is implementation-defined, so any two executions can differ).
+    static boolean isAlgorithmDeterministic(ClickHouseJoin.JoinType type) {
         switch (type) {
         case INNER:
         case CROSS:

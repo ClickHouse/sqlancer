@@ -91,13 +91,9 @@ public class ClickHouseWindowEquivalenceOracle implements TestOracle<ClickHouseG
             // (cumulative, ORDER-BY order) can produce ULP-different float results. The 8.7h
             // run surfaced 12 WindowEquivalence reproducers all in this float-non-associativity
             // family. Same root cause as the AggregateStateRoundtripOracle fix on workstream 5.
-            List<ClickHouseColumn> numericColsD = table.getColumns().stream().filter(c -> {
-                com.clickhouse.data.ClickHouseDataType t = c.getType().getType();
-                return t != com.clickhouse.data.ClickHouseDataType.Float32
-                        && t != com.clickhouse.data.ClickHouseDataType.Float64
-                        && t != com.clickhouse.data.ClickHouseDataType.Decimal
-                        && c.getType().getTypeTerm().unwrap().isNumeric();
-            }).collect(Collectors.toList());
+            List<ClickHouseColumn> numericColsD = table.getColumns().stream()
+                    .filter(sqlancer.clickhouse.ClickHouseTypeFilters::isExactIntegerFamily)
+                    .collect(Collectors.toList());
             if (numericColsD.isEmpty()) {
                 throw new IgnoreMeException();
             }

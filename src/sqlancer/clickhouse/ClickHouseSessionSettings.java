@@ -53,9 +53,10 @@ public final class ClickHouseSessionSettings {
             "transform_null_in",
             // RIGHT-JOIN late column reads. Regression #94339 (wrong RIGHT JOIN result with this
             // setting on) shows the analyzer + replication interaction is exactly setting-poisoned.
-            // NB: the catalog DECLARE is enable_lazy_columns_replication; the previous bare
-            // "lazy_columns_replication" entry was neither a DECLARE nor an alias, so the #94339
-            // coverage never actually ran (every toggle raised UNKNOWN_SETTING and was absorbed).
+            // NB: the in-server DECLARE is enable_lazy_columns_replication; the bare name
+            // "lazy_columns_replication" is not an alias and raises UNKNOWN_SETTING, which the
+            // session-settings tolerance absorbs SILENTLY (2026-06-11 fix -- a bare entry here
+            // meant the #94339 coverage never ran; pinned by knownBadNamesStayOutOfTheCatalogs).
             "enable_lazy_columns_replication",
             // JIT compilation of scalar expressions. The 26.4-26.5 cluster of JIT-Decimal bugs
             // (#103809, #105054) is a hot regression area; toggling between JIT and interpreter
@@ -80,9 +81,6 @@ public final class ClickHouseSessionSettings {
             // Regexp rewrite optimizer. ClickHouse#93434 shipped result divergence when this
             // setting flipped on; SEMR is the canonical local signal for any future regression.
             "optimize_rewrite_regexp_functions",
-            // query_plan_use_logical_join_step was removed 2026-06-11: MAKE_OBSOLETE as of 26.5
-            // ("the logical join step is now always used"), so toggling it is a no-op. The live
-            // join-plan surface is covered by the query_plan_convert_* / enable_join_* block below.
             // Text-index pruning. ClickHouse#103812 -- wrong result when text-index direct read
             // is combined with the hint-add flag. SEMR per-query toggle pair plus the dedicated
             // text-index settings group below cover both single-flag and combined exposures.
@@ -170,8 +168,12 @@ public final class ClickHouseSessionSettings {
             // (2D) Index / pruning / projection. use_primary_key=0 / use_skip_indexes=0 force the
             // full-scan ground-truth path -- the same diff that caught #106262 (sqrt-NaN KeyCondition)
             // and #106124 (negative-intDiv partition pruning), now systematic.
+            // use_skip_indexes_if_final is safe ONLY because use_skip_indexes_if_final_exact_mode
+            // stays at its server default (1): if_final=1 + exact_mode=1 is documented-correct,
+            // if_final=0 skips the index entirely. exact_mode itself is deliberately NOT listed --
+            // its own doc says 0 may return approximate FINAL results ("should be disabled only if
+            // approximate results ... are okay"), i.e. toggling it is result-CHANGING by contract.
             "use_primary_key", "use_skip_indexes", "use_skip_indexes_for_disjunctions", "use_skip_indexes_if_final",
-            "use_skip_indexes_if_final_exact_mode",
             // 26.4 default-on statistics-based part pruning.
             "use_statistics_for_part_pruning",
             // 26.5 default-on: coalesce()/ifNull() folded into KeyCondition -- index correctness, high risk.
@@ -197,9 +199,12 @@ public final class ClickHouseSessionSettings {
             // 26.4, default false: virtual-row read-in-order optimization.
             "read_in_order_use_virtual_row", "read_in_order_use_virtual_row_per_block", "rewrite_in_to_join",
             "enable_add_distinct_to_in_subqueries", "enable_scalar_subquery_optimization");
-    // Two settings deliberately NOT in SEMR_SETTINGS because they are NOT result-preserving on
+    // Settings deliberately NOT in SEMR_SETTINGS because they are NOT result-preserving on
     // arbitrary schemas (toggling them legitimately changes the result, so SEMR would report
-    // false positives):
+    // false positives), or because toggling them is a no-op:
+    // - query_plan_use_logical_join_step (removed 2026-06-11): MAKE_OBSOLETE as of 26.5 ("the
+    // logical join step is now always used"), so toggling it stopped doing anything. The live
+    // join-plan surface is the query_plan_convert_* / enable_join_* block above.
     // - apply_mutations_on_fly: with it on, SELECT applies pending ALTER DELETE/UPDATE
     // mutations virtually; with it off, SELECT reads the pre-mutation view. With a mutation
     // in flight the row sets differ -- correctly. (3 SEMR reproducers in the 8.7h run.)

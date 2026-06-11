@@ -82,7 +82,10 @@ public class ClickHouseQueryCacheOracle extends ClickHouseTLPBase {
         // Arm 1: cache miss + entry write must be transparent.
         String cachedQuery = body + cacheOn;
         List<String> written = ComparatorHelper.getResultSetFirstColumnAsString(cachedQuery, errors, state);
-        ComparatorHelper.assumeResultSetsAreEqual(truth, written, truthQuery, List.of(cachedQuery), state);
+        // MULTISET: a corrupted cache entry that shuffles duplicate counts must not slip through a
+        // set-shaped comparison.
+        ComparatorHelper.assumeResultSetsAreEqual(truth, written, truthQuery, List.of(cachedQuery), state,
+                ComparatorHelper.ComparisonMode.MULTISET);
 
         // Triggers: occupy nearby cache keys. Settings are part of the cache key, so the same text
         // under different execution settings must land in a different slot; the count() wrapper is
@@ -102,6 +105,7 @@ public class ClickHouseQueryCacheOracle extends ClickHouseTLPBase {
         // Arm 2: identical text + settings as the write arm -- served from the cache when the entry
         // survived, recomputed otherwise; either way it must equal the uncached truth.
         List<String> reread = ComparatorHelper.getResultSetFirstColumnAsString(cachedQuery, errors, state);
-        ComparatorHelper.assumeResultSetsAreEqual(truth, reread, truthQuery, List.of(cachedQuery), state);
+        ComparatorHelper.assumeResultSetsAreEqual(truth, reread, truthQuery, List.of(cachedQuery), state,
+                ComparatorHelper.ComparisonMode.MULTISET);
     }
 }
