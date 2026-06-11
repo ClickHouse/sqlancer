@@ -146,6 +146,9 @@ class ClickHouseSessionSettingsTest {
         // Documented result-CHANGING when 0 (approximate FINAL results by contract); only
         // use_skip_indexes_if_final itself is SEMR-safe, and only with exact_mode at its default.
         assertFalse(semr.contains("use_skip_indexes_if_final_exact_mode"));
+        // Documented result-CHANGING for ALL (default-strictness) joins: converting JOIN to IN
+        // collapses row multiplicity on duplicate keys. Caught by the 2026-06-11 focused smoke.
+        assertFalse(semr.contains("query_plan_convert_join_to_in"));
         // 'any'/'break' overflow modes change results; 'throw' is pure untolerated-error noise.
         assertFalse(catalogNames().contains("max_rows_to_group_by"));
         assertFalse(catalogNames().contains("group_by_overflow_mode"));

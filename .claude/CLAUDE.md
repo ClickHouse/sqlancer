@@ -98,17 +98,6 @@ recognise an already-filed bug instead of re-investigating it. **Re-verify again
 before acting** — when an issue is fixed/closed, delete its entry from this list. (Check state:
 `gh issue view <N> --repo ClickHouse/ClickHouse --json state -q .state`.)
 
-- **[#107073](https://github.com/ClickHouse/ClickHouse/issues/107073)** — join reordering returns a **different result** for a `LEFT ANTI` / `RIGHT SEMI` / `INNER` chain: `count()` flips between 0 (correct) and 1 (wrong) on identical single-part data under `query_plan_optimize_join_order_randomize=1` (the bad order joins `m3` against `m0`'s pre-`RIGHT SEMI` `a0.k`). Found by the `JoinReorder` oracle; assigned upstream to @vdimir (randomize-setting author). Surviving instance of the PR #97498 / #101504 class. **GATED** (2026-06-10): the precise trigger is *a join's ON clause referencing a key column that a preceding SEMI/ANTI dropped* — ClickHouse default-fills the dropped side (NULL/0, verified on head), so the query is well-defined and a reorder reading the stale pre-drop key is a genuine wrong result. `JoinReorder` now constrains every ON to a still-live alias (`liveAliasesBeforeJoin`/`referencesDroppedAlias` + the `--join-reorder-allow-dropped-key-ref` flag, default false), so it still tests all SEMI/ANTI/FULL chains but never re-generates this filed bug. (First gate was the narrower `containsAntiSemiMix`; broadened after the 10h run surfaced a `LEFT/RIGHT_SEMI/FULL` variant — same family, FULL's `ON a0.k=a3.k` reading the SEMI-dropped a0 — which had no ANTI and slipped the narrow gate; that variant did not reproduce standalone, confirming it's the same non-deterministically-ordered #107073 path.) No server-error string to pin on (count-mismatch AssertionError only). Set the flag true to re-confirm; **REMOVE the gate when #107073 is fixed on head.** Verified on head 26.6.1.603/.609/.611 (2026-06-10/11).
-  ```sql
-  CREATE TABLE m0 (k Nullable(Int32)) ENGINE=MergeTree ORDER BY tuple();
-  CREATE TABLE m1 (k Int32) ENGINE=MergeTree ORDER BY tuple();
-  CREATE TABLE m2 (k Nullable(Int32)) ENGINE=MergeTree ORDER BY tuple();
-  CREATE TABLE m3 (k Int32) ENGINE=MergeTree ORDER BY tuple();
-  INSERT INTO m0 VALUES (NULL),(3); INSERT INTO m1 VALUES (0); INSERT INTO m2 VALUES (0); INSERT INTO m3 VALUES (3);
-  SELECT count() FROM m0 AS a0 LEFT ANTI JOIN m1 AS a1 ON a0.k=a1.k
-    RIGHT SEMI JOIN m2 AS a2 ON a1.k=a2.k INNER JOIN m3 AS a3 ON a0.k=a3.k
-    SETTINGS query_plan_optimize_join_order_limit=10, query_plan_optimize_join_order_randomize=1;  -- 0 or 1 across runs
-  ```
 - **[#106649](https://github.com/ClickHouse/ClickHouse/issues/106649)** — `LOGICAL_ERROR "Column identifier <c> is already registered"` (Code 49) when a mutation's WHERE has an `IN (subquery)` whose inner SELECT joins two subquery-wrapped derived tables projecting the **same column name** (26.6 regression from PR #98884 routing mutations through the new analyzer; fix in flight as PR #106025). Mutation form required; empty tables suffice (analysis-time). **PINNED** via the substring `"is already registered"` in `ClickHouseErrors.getKnownOpenMutationAnalyzerBugs()` (consumed only by the mutation generator + `MutationAnalyzer` oracle) — **remove the pin when #106025 merges and head no longer reproduces.** Verified reproducing on head 26.6.1.399 (2026-06-10).
   ```sql
   CREATE TABLE a (k Int32, m Int64) ENGINE=MergeTree ORDER BY k;
@@ -194,6 +183,18 @@ Typical noise families (now tolerated globally in `ClickHouseErrors`, so a fresh
 - `Code: 27 (CANNOT_PARSE_INPUT_ASSERTION_FAILED)` — generator emitted a string like `'i'` or `'N-<.'` and CH tried to parse it as Float64 (`'i'` looks like the start of `'inf'`, etc.). **Sqlancer-side gap, not a CH bug.**
 - `java.lang.NullPointerException` in `ComparableTimSort` — `Collections.sort` on a list containing Java `null` for SQL NULL. **Sqlancer-side bug.**
 - `SQLException: Failed to read value for column <x>` from `ClickHouseClientV2Transport` on a query whose projection mixes integer arithmetic with a `Time64` constant (e.g. `Int64*Int64 + CAST(... AS Time64(2))`) — the sum unifies to a Time-typed value far outside the renderable range and client-v2's RowBinary decoder throws while reading it. **Sqlancer-side transport/reader gap** (same class as the Variant decode trap), observed ~1/30-min via CODDTest's constant-folding probe. Follow-up: either render Time/Time64 through raw text in the reader or CAST-wrap mixed time arithmetic at emission, per the multiIf precedent.
+
+- **SEMI/ANTI eliminated-side column reads are non-deterministic BY DESIGN** (ClickHouse#107073,
+  closed 2026-06 by @vdimir): for a SEMI/ANTI join the preserved-side row set is well-defined, but
+  any column read from the *eliminated* side (when not fixed by the ON keys) is ANY-like — filled
+  from whichever matching row arrives first. Any legal plan change (join reorder side-swap,
+  default-on since `query_plan_optimize_join_order_limit=10`), or just a different physical row
+  order, flips the value, and every outcome is a correct answer. A differential reproducer whose
+  ON/projection reads a SEMI/ANTI-dropped alias is therefore **not a bug** — the `JoinReorder`
+  oracle's `liveAliasesBeforeJoin` restriction (permanent, `--join-reorder-allow-dropped-key-ref`
+  to override) exists exactly for this. Real-world demos of the legal flip (funnel query flipping
+  0↔1 after unrelated table growth; LEFT ANY JOIN lookup flipping run-to-run):
+  `tmp/107073-real-use-case.md`.
 
 Genuine bug-shape signal usually comes from `ClickHouseTLPSetOpOracle` (real INTERSECT/UNION_DISTINCT divergence) or `ComparatorHelper.assumeResultSetsAreEqual:127` (row-count mismatch). For the latter, **TLP+`GROUP BY` queries** are a known TLP oracle limitation that produces false positives — the same group key can appear in multiple WHERE-partition branches and inflate the UNION ALL count. If you see a row-count mismatch on a query with `GROUP BY`, replay the same query without it before filing; if the non-`GROUP BY` version matches, it's an oracle artifact.
 

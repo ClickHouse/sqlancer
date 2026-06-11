@@ -154,8 +154,10 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
 
     // True if any join's ON references an alias that a preceding SEMI/ANTI already dropped -- the
     // #107073 trigger. Used to gate-detect (tests) and, when the opt-in flag is off, to avoid
-    // generating the shape. REMOVE the gate (flip --join-reorder-allow-dropped-key-ref) when
-    // #107073 is fixed on head.
+    // generating the shape. PERMANENT soundness rule (2026-06-11): #107073 was closed upstream as
+    // by-design -- columns read from a SEMI/ANTI join's eliminated side are ANY-like (filled from
+    // whichever matching row arrives first), so any legal plan change flips the result and a
+    // differential comparison over that shape is unsound. Do not remove.
     static boolean referencesDroppedAlias(List<JoinKind> kinds, List<Integer> onLeft) {
         for (int i = 0; i < onLeft.size(); i++) {
             if (!liveAliasesBeforeJoin(kinds.subList(0, i)).contains(onLeft.get(i))) {
@@ -268,10 +270,10 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
             for (int i = 0; i < numJoins; i++) {
                 // ON for join i (alias a<i+1>) references the k of an earlier alias. By default we
                 // restrict to aliases still LIVE at this point (liveAliasesBeforeJoin), so the ON
-                // never reads a key that a preceding SEMI/ANTI dropped -- that dropped-key reference
-                // is the known-open ClickHouse#107073 family (a join-order-dependent wrong result
-                // with no server-error message to pin on), which would otherwise re-fire as noise on
-                // every run. The opt-in flag reverts to the unconstrained pick to re-confirm #107073.
+                // never reads a key that a preceding SEMI/ANTI dropped -- per the ClickHouse#107073
+                // closure, eliminated-side columns are ANY-like by design, so a query reading one is
+                // legally non-deterministic and cannot be diffed. The opt-in flag reverts to the
+                // unconstrained pick to demonstrate that documented non-determinism.
                 List<Integer> candidates = allowDroppedKeyRef
                         ? java.util.stream.IntStream.rangeClosed(0, i).boxed().collect(java.util.stream.Collectors.toList())
                         : liveAliasesBeforeJoin(kinds.subList(0, i));

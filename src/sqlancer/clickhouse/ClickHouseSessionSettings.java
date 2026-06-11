@@ -138,7 +138,7 @@ public final class ClickHouseSessionSettings {
             // and #106426. Toggled under the same generated-JOIN queries the JoinReorder/JoinAlgorithm
             // oracles exercise structurally.
             "query_plan_convert_outer_join_to_inner_join", "query_plan_convert_any_join_to_semi_or_anti_join",
-            "query_plan_convert_join_to_in", "query_plan_merge_filter_into_join_condition",
+            "query_plan_merge_filter_into_join_condition",
             "query_plan_read_in_order_through_join", "query_plan_join_shard_by_pk_ranges",
             // 26.1 default-on flip.
             "use_join_disjunctions_push_down", "use_hash_table_stats_for_join_reordering",
@@ -205,6 +205,13 @@ public final class ClickHouseSessionSettings {
     // - query_plan_use_logical_join_step (removed 2026-06-11): MAKE_OBSOLETE as of 26.5 ("the
     // logical join step is now always used"), so toggling it stopped doing anything. The live
     // join-plan surface is the query_plan_convert_* / enable_join_* block above.
+    // - query_plan_convert_join_to_in (removed 2026-06-11, same day it was added): its own
+    // catalog doc says "May cause wrong results with non-ANY JOINs (e.g. ALL JOINs which is
+    // the default)" -- converting an ALL JOIN to IN collapses row multiplicity (a self-join on
+    // duplicate keys returns N rows instead of N^2 per key group). The first focused smoke run
+    // caught it within 15 minutes as 3 SEMR/SEMRMulti cardinality mismatches (50 vs 10 etc.),
+    // confirmed by hand on head 26.6.1.634: count() 13 vs 5 on a 5-row dup-key self-join.
+    // Documented result-CHANGING by contract, not a CH bug; do not re-add.
     // - apply_mutations_on_fly: with it on, SELECT applies pending ALTER DELETE/UPDATE
     // mutations virtually; with it off, SELECT reads the pre-mutation view. With a mutation
     // in flight the row sets differ -- correctly. (3 SEMR reproducers in the 8.7h run.)
