@@ -170,15 +170,35 @@ class ClickHouseJoinReorderOracleTest {
     }
 
     @Test
-    void antiSemiMixDetectsKnown107073Shape() {
-        // The filed #107073 shapes (LEFT ANTI / RIGHT SEMI / {INNER|RIGHT SEMI}) mix ANTI and SEMI.
-        assertTrue(ClickHouseJoinReorderOracle.containsAntiSemiMix(List.of(LEFT_ANTI, RIGHT_SEMI, INNER)));
-        assertTrue(ClickHouseJoinReorderOracle.containsAntiSemiMix(List.of(LEFT_ANTI, RIGHT_SEMI, RIGHT_SEMI)));
-        assertTrue(ClickHouseJoinReorderOracle.containsAntiSemiMix(List.of(RIGHT_ANTI, LEFT_SEMI)));
-        // Single-family and reorder-safe chains are NOT the gated shape -- they stay testable.
-        assertFalse(ClickHouseJoinReorderOracle.containsAntiSemiMix(List.of(INNER, LEFT, FULL)));
-        assertFalse(ClickHouseJoinReorderOracle.containsAntiSemiMix(List.of(LEFT_ANTI, RIGHT_ANTI))); // anti-only
-        assertFalse(ClickHouseJoinReorderOracle.containsAntiSemiMix(List.of(LEFT_SEMI, RIGHT_SEMI))); // semi-only
-        assertFalse(ClickHouseJoinReorderOracle.containsAntiSemiMix(List.of(LEFT_SEMI, LEFT)));
+    void liveAliasesTrackSemiAntiDrops() {
+        // No joins yet: only the base alias a0 is live.
+        assertEquals(List.of(0), ClickHouseJoinReorderOracle.liveAliasesBeforeJoin(List.of()));
+        // INNER/LEFT/FULL keep both sides: after [INNER, LEFT] aliases 0,1,2 are live.
+        assertEquals(List.of(0, 1, 2), ClickHouseJoinReorderOracle.liveAliasesBeforeJoin(List.of(INNER, LEFT)));
+        // RIGHT SEMI at step 1 (attaching a2) drops the whole left side -> only a2 live.
+        assertEquals(List.of(2), ClickHouseJoinReorderOracle.liveAliasesBeforeJoin(List.of(LEFT, RIGHT_SEMI)));
+        // LEFT SEMI consumes the just-joined right table -> it is not added.
+        assertEquals(List.of(0), ClickHouseJoinReorderOracle.liveAliasesBeforeJoin(List.of(LEFT_SEMI)));
+        assertEquals(List.of(0, 2), ClickHouseJoinReorderOracle.liveAliasesBeforeJoin(List.of(LEFT_SEMI, LEFT)));
+    }
+
+    @Test
+    void referencesDroppedAliasDetectsKnown107073Shapes() {
+        // #107073: INNER (join 2) ON references a0, dropped by the RIGHT SEMI at join 1.
+        assertTrue(ClickHouseJoinReorderOracle.referencesDroppedAlias(List.of(LEFT_ANTI, RIGHT_SEMI, INNER),
+                List.of(0, 0, 0)));
+        // 10h-run variant: FULL (join 2) ON references a0, dropped by the RIGHT SEMI at join 1.
+        assertTrue(ClickHouseJoinReorderOracle.referencesDroppedAlias(List.of(LEFT, RIGHT_SEMI, FULL),
+                List.of(0, 0, 0)));
+        // Same chains but every ON references a live alias -> sound, not gated. Note LEFT_ANTI at
+        // join 0 consumes a1, so the live assignment is [0,0,2] (not [0,1,2], which would re-read
+        // the dropped a1); the RIGHT SEMI at join 1 then leaves only a2 live for the INNER's ON.
+        assertFalse(ClickHouseJoinReorderOracle.referencesDroppedAlias(List.of(LEFT_ANTI, RIGHT_SEMI, INNER),
+                List.of(0, 0, 2)));
+        assertFalse(ClickHouseJoinReorderOracle.referencesDroppedAlias(List.of(LEFT, RIGHT_SEMI, FULL),
+                List.of(0, 1, 2)));
+        // INNER/LEFT/FULL chains can reference any earlier alias freely.
+        assertFalse(ClickHouseJoinReorderOracle.referencesDroppedAlias(List.of(INNER, LEFT, FULL),
+                List.of(0, 0, 1)));
     }
 }

@@ -120,23 +120,49 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
         }
     }
 
-    // The #107073 trigger shape: a chain that contains BOTH an ANTI and a SEMI join. The ANTI
-    // default-fills the other side's key, a subsequent SEMI drops the carrying side, and a later
-    // join then reads the stale (pre-SEMI) key under some reorderings -- the join-order-dependent
-    // wrong result filed as ClickHouse#107073 (LEFT ANTI / RIGHT SEMI / INNER, count() flips 0 vs 1).
-    // Until that is fixed on head this combination re-fires on essentially every run (no narrow
-    // server-error message exists to pin on -- it surfaces only as a count-mismatch AssertionError),
-    // masking any OTHER reorder bug those chains might carry. We therefore avoid generating it by
-    // default (resample the kinds), keeping full coverage of INNER/LEFT/FULL and single-family
-    // SEMI-only / ANTI-only chains. REMOVE the gate (or flip the flag) when #107073 is fixed.
-    static boolean containsAntiSemiMix(List<JoinKind> kinds) {
-        boolean anti = false;
-        boolean semi = false;
-        for (JoinKind k : kinds) {
-            anti |= k.isAnti();
-            semi |= k.isSemi();
+    // Alias indices still "live" (their key column carries meaningful, non-defaulted values) when
+    // the next join is applied, after running {@code precedingKinds} from the base alias a0. A
+    // SEMI/ANTI join consumes one side: LEFT SEMI/ANTI keep the accumulated left and DROP the
+    // just-joined right table (alias j+1); RIGHT SEMI/ANTI keep the right table (alias j+1) and DROP
+    // the entire accumulated left side. ClickHouse default-fills a dropped side's columns (NULL for
+    // Nullable, 0 otherwise -- verified on head 26.6.1.611), so referencing a dropped alias in a
+    // later ON is well-defined but join-order-fragile: that is exactly the #107073 family (LEFT
+    // ANTI / RIGHT SEMI / INNER ON a0.k=a3.k flips 0 vs 1; and the LEFT / RIGHT SEMI / FULL ON
+    // a0.k=a3.k variant the 10h run surfaced). Constraining every ON to a live alias keeps full
+    // SEMI/ANTI reorder coverage WITHOUT re-generating that filed bug as per-run noise.
+    static List<Integer> liveAliasesBeforeJoin(List<JoinKind> precedingKinds) {
+        TreeSet<Integer> live = new TreeSet<>();
+        live.add(0);
+        for (int j = 0; j < precedingKinds.size(); j++) {
+            switch (precedingKinds.get(j)) {
+            case LEFT_SEMI:
+            case LEFT_ANTI:
+                // right table (alias j+1) consumed; accumulated left stays live
+                break;
+            case RIGHT_SEMI:
+            case RIGHT_ANTI:
+                live.clear();
+                live.add(j + 1);
+                break;
+            default: // INNER / LEFT / FULL keep both sides
+                live.add(j + 1);
+                break;
+            }
         }
-        return anti && semi;
+        return new ArrayList<>(live);
+    }
+
+    // True if any join's ON references an alias that a preceding SEMI/ANTI already dropped -- the
+    // #107073 trigger. Used to gate-detect (tests) and, when the opt-in flag is off, to avoid
+    // generating the shape. REMOVE the gate (flip --join-reorder-allow-dropped-key-ref) when
+    // #107073 is fixed on head.
+    static boolean referencesDroppedAlias(List<JoinKind> kinds, List<Integer> onLeft) {
+        for (int i = 0; i < onLeft.size(); i++) {
+            if (!liveAliasesBeforeJoin(kinds.subList(0, i)).contains(onLeft.get(i))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private final ClickHouseGlobalState state;
@@ -237,28 +263,19 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
             for (int i = 0; i < numJoins; i++) {
                 kinds.add(Randomly.fromOptions(JoinKind.values()));
             }
-            // Avoid the known-open #107073 ANTI+SEMI mix (see containsAntiSemiMix) unless the
-            // operator explicitly opts back in to re-confirm the filed bug. Bounded resample so
-            // throughput is preserved; the combinatorics make >8 consecutive mixes vanishingly
-            // unlikely, and if it somehow persists we skip the iteration rather than re-report
-            // the filed bug.
-            if (!state.getClickHouseOptions().joinReorderAntiSemiMix) {
-                int tries = 0;
-                while (containsAntiSemiMix(kinds) && tries++ < 8) {
-                    kinds.clear();
-                    for (int i = 0; i < numJoins; i++) {
-                        kinds.add(Randomly.fromOptions(JoinKind.values()));
-                    }
-                }
-                if (containsAntiSemiMix(kinds)) {
-                    throw new IgnoreMeException();
-                }
-            }
+            boolean allowDroppedKeyRef = state.getClickHouseOptions().joinReorderAllowDroppedKeyRef;
             List<Integer> onLeft = new ArrayList<>();
             for (int i = 0; i < numJoins; i++) {
-                // ON for join i (alias a<i+1>) references the k of a random earlier alias. k-only
-                // equality keeps the ON deterministic through SEMI/ANTI (see class javadoc).
-                onLeft.add((int) Randomly.getNotCachedInteger(0, i + 1));
+                // ON for join i (alias a<i+1>) references the k of an earlier alias. By default we
+                // restrict to aliases still LIVE at this point (liveAliasesBeforeJoin), so the ON
+                // never reads a key that a preceding SEMI/ANTI dropped -- that dropped-key reference
+                // is the known-open ClickHouse#107073 family (a join-order-dependent wrong result
+                // with no server-error message to pin on), which would otherwise re-fire as noise on
+                // every run. The opt-in flag reverts to the unconstrained pick to re-confirm #107073.
+                List<Integer> candidates = allowDroppedKeyRef
+                        ? java.util.stream.IntStream.rangeClosed(0, i).boxed().collect(java.util.stream.Collectors.toList())
+                        : liveAliasesBeforeJoin(kinds.subList(0, i));
+                onLeft.add(Randomly.fromList(candidates));
             }
             List<Integer> det = deterministicTables(kinds);
             String where = null;
