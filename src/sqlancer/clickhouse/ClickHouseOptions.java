@@ -62,6 +62,9 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--join-reorder-allow-dropped-key-ref", description = "Let the JoinReorder oracle build ON clauses that reference a key column dropped by a preceding SEMI/ANTI join. Default false: that dropped-key reference is the known-open ClickHouse#107073 family (a join-order-dependent wrong result with no server-error message to pin on) and would otherwise re-fire on every run, masking other reorder bugs. When false the oracle still tests all SEMI/ANTI/FULL chains, but each ON references only a still-live alias. Set true to re-confirm #107073; remove the gate once it is fixed on head.", arity = 1)
     public boolean joinReorderAllowDroppedKeyRef = false;
 
+    @Parameter(names = "--extended-datetime-known-overflow-arm", description = "Let the ExtendedDatetime oracle run its setting=0 (narrowing) arm against a merge-formed part with pre-1970 Date32 values. Default false: that exact combination is the known-open ClickHouse#106419 (toStartOf* filter returns 0 rows after a merge; monotonic-filter range poisoned by Date32->Date narrowing) and would re-fire on every run. When false the oracle still tests the non-merged pre-1970, merged post-1970, and the whole setting=1 surface. Set true to re-confirm #106419; remove the gate once it is fixed on head.", arity = 1)
+    public boolean extendedDatetimeKnownOverflowArm = false;
+
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;

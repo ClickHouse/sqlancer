@@ -29,6 +29,9 @@ import sqlancer.clickhouse.oracle.topk.ClickHouseTopKOracle;
 import sqlancer.clickhouse.oracle.partition.ClickHousePartitionMirrorOracle;
 import sqlancer.clickhouse.oracle.pqs.ClickHousePivotedQuerySynthesisOracle;
 import sqlancer.clickhouse.oracle.projection.ClickHouseProjectionToggleOracle;
+import sqlancer.clickhouse.oracle.datetime.ClickHouseExtendedDatetimeOracle;
+import sqlancer.clickhouse.oracle.join.ClickHouseJoinUseNullsOracle;
+import sqlancer.clickhouse.oracle.qcc.ClickHouseQueryCacheOracle;
 import sqlancer.clickhouse.oracle.qcc.ClickHouseQueryConditionCacheOracle;
 // TEMPORARILY DISABLED with the RowPolicy enum constant below (2026-05-31):
 // import sqlancer.clickhouse.oracle.rowpolicy.ClickHouseRowPolicyOracle;
@@ -429,6 +432,41 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseJsonSkipIndexOracle(globalState);
+        }
+    },
+    ExtendedDatetime {
+        // enable_extended_results_for_datetime_functions surface (settings plan section 3, ties the
+        // open #106419 family): per setting arm, WHERE-path count must equal the countIf row-eval
+        // ground truth for toStartOf*/toMonday/toLastDayOfMonth predicates over a private Date32
+        // table with multi-part history, optional pre-1970 outliers and an optional merge-formed
+        // part. The exact filed #106419 combination (merged + pre-1970 + setting=0) is gated behind
+        // --extended-datetime-known-overflow-arm until the fix lands on head.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseExtendedDatetimeOracle(globalState);
+        }
+    },
+    JoinUseNulls {
+        // join_use_nulls semantic differential (settings plan section 3): identical query text
+        // under =0 vs =1 with the projected integer column wrapped in ifNull(..., 0), which maps
+        // the default-value fill and the NULL fill to the same multiset. Cardinality + fill-value
+        // invariant over every deterministic join shape; the setting flips the analyzer's whole
+        // JOIN output-type derivation, a surface no result-preserving toggle can reach.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseJoinUseNullsOracle(globalState);
+        }
+    },
+    QueryCache {
+        // use_query_cache coherence (settings plan section 5): A-then-B protocol per the QccCache
+        // template -- uncached truth, cache-miss write arm, nearby-key triggers (same text under
+        // different settings + structurally different wrapper), then a re-read that must serve the
+        // original result. Never mutates data mid-check: the query cache documents staleness-by-
+        // design, so only cache mechanics (write transparency, serialization round-trip, key
+        // collisions) are asserted.
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseQueryCacheOracle(globalState);
         }
     },
     StatsToggle {
