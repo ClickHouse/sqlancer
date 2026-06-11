@@ -53,7 +53,10 @@ public final class ClickHouseSessionSettings {
             "transform_null_in",
             // RIGHT-JOIN late column reads. Regression #94339 (wrong RIGHT JOIN result with this
             // setting on) shows the analyzer + replication interaction is exactly setting-poisoned.
-            "lazy_columns_replication",
+            // NB: the catalog DECLARE is enable_lazy_columns_replication; the previous bare
+            // "lazy_columns_replication" entry was neither a DECLARE nor an alias, so the #94339
+            // coverage never actually ran (every toggle raised UNKNOWN_SETTING and was absorbed).
+            "enable_lazy_columns_replication",
             // JIT compilation of scalar expressions. The 26.4-26.5 cluster of JIT-Decimal bugs
             // (#103809, #105054) is a hot regression area; toggling between JIT and interpreter
             // surfaces compiled-vs-interpreted divergence as a SEMR failure rather than relying on
@@ -77,10 +80,9 @@ public final class ClickHouseSessionSettings {
             // Regexp rewrite optimizer. ClickHouse#93434 shipped result divergence when this
             // setting flipped on; SEMR is the canonical local signal for any future regression.
             "optimize_rewrite_regexp_functions",
-            // Logical join step in the new query plan. Default-on in 26.x; the LEFT ANY case
-            // (ClickHouse#99431, P0 in the report) reproduces under SEMR by toggling this flag
-            // against a query that contains a JOIN.
-            "query_plan_use_logical_join_step",
+            // query_plan_use_logical_join_step was removed 2026-06-11: MAKE_OBSOLETE as of 26.5
+            // ("the logical join step is now always used"), so toggling it is a no-op. The live
+            // join-plan surface is covered by the query_plan_convert_* / enable_join_* block below.
             // Text-index pruning. ClickHouse#103812 -- wrong result when text-index direct read
             // is combined with the hint-add flag. SEMR per-query toggle pair plus the dedicated
             // text-index settings group below cover both single-flag and combined exposures.
@@ -114,7 +116,87 @@ public final class ClickHouseSessionSettings {
             // knob of the above. 26.x plan Unit 2.
             "use_skip_indexes_for_top_k",
             // Push the top-k step below a join (26.5 default-on, PR #104268). 26.x plan Unit 2.
-            "query_plan_top_k_through_join");
+            "query_plan_top_k_through_join",
+            // ---- Bulk result-preserving additions, 2026-06-11 (tmp/ch-settings-to-test-in-sqlancer.md
+            // section 2). Every name validated against Settings.cpp @ ca5c93df695; all are documented
+            // optimizer-rewrite / execution-detail toggles whose 0-vs-1 flip must be multiset-invariant.
+            // Grouped by optimizer subsystem so a SEMR reproducer points at a code area.
+            //
+            // (2A) Query-plan rewrites. query_plan_enable_optimizations is the master switch: 0-vs-1
+            // diffs the fully-optimized plan against the naive plan in one shot -- the strongest single
+            // metamorphic relation CH offers (NoREC-style optimized-vs-unoptimized split for free).
+            "query_plan_enable_optimizations", "query_plan_merge_filters", "query_plan_split_filter",
+            "query_plan_merge_expressions", "query_plan_push_down_limit", "query_plan_lift_up_union",
+            "query_plan_lift_up_array_join", "query_plan_remove_redundant_distinct",
+            "query_plan_remove_redundant_sorting", "query_plan_remove_unused_columns", "query_plan_read_in_order",
+            "query_plan_aggregation_in_order", "query_plan_optimize_prewhere",
+            "query_plan_optimize_lazy_materialization", "query_plan_execute_functions_after_sorting",
+            "query_plan_enable_multithreading_after_window_functions",
+            // 26.4, default false: ReplacingMergeTree FINAL lazy-read path -- FINAL-bug-adjacent.
+            "query_plan_optimize_lazy_final",
+            // 26.6, default true: LIMIT BY pushed into sort.
+            "query_plan_push_limit_by_into_sort",
+            // (2B) JOIN planning / reordering -- the JoinOrderOptimizer surface that produced #107073
+            // and #106426. Toggled under the same generated-JOIN queries the JoinReorder/JoinAlgorithm
+            // oracles exercise structurally.
+            "query_plan_convert_outer_join_to_inner_join", "query_plan_convert_any_join_to_semi_or_anti_join",
+            "query_plan_convert_join_to_in", "query_plan_merge_filter_into_join_condition",
+            "query_plan_read_in_order_through_join", "query_plan_join_shard_by_pk_ranges",
+            // 26.1 default-on flip.
+            "use_join_disjunctions_push_down", "use_hash_table_stats_for_join_reordering",
+            "allow_general_join_planning",
+            // 26.2 / 26.6 / 26.4 / 26.5 default-on additions -- newest join-planning code.
+            "enable_join_runtime_filters", "enable_join_transitive_predicates",
+            "enable_join_fixed_hash_table_conversion", "enable_software_prefetch_in_join",
+            // (2C) Expression / aggregate rewrites. optimize_arithmetic_operations_in_aggregate_functions
+            // is deliberately ABSENT: it reorders float arithmetic inside aggregates and would drown the
+            // run in float-ULP false positives (see the TLPGroupBy authoring rule in CLAUDE.md).
+            "optimize_multiif_to_if", "optimize_if_chain_to_multiif", "optimize_normalize_count_variants",
+            "optimize_rewrite_sum_if_to_count_if", "optimize_rewrite_aggregate_function_with_if",
+            "optimize_uniq_to_count", "optimize_injective_functions_in_group_by",
+            "optimize_injective_functions_inside_uniq", "optimize_group_by_function_keys",
+            "optimize_group_by_constant_keys", "optimize_aggregation_in_order", "optimize_distinct_in_order",
+            "optimize_redundant_functions_in_order_by", "optimize_respect_aliases",
+            "optimize_extract_common_expressions", "optimize_and_compare_chain",
+            "optimize_rewrite_like_perfect_affix", "optimize_or_like_chain",
+            "optimize_sorting_by_input_stream_properties",
+            // toStartOf*/toYYYYMM preimage rewrite -- the #106419 family lives here.
+            "optimize_time_filter_with_preimage",
+            // 26.3-26.6 default-on additions (sum/avg/count fusion, has()/IN rewrites, ORDER BY
+            // truncation after GROUP BY, GROUP BY ... LIMIT short-circuit, dictGet tuple element).
+            "optimize_syntax_fuse_functions", "optimize_rewrite_array_exists_to_has", "optimize_rewrite_has_to_in",
+            "optimize_truncate_order_by_after_group_by_keys", "optimize_trivial_group_by_limit_query",
+            "optimize_dictget_tuple_element",
+            // (2D) Index / pruning / projection. use_primary_key=0 / use_skip_indexes=0 force the
+            // full-scan ground-truth path -- the same diff that caught #106262 (sqrt-NaN KeyCondition)
+            // and #106124 (negative-intDiv partition pruning), now systematic.
+            "use_primary_key", "use_skip_indexes", "use_skip_indexes_for_disjunctions", "use_skip_indexes_if_final",
+            "use_skip_indexes_if_final_exact_mode",
+            // 26.4 default-on statistics-based part pruning.
+            "use_statistics_for_part_pruning",
+            // 26.5 default-on: coalesce()/ifNull() folded into KeyCondition -- index correctness, high risk.
+            "allow_key_condition_coalesce_rewrite", "optimize_use_projection_filtering", "optimize_append_index",
+            "materialize_skip_indexes_on_insert",
+            // (2E) FINAL / merge correctness (pairs with the FinalMerge oracle). A
+            // defer_partition_pruning_after_final 0-vs-1 mismatch IS the #98242 regression shape.
+            "defer_partition_pruning_after_final", "optimize_move_to_prewhere_if_final", "enable_vertical_final",
+            // Unlike do_not_merge_across_partitions_select_final (removed from SEMR 2026-06-01, see the
+            // block comment below), the automatic-decision knob applies the cross-partition skip only
+            // when the safety precondition holds, so it is result-preserving by contract.
+            "enable_automatic_decision_for_merging_across_partitions_for_final",
+            "split_intersecting_parts_ranges_into_layers_final",
+            "split_parts_ranges_into_intersecting_and_non_intersecting_final",
+            // (2F) Predicate pushdown / constant folding / read-in-order. The
+            // enable_optimize_predicate_expression sibling stays excluded (TLPHaving pins it); the
+            // _to_final_subquery variant is independent and free to toggle.
+            "enable_early_constant_folding", "enable_multiple_prewhere_read_steps",
+            "enable_optimize_predicate_expression_to_final_subquery", "allow_reorder_prewhere_conditions",
+            "allow_push_predicate_when_subquery_contains_with",
+            // 26.6, default false: second PREWHERE promotion pass after pushdown -- brand new.
+            "optimize_prewhere_after_pushdown",
+            // 26.4, default false: virtual-row read-in-order optimization.
+            "read_in_order_use_virtual_row", "read_in_order_use_virtual_row_per_block", "rewrite_in_to_join",
+            "enable_add_distinct_to_in_subqueries", "enable_scalar_subquery_optimization");
     // Two settings deliberately NOT in SEMR_SETTINGS because they are NOT result-preserving on
     // arbitrary schemas (toggling them legitimately changes the result, so SEMR would report
     // false positives):
@@ -157,7 +239,38 @@ public final class ClickHouseSessionSettings {
             new RandomEntry("compile_aggregate_expressions", List.of("0", "1")),
             new RandomEntry("compile_sort_description", List.of("0", "1")),
             // JIT trigger threshold; 0 forces always-JIT, 3 is default
-            new RandomEntry("min_count_to_compile_expression", List.of("0", "3")));
+            new RandomEntry("min_count_to_compile_expression", List.of("0", "3")),
+            // ---- Execution-mode fuzz additions, 2026-06-11 (tmp/ch-settings-to-test-in-sqlancer.md
+            // section 4). No documented result effect; each exercises a distinct aggregation / spill /
+            // marshalling path, so a wrong result under any of these is a pure execution-strategy bug.
+            //
+            // Two-level-aggregation merge strategies; out-of-order bucket emission is deliberate
+            // order-sensitivity bait for the partial-aggregate recombine path.
+            new RandomEntry("distributed_aggregation_memory_efficient", List.of("0", "1")),
+            new RandomEntry("enable_memory_bound_merging_of_aggregation_results", List.of("0", "1")),
+            new RandomEntry("enable_producing_buckets_out_of_order_in_aggregation", List.of("0", "1")),
+            new RandomEntry("enable_parallel_blocks_marshalling", List.of("0", "1")),
+            new RandomEntry("enable_software_prefetch_in_aggregation", List.of("0", "1")),
+            // Cross-query hash-table sizing stats; execution-only state shared between queries.
+            new RandomEntry("collect_hash_table_stats_during_aggregation", List.of("0", "1")),
+            new RandomEntry("collect_hash_table_stats_during_joins", List.of("0", "1")),
+            // Forcing spill-to-disk at a tiny byte threshold is the cheapest way to exercise the
+            // external merge/recombine paths, and the external-* defaults all moved in 26.4-26.6.
+            // 0 = never spill; 1 MiB = spill on any non-trivial state.
+            new RandomEntry("max_bytes_before_external_group_by", List.of("0", "1048576")),
+            new RandomEntry("max_bytes_before_external_sort", List.of("0", "1048576")),
+            // 26.4 addition (byte threshold) + 26.5 default-on flip (memory ratio) for hash joins.
+            new RandomEntry("max_bytes_before_external_join", List.of("0", "1048576")),
+            new RandomEntry("max_bytes_ratio_before_external_join", List.of("0", "0.5")),
+            new RandomEntry("enable_adaptive_memory_spill_scheduler", List.of("0", "1")),
+            // In-order aggregation block sizing; 64 KiB forces frequent block cuts on that path.
+            new RandomEntry("aggregation_in_order_max_block_bytes", List.of("0", "65536")));
+    // max_rows_to_group_by (+ group_by_overflow_mode) from the plan's section 4 is deliberately NOT
+    // here: 'any' and 'break' overflow modes legitimately change results (partial / per-stream
+    // truncation -- false positives in every two-query oracle), and the default 'throw' mode can
+    // only ever produce an untolerated TOO_MANY_ROWS error (code 158, not in the expected-errors
+    // set), i.e. worker noise with zero correctness signal. Fuzz it only inside a dedicated
+    // error-tolerant oracle if ever needed.
 
     // Settings already controlled by ClickHouseOptions CLI flags. Both pickers
     // filter against this set defensively even though the lists above already

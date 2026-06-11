@@ -112,6 +112,43 @@ class ClickHouseSessionSettingsTest {
     }
 
     @Test
+    void semrCatalogHasNoDuplicates() {
+        Set<String> seen = new HashSet<>();
+        for (String name : ClickHouseSessionSettings.SEMR_SETTINGS) {
+            assertTrue(seen.add(name), () -> name + " appears more than once in SEMR_SETTINGS");
+        }
+    }
+
+    @Test
+    void managedByOptionsAreAbsentFromBothCatalogs() {
+        for (String managed : ClickHouseSessionSettings.MANAGED_BY_OPTIONS) {
+            assertFalse(ClickHouseSessionSettings.SEMR_SETTINGS.contains(managed),
+                    () -> managed + " is managed by a CLI option and must not be SEMR-toggled");
+            assertFalse(catalogNames().contains(managed),
+                    () -> managed + " is managed by a CLI option and must not be randomized");
+        }
+    }
+
+    @Test
+    void knownBadNamesStayOutOfTheCatalogs() {
+        Set<String> semr = new HashSet<>(ClickHouseSessionSettings.SEMR_SETTINGS);
+        // 2026-06-11 harness fix: the catalog DECLARE is enable_lazy_columns_replication; the bare
+        // name was a silent UNKNOWN_SETTING no-op, so the #94339 coverage never ran.
+        assertTrue(semr.contains("enable_lazy_columns_replication"));
+        assertFalse(semr.contains("lazy_columns_replication"));
+        // MAKE_OBSOLETE as of 26.5 -- toggling is a no-op, pruned 2026-06-11.
+        assertFalse(semr.contains("query_plan_use_logical_join_step"));
+        // Documented not-result-preserving exclusions (see the block comment in the catalog).
+        assertFalse(semr.contains("do_not_merge_across_partitions_select_final"));
+        assertFalse(semr.contains("apply_mutations_on_fly"));
+        // Float-ULP noise: reorders arithmetic inside aggregates (TLPGroupBy authoring rule).
+        assertFalse(semr.contains("optimize_arithmetic_operations_in_aggregate_functions"));
+        // 'any'/'break' overflow modes change results; 'throw' is pure untolerated-error noise.
+        assertFalse(catalogNames().contains("max_rows_to_group_by"));
+        assertFalse(catalogNames().contains("group_by_overflow_mode"));
+    }
+
+    @Test
     void negativeBudgetIsRejected() {
         // Defensive: --random-session-settings-budget is a plain int with no min validation on the
         // option class. A picker entry that tries to call Randomly.getNotCachedInteger(0, negative)
