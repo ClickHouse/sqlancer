@@ -2,6 +2,8 @@ package sqlancer.clickhouse.gen;
 
 import java.util.List;
 
+import com.clickhouse.data.ClickHouseDataType;
+
 import sqlancer.IgnoreMeException;
 import sqlancer.Randomly;
 import sqlancer.clickhouse.ClickHouseErrors;
@@ -18,7 +20,8 @@ public final class ClickHouseAlterGenerator {
     }
 
     private enum AlterKind {
-        ADD_COLUMN, DROP_COLUMN, MODIFY_COLUMN, RENAME_COLUMN, COMMENT_COLUMN, ADD_PROJECTION
+        ADD_COLUMN, DROP_COLUMN, MODIFY_COLUMN, RENAME_COLUMN, COMMENT_COLUMN, ADD_PROJECTION, ADD_INDEX,
+        MATERIALIZE_INDEX, CLEAR_INDEX, DROP_INDEX
     }
 
     public static SQLQueryAdapter getQuery(ClickHouseGlobalState state) {
@@ -51,12 +54,25 @@ public final class ClickHouseAlterGenerator {
         case ADD_PROJECTION:
             renderAddProjection(sb, table);
             break;
+        case ADD_INDEX:
+            renderAddIndex(sb, table);
+            break;
+        case MATERIALIZE_INDEX:
+            renderMaterializeIndex(sb, table);
+            break;
+        case CLEAR_INDEX:
+            renderClearIndex(sb, table);
+            break;
+        case DROP_INDEX:
+            renderDropIndex(sb, table);
+            break;
         default:
             throw new AssertionError(kind);
         }
 
         ExpectedErrors errors = ExpectedErrors.newErrors().with(ClickHouseErrors.getExpectedExpressionErrors())
-                .with(ClickHouseErrors.getAlterErrors()).build();
+                .with(ClickHouseErrors.getAlterErrors()).with(ClickHouseErrors.getTextIndexErrors())
+                .with(ClickHouseErrors.getMutationErrors()).build();
 
         return new SQLQueryAdapter(sb.toString(), errors, true);
     }
@@ -126,6 +142,52 @@ public final class ClickHouseAlterGenerator {
             sb.append("SELECT ").append(colList).append(" ORDER BY ").append(colList);
         }
         sb.append(")");
+    }
+
+    private static void renderAddIndex(StringBuilder sb, ClickHouseTable table) {
+        ClickHouseColumn strCol = pickStringColumn(table);
+        if (strCol != null) {
+            sb.append(" ADD INDEX IF NOT EXISTS tidx_").append(strCol.getName()).append(" (").append(strCol.getName())
+                    .append(") TYPE text(tokenizer = ").append(pickTokenizer()).append(") GRANULARITY 1");
+        } else {
+            ClickHouseColumn col = Randomly.fromList(table.getColumns());
+            sb.append(" ADD INDEX IF NOT EXISTS sidx_").append(col.getName()).append(" (").append(col.getName())
+                    .append(") TYPE set(100) GRANULARITY 1");
+        }
+    }
+
+    private static void renderMaterializeIndex(StringBuilder sb, ClickHouseTable table) {
+        sb.append(" MATERIALIZE INDEX IF EXISTS ").append(pickIndexName(table));
+    }
+
+    private static void renderClearIndex(StringBuilder sb, ClickHouseTable table) {
+        sb.append(" CLEAR INDEX IF EXISTS ").append(pickIndexName(table));
+    }
+
+    private static void renderDropIndex(StringBuilder sb, ClickHouseTable table) {
+        sb.append(" DROP INDEX IF EXISTS ").append(pickIndexName(table));
+    }
+
+    private static String pickIndexName(ClickHouseTable table) {
+        ClickHouseColumn strCol = pickStringColumn(table);
+        if (strCol != null) {
+            return "tidx_" + strCol.getName();
+        }
+        return "sidx_" + Randomly.fromList(table.getColumns()).getName();
+    }
+
+    private static ClickHouseColumn pickStringColumn(ClickHouseTable table) {
+        List<ClickHouseColumn> strCols = new java.util.ArrayList<>();
+        for (ClickHouseColumn col : table.getColumns()) {
+            if (col.getType().getType() == ClickHouseDataType.String) {
+                strCols.add(col);
+            }
+        }
+        return strCols.isEmpty() ? null : Randomly.fromList(strCols);
+    }
+
+    private static String pickTokenizer() {
+        return Randomly.fromOptions("'splitByNonAlpha'", "ngrams(3)", "'array'", "splitByString([' '])");
     }
 
     private static void renderCommentColumn(StringBuilder sb, ClickHouseTable table) {

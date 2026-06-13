@@ -52,6 +52,7 @@ public class ClickHouseTableGenerator {
         chTableGenerator.start();
         ExpectedErrors errors = new ExpectedErrors();
         ClickHouseErrors.addExpectedExpressionErrors(errors);
+        ClickHouseErrors.addTextIndexErrors(errors);
         return new SQLQueryAdapter(chTableGenerator.sb.toString(), errors, true);
     }
 
@@ -399,23 +400,61 @@ public class ClickHouseTableGenerator {
 
     private String renderSkipIndex(int idx, ClickHouseSchema.ClickHouseColumn col) {
         ClickHouseDataType t = col.getType().getType();
+        String textTarget = textIndexTarget(col);
 
-        List<String> typeChoices = new ArrayList<>();
-        typeChoices.add("bloom_filter(0.01)");
-        typeChoices.add("set(100)");
+        List<String[]> candidates = new ArrayList<>();
+        candidates.add(new String[] { col.getName(), "bloom_filter(0.01)" });
+        candidates.add(new String[] { col.getName(), "set(100)" });
         if (t == ClickHouseDataType.Int32 || t == ClickHouseDataType.String) {
-            typeChoices.add("minmax");
+            candidates.add(new String[] { col.getName(), "minmax" });
         }
         if (t == ClickHouseDataType.String) {
-            typeChoices.add("ngrambf_v1(3, 256, 2, 0)");
-
-            typeChoices.add("text(tokenizer = 'splitByNonAlpha')");
-            typeChoices.add("text(tokenizer = ngrams(3))");
+            candidates.add(new String[] { col.getName(), "ngrambf_v1(3, 256, 2, 0)" });
         }
-        String type = Randomly.fromList(typeChoices);
-        int granularity = Randomly.fromOptions(1, 2, 4);
-        return String.format("INDEX idx_%s_%d %s TYPE %s GRANULARITY %d", col.getName(), idx, col.getName(), type,
+        if (textTarget != null) {
+            candidates.add(new String[] { textTarget, "text(tokenizer = " + pickTokenizer() + ")" });
+            candidates.add(new String[] { textTarget, "text(tokenizer = " + pickTokenizer() + ")" });
+        }
+
+        String[] chosen = Randomly.fromList(candidates);
+        int granularity = chosen[1].startsWith("text(") ? 1 : Randomly.fromOptions(1, 2, 4);
+        return String.format("INDEX idx_%s_%d %s TYPE %s GRANULARITY %d", col.getName(), idx, chosen[0], chosen[1],
                 granularity);
+    }
+
+    private static String pickTokenizer() {
+        return Randomly.fromOptions("'splitByNonAlpha'", "ngrams(2)", "ngrams(3)", "ngrams(4)", "'array'", "'asciiCJK'",
+                "splitByString([' '])", "splitByString([' ', '-', '::'])", "sparseGrams(3, 5)");
+    }
+
+    private static String textIndexTarget(ClickHouseSchema.ClickHouseColumn col) {
+        sqlancer.clickhouse.ClickHouseType u = col.getType().getTypeTerm().unwrap();
+        if (isStringLeaf(u)) {
+            return col.getName();
+        }
+        if (u instanceof sqlancer.clickhouse.ClickHouseType.Array arr && isStringLeaf(arr.inner().unwrap())) {
+            return col.getName();
+        }
+        if (u instanceof sqlancer.clickhouse.ClickHouseType.Map m) {
+            boolean keyStr = isStringLeaf(m.keyType().unwrap());
+            boolean valStr = isStringLeaf(m.valueType().unwrap());
+            if (keyStr && valStr) {
+                return Randomly.getBoolean() ? "mapKeys(" + col.getName() + ")" : "mapValues(" + col.getName() + ")";
+            }
+            if (keyStr) {
+                return "mapKeys(" + col.getName() + ")";
+            }
+            if (valStr) {
+                return "mapValues(" + col.getName() + ")";
+            }
+        }
+        return null;
+    }
+
+    private static boolean isStringLeaf(sqlancer.clickhouse.ClickHouseType t) {
+        return t instanceof sqlancer.clickhouse.ClickHouseType.Primitive p
+                && p.kind() == sqlancer.clickhouse.ClickHouseType.Kind.String
+                || t instanceof sqlancer.clickhouse.ClickHouseType.FixedString;
     }
 
     private static final int CLAUSE_VALIDATION_RETRY_LIMIT = 5;

@@ -190,11 +190,24 @@ public final class ClickHouseErrors {
                 "EMPTY_LIST_OF_COLUMNS_QUERIED",
 
                 "Projection with name", "NO_SUCH_PROJECTION_IN_TABLE", "ILLEGAL_PROJECTION",
-                "Projection is fully supported", "projection", "Cannot add projection");
+                "Projection is fully supported", "projection", "Cannot add projection",
+
+                "Cannot add index", "index with name", "NO_SUCH_DATA_PART", "already exists");
     }
 
     public static void addAlterErrors(ExpectedErrors errors) {
         errors.addAll(getAlterErrors());
+    }
+
+    public static List<String> getTextIndexErrors() {
+        return List.of("Unknown Index type", "Unknown index type", "Unknown tokenizer",
+                "Unexpected text index arguments", "full-text index", "full_text_index", "SUPPORT_IS_DISABLED",
+                "INCORRECT_QUERY", "ILLEGAL_TYPE_OF_ARGUMENT", "ILLEGAL_INDEX", "BAD_ARGUMENTS",
+                "data type must be String", "is not supported by text index", "of text index");
+    }
+
+    public static void addTextIndexErrors(ExpectedErrors errors) {
+        errors.addAll(getTextIndexErrors());
     }
 
     public static List<String> getMutationErrors() {

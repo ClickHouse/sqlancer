@@ -40,7 +40,9 @@ public class ClickHouseTextIndexLikeOracle implements TestOracle<ClickHouseGloba
     enum Arm {
         DEFAULT(""),
         INDEX_IGNORED(" SETTINGS ignore_data_skipping_indices = '" + INDEX_NAME + "'"),
-        DICTIONARY_SCAN_FLIPPED(" SETTINGS use_text_index_like_evaluation_by_dictionary_scan = 0");
+        DICTIONARY_SCAN_FLIPPED(" SETTINGS use_text_index_like_evaluation_by_dictionary_scan = 0"),
+        DIRECT_READ_OFF(
+                " SETTINGS query_plan_direct_read_from_text_index = 0, query_plan_text_index_add_hint = 0");
 
         private final String settingsSuffix;
 
@@ -113,6 +115,8 @@ public class ClickHouseTextIndexLikeOracle implements TestOracle<ClickHouseGloba
             e.add("Timeout exceeded");
         }
 
+        readErrors.addAll(ClickHouseErrors.getMutationErrors());
+
         probeErrors.add("INDEX_NOT_USED");
     }
 
@@ -149,6 +153,39 @@ public class ClickHouseTextIndexLikeOracle implements TestOracle<ClickHouseGloba
                 }
             }
 
+            java.util.Set<Integer> deletedKeys = new java.util.HashSet<>();
+            String topology = emptyTable ? "empty" : "multi-insert";
+            if (!emptyTable && !corpus.isEmpty()) {
+                if (Randomly.getBoolean()) {
+                    int delCount = 1 + r.getInteger(0, Math.min(10, corpus.size()));
+                    for (int i = 0; i < delCount; i++) {
+                        deletedKeys.add(r.getInteger(0, corpus.size()));
+                    }
+                    String del = "DELETE FROM " + table + " WHERE k IN ("
+                            + deletedKeys.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(", "))
+                            + ") SETTINGS lightweight_deletes_sync = 2";
+                    logStmt(del);
+                    if (new SQLQueryAdapter(del, readErrors, true).execute(state)) {
+                        topology += "+lwdelete(" + deletedKeys.size() + ")";
+                    } else {
+                        deletedKeys.clear();
+                    }
+                }
+                if (Randomly.getBoolean()) {
+                    String optimize = "OPTIMIZE TABLE " + table + " FINAL";
+                    logStmt(optimize);
+                    new SQLQueryAdapter(optimize, readErrors, true).execute(state);
+                    topology += "+optimizeFinal";
+                }
+            }
+
+            List<String> liveCorpus = new ArrayList<>(corpus.size());
+            for (int i = 0; i < corpus.size(); i++) {
+                if (!deletedKeys.contains(i)) {
+                    liveCorpus.add(corpus.get(i));
+                }
+            }
+
             LikePattern pattern = generatePattern(r, corpus, TOKEN_VOCABULARY);
 
             Arm[] arms = Arm.values();
@@ -164,28 +201,29 @@ public class ClickHouseTextIndexLikeOracle implements TestOracle<ClickHouseGloba
                 if (!counts[0].equals(counts[i])) {
                     throw new AssertionError(String.format(
                             "text-index LIKE count mismatch: pattern %s (%s, kind %s): arm %s saw %s rows but arm %s "
-                                    + "saw %s. DDL: %s",
+                                    + "saw %s. topology %s. DDL: %s",
                             pattern.getPattern(), pattern.isIlike() ? "ILIKE" : "LIKE", pattern.getKind(),
-                            arms[0], counts[0], arms[i], counts[i], create));
+                            arms[0], counts[0], arms[i], counts[i], topology, create));
                 }
                 if (!keyLists.get(0).equals(keyLists.get(i))) {
                     throw new AssertionError(String.format(
                             "text-index LIKE key-list mismatch: pattern %s (%s, kind %s): arm %s keys %s vs arm %s "
-                                    + "keys %s. DDL: %s",
+                                    + "keys %s. topology %s. DDL: %s",
                             pattern.getPattern(), pattern.isIlike() ? "ILIKE" : "LIKE", pattern.getKind(), arms[0],
                             truncateForMessage(keyLists.get(0)), arms[i], truncateForMessage(keyLists.get(i)),
-                            create));
+                            topology, create));
                 }
             }
 
             if (pattern.isGroundTruthComputable()) {
-                long expected = computeExpectedMatches(corpus, pattern.getPattern(), pattern.isIlike());
+                long expected = computeExpectedMatches(liveCorpus, pattern.getPattern(), pattern.isIlike());
                 if (!String.valueOf(expected).equals(counts[0])) {
                     throw new AssertionError(String.format(
                             "text-index LIKE ground-truth mismatch: pattern %s (%s, kind %s): Java contains() over "
-                                    + "the %d-row corpus expects %d matches but all arms agree on %s. DDL: %s",
+                                    + "the %d-row live corpus expects %d matches but all arms agree on %s. topology %s. "
+                                    + "DDL: %s",
                             pattern.getPattern(), pattern.isIlike() ? "ILIKE" : "LIKE", pattern.getKind(),
-                            corpus.size(), expected, counts[0], create));
+                            liveCorpus.size(), expected, counts[0], topology, create));
                 }
             }
 

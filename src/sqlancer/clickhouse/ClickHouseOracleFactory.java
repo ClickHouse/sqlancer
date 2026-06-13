@@ -24,7 +24,10 @@ import sqlancer.clickhouse.oracle.join.ClickHouseNaturalJoinOracle;
 import sqlancer.clickhouse.oracle.mutate.ClickHouseMutationAnalyzerOracle;
 import sqlancer.clickhouse.oracle.patch.ClickHousePatchPartConsistencyOracle;
 import sqlancer.clickhouse.oracle.stats.ClickHouseStatsToggleOracle;
+import sqlancer.clickhouse.oracle.textindex.ClickHouseTextIndexContainerOracle;
+import sqlancer.clickhouse.oracle.textindex.ClickHouseTextIndexLifecycleOracle;
 import sqlancer.clickhouse.oracle.textindex.ClickHouseTextIndexLikeOracle;
+import sqlancer.clickhouse.oracle.textindex.ClickHouseTextIndexPreprocessorOracle;
 import sqlancer.clickhouse.oracle.topk.ClickHouseTopKOracle;
 import sqlancer.clickhouse.oracle.partition.ClickHousePartitionMirrorOracle;
 import sqlancer.clickhouse.oracle.pqs.ClickHousePivotedQuerySynthesisOracle;
@@ -356,6 +359,27 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseStatsToggleOracle(globalState);
+        }
+    },
+    TextIndexPreprocessor {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseTextIndexPreprocessorOracle(globalState);
+        }
+    },
+    TextIndexContainer {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseTextIndexContainerOracle(globalState);
+        }
+    },
+    TextIndexLifecycle {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseTextIndexLifecycleOracle(globalState);
         }
     }
 }

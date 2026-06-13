@@ -16,7 +16,7 @@ const ORACLES = [
   'FinalMerge', 'ProjectionToggle', 'PatchPartConsistency', 'DictGetVsJoin', 'WindowEquivalence',
   'DynamicSubcolumn', 'SubqueryMaterialize', 'MutationAnalyzer', 'TextIndexLike', 'TopK', 'JoinReorder',
   'NaturalJoin', 'JsonSkipIndex', 'MaterializedCte', 'StatsToggle', 'ExtendedDatetime', 'JoinUseNulls',
-  'QueryCache',
+  'QueryCache', 'TextIndexPreprocessor', 'TextIndexContainer', 'TextIndexLifecycle',
 ]
 
 const VERDICT_SCHEMA = {

@@ -423,6 +423,38 @@ public class ClickHouseExpressionGenerator
         return new sqlancer.clickhouse.ast.ClickHouseRawText(sql);
     }
 
+    private static final List<String> TEXT_SEARCH_VOCABULARY = List.of("alpha", "bravo", "charlie", "delta", "echo",
+            "foxtrot", "golf", "hotel", "india", "juliet", "clickhouse", "olap", "search", "token", "index", "query");
+
+    public ClickHouseExpression generateTextSearchPredicate(List<ClickHouseColumnReference> columns) {
+        List<ClickHouseColumnReference> stringCols = new java.util.ArrayList<>();
+        for (ClickHouseColumnReference c : columns) {
+            if (c.getColumn().getType().getType() == ClickHouseDataType.String) {
+                stringCols.add(c);
+            }
+        }
+        if (stringCols.isEmpty()) {
+            return null;
+        }
+        String s = ClickHouseToStringVisitor.asString(Randomly.fromList(stringCols));
+        String w1 = TEXT_SEARCH_VOCABULARY.get((int) Randomly.getNotCachedInteger(0, TEXT_SEARCH_VOCABULARY.size()));
+        String w2 = TEXT_SEARCH_VOCABULARY.get((int) Randomly.getNotCachedInteger(0, TEXT_SEARCH_VOCABULARY.size()));
+        String fn = Randomly.fromOptions("startsWith", "endsWith", "multiSearchAny");
+        String sql;
+        switch (fn) {
+        case "startsWith":
+            sql = "startsWith(" + s + ", '" + w1 + "')";
+            break;
+        case "endsWith":
+            sql = "endsWith(" + s + ", '" + w1 + "')";
+            break;
+        default:
+            sql = "multiSearchAny(" + s + ", ['" + w1 + "', '" + w2 + "'])";
+            break;
+        }
+        return new sqlancer.clickhouse.ast.ClickHouseRawText(sql);
+    }
+
     public ClickHouseExpression generateDateTransform(List<ClickHouseColumnReference> columns) {
         List<ClickHouseColumnReference> dateCols = new java.util.ArrayList<>();
         boolean dateTimeResolution = false;
@@ -1304,6 +1336,16 @@ public class ClickHouseExpressionGenerator
                         ? ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.IN
                         : ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.NOT_IN;
                 return new ClickHouseBinaryComparisonOperation(col, inSubquery, op);
+            }
+        }
+
+        if (globalState.getClickHouseOptions().textSearchPredicateEmission
+                && Randomly.getBooleanWithSmallProbability()) {
+            ClickHouseExpression textPred = generateTextSearchPredicate(columnRefs);
+            if (textPred != null) {
+                return Randomly.getBoolean() ? textPred
+                        : new ClickHouseBinaryLogicalOperation(base, textPred,
+                                ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
             }
         }
 
