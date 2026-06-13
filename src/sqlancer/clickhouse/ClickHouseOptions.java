@@ -110,6 +110,18 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--column-transformer-oracle", description = "ColumnTransformer oracle: SELECT * EXCEPT/APPLY/COLUMNS(regex) == the explicit column list, and DISTINCT ON (k) cardinality == count(DISTINCT k).", arity = 1)
     public boolean columnTransformerOracle = true;
 
+    @Parameter(names = "--engine-equivalence-oracle", description = "EngineEquivalence oracle: an identical inserted multiset stored in MergeTree ORDER BY tuple() and an exact-multiset mirror (Memory/TinyLog/StripeLog/Log) must answer the same read-only query identically (multiset). Engine unavailability no-ops.", arity = 1)
+    public boolean engineEquivalenceOracle = true;
+
+    @Parameter(names = "--coalescing-final-oracle", description = "CoalescingFinal oracle: CoalescingMergeTree FINAL per key == argMaxIf(col, seq, isNotNull(col)) last-non-null ground truth over a merge-formed fixture with globally-unique seq. No-ops if CoalescingMergeTree is absent on head.", arity = 1)
+    public boolean coalescingFinalOracle = true;
+
+    @Parameter(names = "--join-get-set-oracle", description = "JoinGetSet oracle: x IN Set-engine table == x IN (subquery), and joinGet(Join-engine table, col, key) == the ANY LEFT JOIN lookup. No-ops if the Set/Join engines are absent.", arity = 1)
+    public boolean joinGetSetOracle = true;
+
+    @Parameter(names = "--remote-local-equivalence-oracle", description = "RemoteLocalEquivalence oracle: remote('127.0.0.1', db, t) == local table read (multiset, single-node distributed-read path), plus numbers(n) ground-truth checks.", arity = 1)
+    public boolean remoteLocalEquivalenceOracle = true;
+
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;

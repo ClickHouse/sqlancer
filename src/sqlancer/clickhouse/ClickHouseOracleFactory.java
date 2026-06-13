@@ -65,6 +65,10 @@ import sqlancer.clickhouse.oracle.limit.ClickHouseLimitRankingOracle;
 import sqlancer.clickhouse.oracle.window.ClickHouseWindowFrameOracle;
 import sqlancer.clickhouse.oracle.join.ClickHouseSemiJoinRewriteOracle;
 import sqlancer.clickhouse.oracle.transform.ClickHouseColumnTransformerOracle;
+import sqlancer.clickhouse.oracle.engineq.ClickHouseEngineEquivalenceOracle;
+import sqlancer.clickhouse.oracle.coalesce.ClickHouseCoalescingFinalOracle;
+import sqlancer.clickhouse.oracle.specialengine.ClickHouseJoinGetSetOracle;
+import sqlancer.clickhouse.oracle.tablefn.ClickHouseRemoteLocalEquivalenceOracle;
 import sqlancer.common.oracle.NoRECOracle;
 import sqlancer.common.oracle.TLPWhereOracle;
 import sqlancer.common.oracle.TestOracle;
@@ -492,6 +496,34 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseColumnTransformerOracle(globalState);
+        }
+    },
+    EngineEquivalence {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseEngineEquivalenceOracle(globalState);
+        }
+    },
+    CoalescingFinal {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseCoalescingFinalOracle(globalState);
+        }
+    },
+    JoinGetSet {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseJoinGetSetOracle(globalState);
+        }
+    },
+    RemoteLocalEquivalence {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseRemoteLocalEquivalenceOracle(globalState);
         }
     }
 }
