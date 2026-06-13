@@ -95,6 +95,21 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--materialized-column-oracle", description = "MaterializedColumn oracle: each MATERIALIZED/ALIAS column's stored value == its defining expression recomputed in the same query (single-snapshot two-column compare).", arity = 1)
     public boolean materializedColumnOracle = true;
 
+    @Parameter(names = "--grouping-decomposition-oracle", description = "GroupingDecomposition oracle: GROUP BY WITH ROLLUP detail rows (GROUPING(k)=0) == plain GROUP BY, super-aggregate row (GROUPING(k)=1) == grand count(), and sum of per-group counts == grand count(); integer aggregates + non-float keys only.", arity = 1)
+    public boolean groupingDecompositionOracle = true;
+
+    @Parameter(names = "--limit-ranking-oracle", description = "LimitRanking oracle: LIMIT a,b == LIMIT b OFFSET a, LIMIT n is a prefix of LIMIT n WITH TIES, and LIMIT n BY k yields <= n rows per distinct k. Deterministic total ORDER BY.", arity = 1)
+    public boolean limitRankingOracle = true;
+
+    @Parameter(names = "--window-frame-oracle", description = "WindowFrame oracle: over a unique-key fixture, default frame == explicit RANGE/ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW, and lagInFrame offsets match a one-preceding frame (single-snapshot column compares).", arity = 1)
+    public boolean windowFrameOracle = true;
+
+    @Parameter(names = "--semi-join-rewrite-oracle", description = "SemiJoinRewrite oracle: LEFT SEMI JOIN (preserved-side projection only, per #107073) == WHERE k IN (subquery), LEFT ANTI JOIN == NOT IN, and LEFT ANY JOIN cardinality == left row count.", arity = 1)
+    public boolean semiJoinRewriteOracle = true;
+
+    @Parameter(names = "--column-transformer-oracle", description = "ColumnTransformer oracle: SELECT * EXCEPT/APPLY/COLUMNS(regex) == the explicit column list, and DISTINCT ON (k) cardinality == count(DISTINCT k).", arity = 1)
+    public boolean columnTransformerOracle = true;
+
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;

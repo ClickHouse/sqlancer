@@ -60,6 +60,11 @@ import sqlancer.clickhouse.oracle.aggfamily.ClickHouseQuantileConsistencyOracle;
 import sqlancer.clickhouse.oracle.aggfamily.ClickHouseUniqExactnessOracle;
 import sqlancer.clickhouse.oracle.aggfamily.ClickHouseArgExtremumOracle;
 import sqlancer.clickhouse.oracle.matcol.ClickHouseMaterializedColumnOracle;
+import sqlancer.clickhouse.oracle.groupby.ClickHouseGroupingDecompositionOracle;
+import sqlancer.clickhouse.oracle.limit.ClickHouseLimitRankingOracle;
+import sqlancer.clickhouse.oracle.window.ClickHouseWindowFrameOracle;
+import sqlancer.clickhouse.oracle.join.ClickHouseSemiJoinRewriteOracle;
+import sqlancer.clickhouse.oracle.transform.ClickHouseColumnTransformerOracle;
 import sqlancer.common.oracle.NoRECOracle;
 import sqlancer.common.oracle.TLPWhereOracle;
 import sqlancer.common.oracle.TestOracle;
@@ -452,6 +457,41 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseMaterializedColumnOracle(globalState);
+        }
+    },
+    GroupingDecomposition {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseGroupingDecompositionOracle(globalState);
+        }
+    },
+    LimitRanking {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseLimitRankingOracle(globalState);
+        }
+    },
+    WindowFrame {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseWindowFrameOracle(globalState);
+        }
+    },
+    SemiJoinRewrite {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseSemiJoinRewriteOracle(globalState);
+        }
+    },
+    ColumnTransformer {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseColumnTransformerOracle(globalState);
         }
     }
 }
