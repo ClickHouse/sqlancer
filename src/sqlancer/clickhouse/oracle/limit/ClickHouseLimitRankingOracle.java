@@ -120,12 +120,29 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
                             + "(%d) under identical ORDER BY %s.%n  plain:    %s%n  withTies: %s",
                     tiesRows.size(), plainRows.size(), key, plain, withTies));
         }
-        if (!tiesRows.subList(0, plainRows.size()).equals(plainRows)) {
+        if (!isSubMultiset(plainRows, tiesRows)) {
             throw new AssertionError(String.format(
-                    "LimitRanking WITH-TIES prefix violation: plain LIMIT rows are not a prefix of WITH TIES rows "
-                            + "under identical ORDER BY %s.%n  plain (%d):    %s%n  withTies (%d): %s",
+                    "LimitRanking WITH-TIES containment violation: plain LIMIT rows are not a sub-multiset of WITH TIES "
+                            + "rows under identical ORDER BY %s (rows tied on the key may legally reorder between the two "
+                            + "queries, so only containment is asserted).%n  plain (%d):    %s%n  withTies (%d): %s",
                     key, plainRows.size(), truncate(plainRows), tiesRows.size(), truncate(tiesRows)));
         }
+    }
+
+    private static boolean isSubMultiset(List<String> sub, List<String> sup) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (String v : sup) {
+            counts.merge(v == null ? "\\N" : v, 1L, Long::sum);
+        }
+        for (String v : sub) {
+            String k = v == null ? "\\N" : v;
+            long remaining = counts.getOrDefault(k, 0L) - 1;
+            if (remaining < 0) {
+                return false;
+            }
+            counts.put(k, remaining);
+        }
+        return true;
     }
 
     private void checkLimitByCap(String tableQ, String totalOrder, List<ClickHouseColumn> columns) throws SQLException {

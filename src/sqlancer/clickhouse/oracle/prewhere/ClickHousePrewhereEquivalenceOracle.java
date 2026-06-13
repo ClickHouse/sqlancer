@@ -63,7 +63,7 @@ public class ClickHousePrewhereEquivalenceOracle implements TestOracle<ClickHous
         ClickHouseExpressionGenerator gen = new ClickHouseExpressionGenerator(state).allowAggregates(false);
         gen.addColumns(columnRefs);
         ClickHouseExpression predicateExpr = gen.generatePredicate();
-        String predicate = ClickHouseToStringVisitor.asString(predicateExpr);
+        String predicate = "((" + ClickHouseToStringVisitor.asString(predicateExpr) + ") != 0)";
 
         String projection = physicalColumns.stream().map(c -> "`" + c.getName() + "`")
                 .collect(Collectors.joining(", ", "toString(tuple(", "))"));

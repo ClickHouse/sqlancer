@@ -12,6 +12,7 @@ import sqlancer.IgnoreMeException;
 import sqlancer.Randomly;
 import sqlancer.clickhouse.ClickHouseErrors;
 import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
+import sqlancer.clickhouse.ClickHouseType;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseColumn;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
 import sqlancer.common.oracle.TestOracle;
@@ -129,6 +130,13 @@ public class ClickHouseUniqExactnessOracle implements TestOracle<ClickHouseGloba
     }
 
     static boolean isEligible(ClickHouseColumn c) {
+        ClickHouseType term = c.getType().getTypeTerm();
+        while (term instanceof ClickHouseType.LowCardinality lc) {
+            term = lc.inner();
+        }
+        if (term instanceof ClickHouseType.Nullable) {
+            return false;
+        }
         ClickHouseDataType t = c.getType().getType();
         switch (t) {
         case Int8:

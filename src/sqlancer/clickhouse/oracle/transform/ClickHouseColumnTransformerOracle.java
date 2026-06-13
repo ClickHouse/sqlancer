@@ -149,16 +149,17 @@ public class ClickHouseColumnTransformerOracle implements TestOracle<ClickHouseG
         String keyQ = quote(key.getName());
 
         String distinctOnSql = "SELECT toString(count()) FROM (SELECT DISTINCT ON (" + keyQ + ") * FROM " + tableQ + ")";
-        String countDistinctSql = "SELECT toString(count(DISTINCT " + keyQ + ")) FROM " + tableQ;
+        String groupKeysSql = "SELECT toString(count()) FROM (SELECT " + keyQ + " FROM " + tableQ + " GROUP BY " + keyQ
+                + ")";
 
         String distinctOnCount = readSingleValue(distinctOnSql);
-        String countDistinctCount = readSingleValue(countDistinctSql);
+        String groupKeysCount = readSingleValue(groupKeysSql);
 
-        if (!distinctOnCount.equals(countDistinctCount)) {
+        if (!distinctOnCount.equals(groupKeysCount)) {
             throw new AssertionError(String.format(
                     "column-transformer DISTINCT ON cardinality mismatch (key %s):%n  DISTINCT ON count: %s -> %s%n"
-                            + "  count(DISTINCT k): %s -> %s",
-                    key.getName(), distinctOnSql, distinctOnCount, countDistinctSql, countDistinctCount));
+                            + "  distinct-key-group count: %s -> %s",
+                    key.getName(), distinctOnSql, distinctOnCount, groupKeysSql, groupKeysCount));
         }
     }
 

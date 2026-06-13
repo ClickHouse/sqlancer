@@ -134,8 +134,8 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--aggregate-state-expansion-oracle", description = "AggregateStateExpansion oracle: finalizeAggregation(arrayReduce('<agg>State', groupArray(x))) == direct <agg>(x) for exact aggregates (sum/min/max/uniqExact/quantileExact/groupArray), plus an AggregatingMergeTree cross-part merge arm.", arity = 1)
     public boolean aggregateStateExpansionOracle = true;
 
-    @Parameter(names = "--sequence-funnel-oracle", description = "SequenceFunnel oracle: windowFunnel/sequenceCount/sequenceMatch/retention over a tiny deterministic (uid,ts,ev) fixture == Java ground truth, with monotonicity relations; timestamps clustered far from the window boundary.", arity = 1)
-    public boolean sequenceFunnelOracle = true;
+    @Parameter(names = "--sequence-funnel-oracle", description = "SequenceFunnel oracle (DEFAULT OFF pending ground-truth rework): windowFunnel/sequenceCount/sequenceMatch/retention vs a Java model. Its windowFunnel monotonicity arm is inverted (windowFunnel is non-decreasing in step count, not non-increasing) and the exact-value Java models are unvalidated; both must be corrected and re-validated 1h-clean before flipping this default on.", arity = 1)
+    public boolean sequenceFunnelOracle = false;
 
     @Parameter(names = "--partition-lifecycle-oracle", description = "PartitionLifecycle oracle: DETACH+ATTACH == identity, DROP PARTITION removes exactly that partition's rows, REPLACE PARTITION from identical copy == identity, MOVE PARTITION conserves rows; topology pinned via SYSTEM STOP MERGES.", arity = 1)
     public boolean partitionLifecycleOracle = true;

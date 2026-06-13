@@ -18,10 +18,12 @@ public class ClickHouseMaterializedColumnOracle implements TestOracle<ClickHouse
 
     private static final class ComputedColumn {
         private final String name;
+        private final String type;
         private final String expression;
 
-        private ComputedColumn(String name, String expression) {
+        private ComputedColumn(String name, String type, String expression) {
             this.name = name;
+            this.type = type;
             this.expression = expression;
         }
     }
@@ -60,8 +62,9 @@ public class ClickHouseMaterializedColumnOracle implements TestOracle<ClickHouse
         }
         ComputedColumn picked = Randomly.fromList(computed);
 
-        String query = "SELECT toString(" + quote(picked.name) + ") AS a, toString((" + picked.expression
-                + ")) AS b FROM " + quote(state.getDatabaseName()) + "." + quote(table.getName());
+        String query = "SELECT toString(" + quote(picked.name) + ") AS a, toString(CAST((" + picked.expression
+                + ") AS " + picked.type + ")) AS b FROM " + quote(state.getDatabaseName()) + "."
+                + quote(table.getName());
         if (state.getOptions().logEachSelect()) {
             state.getLogger().writeCurrent(query);
         }
@@ -85,18 +88,19 @@ public class ClickHouseMaterializedColumnOracle implements TestOracle<ClickHouse
     }
 
     private List<ComputedColumn> discoverComputedColumns(String tableName) throws SQLException {
-        String query = "SELECT name, default_expression FROM system.columns WHERE database = currentDatabase() "
+        String query = "SELECT name, type, default_expression FROM system.columns WHERE database = currentDatabase() "
                 + "AND table = " + sqlQuote(tableName)
                 + " AND default_kind IN ('MATERIALIZED', 'ALIAS') AND default_expression != ''";
         List<ComputedColumn> result = new ArrayList<>();
         try (Statement s = state.getConnection().createStatement(); ResultSet rs = s.executeQuery(query)) {
             while (rs.next()) {
                 String name = rs.getString(1);
-                String expression = rs.getString(2);
-                if (name == null || expression == null || expression.isEmpty()) {
+                String type = rs.getString(2);
+                String expression = rs.getString(3);
+                if (name == null || type == null || type.isEmpty() || expression == null || expression.isEmpty()) {
                     continue;
                 }
-                result.add(new ComputedColumn(name, expression));
+                result.add(new ComputedColumn(name, type, expression));
             }
         } catch (SQLException ex) {
             throw maybeIgnore(ex);
