@@ -13,4 +13,5 @@ databaseconnectiontest.db
 database*.log
 database*.properties
 database*.script
+database*.lck
 databases/

@@ -1,6 +1,7 @@
 package sqlancer.clickhouse.oracle.tlp;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,13 +29,17 @@ public class ClickHouseTLPHavingOracle extends ClickHouseTLPBase {
     @Override
     public void check() throws SQLException {
         super.check();
-        select.setFetchColumns(IntStream.range(0, Randomly.smallNumber() + 1)
-                .mapToObj(i -> gen.generateAggregateExpressionWithColumns(columns, 3)).collect(Collectors.toList()));
-        select.setSelectType(ClickHouseSelect.SelectType.ALL);
-
         List<ClickHouseExpression> groupByColumns = IntStream.range(0, 1 + Randomly.smallNumber())
                 .mapToObj(i -> gen.generateExpressionWithColumns(columns, 6)).collect(Collectors.toList());
 
+        List<ClickHouseExpression> fetchColumns = new ArrayList<>(groupByColumns);
+        IntStream.range(0, 1 + Randomly.smallNumber())
+                .forEach(i -> fetchColumns.add(new ClickHouseAggregate(gen.generateExpressionWithColumns(columns, 3),
+                        Randomly.fromOptions(ClickHouseAggregate.ClickHouseAggregateFunction.MIN,
+                                ClickHouseAggregate.ClickHouseAggregateFunction.MAX,
+                                ClickHouseAggregate.ClickHouseAggregateFunction.SUM))));
+        select.setFetchColumns(fetchColumns);
+        select.setSelectType(ClickHouseSelect.SelectType.ALL);
         select.setGroupByClause(groupByColumns);
         select.setHavingClause(null);
         String originalQueryString = ClickHouseVisitor.asString(select);

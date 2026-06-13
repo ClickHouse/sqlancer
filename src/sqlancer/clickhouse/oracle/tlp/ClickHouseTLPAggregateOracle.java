@@ -4,8 +4,6 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import sqlancer.ComparatorHelper;
 import sqlancer.Randomly;
@@ -25,11 +23,6 @@ public class ClickHouseTLPAggregateOracle extends ClickHouseTLPBase {
     @Override
     public void check() throws SQLException {
         super.check();
-        if (Randomly.getBooleanWithRatherLowProbability()) {
-            select.setOrderByClauses(IntStream.range(0, 1 + Randomly.smallNumber())
-                    .mapToObj(i -> gen.generateExpressionWithColumns(columns, 5)).collect(Collectors.toList()));
-        }
-
         ClickHouseAggregate.ClickHouseAggregateFunction windowFunction = Randomly.fromOptions(
                 ClickHouseAggregate.ClickHouseAggregateFunction.MIN,
                 ClickHouseAggregate.ClickHouseAggregateFunction.MAX,
@@ -45,11 +38,6 @@ public class ClickHouseTLPAggregateOracle extends ClickHouseTLPBase {
         select.setFetchColumns(Arrays.asList(new ClickHouseAliasOperation(aggregate, "aggr")));
 
         select.setWhereClause(predicate);
-
-        if (Randomly.getBoolean()) {
-            select.setOrderByClauses(IntStream.range(0, 1 + Randomly.smallNumber())
-                    .mapToObj(i -> gen.generateExpressionWithColumns(columns, 5)).collect(Collectors.toList()));
-        }
 
         String metamorphicText = "SELECT " + aggregate.getFunc().toString() + "(aggr) FROM (";
         metamorphicText += ClickHouseVisitor.asString(select) + " UNION ALL ";

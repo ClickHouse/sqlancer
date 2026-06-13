@@ -21,7 +21,8 @@ DURATION="${DURATION:-300}"
 OUT_BASE="${OUT_BASE:-logs/per-oracle-$(date -u +%Y%m%d_%H%M%S)}"
 mkdir -p "$OUT_BASE"
 
-# Pull image once upfront. Subsequent runs use --no-pull.
+# Warm the image up front; run-sqlancer.sh ALWAYS re-pulls HEAD per sub-run anyway
+# (the 'head' tag is mutable and per-build tags are unpullable once it advances).
 echo "==> initial pull of clickhouse/clickhouse-server:head"
 docker pull -q clickhouse/clickhouse-server:head
 
@@ -45,7 +46,6 @@ for ORACLE in "${ORACLES[@]}"; do
     --oracles "$ORACLE" \
     --duration "$DURATION" \
     --threads 8 --heap 16g --ch-cpus 8 --ch-mem 6g \
-    --no-pull \
     > "$ORACLE_DIR/runner.out" 2>&1
   RC=$?
   set -e

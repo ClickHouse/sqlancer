@@ -20,7 +20,6 @@ HEAP="12g"
 THREADS="6"
 DURATION="1800"
 ORACLES="TLPWhere"
-PULL=1
 REBUILD=0
 KEEP=0
 # Extra args appended to the `clickhouse` subcommand (DBMS-specific JCommander flags,
@@ -50,7 +49,7 @@ Usage: $(basename "$0") [options]
   --name NAME         CH container name (default $NAME)
   --oracles LIST      comma-separated oracle list (default $ORACLES); "all" = 25 oracles
   --extra-ch-args S   extra DBMS-specific flags appended after 'clickhouse --oracle ...'
-  --no-pull           skip 'docker pull clickhouse/clickhouse-server:head'
+  --no-pull           DEPRECATED no-op: the image is ALWAYS pulled fresh (see below)
   --rebuild           force-rebuild the jar
   --keep-container    don't tear down the CH container at the end
   -h, --help
@@ -68,7 +67,7 @@ while [[ $# -gt 0 ]]; do
     --name)           NAME="$2"; shift 2 ;;
     --oracles)        ORACLES="$2"; shift 2 ;;
     --extra-ch-args)  EXTRA_CH_ARGS="$2"; shift 2 ;;
-    --no-pull)        PULL=0; shift ;;
+    --no-pull)        echo "WARNING: --no-pull is deprecated and ignored; HEAD is always pulled fresh" >&2; shift ;;
     --rebuild)        REBUILD=1; shift ;;
     --keep-container) KEEP=1; shift ;;
     -h|--help)        usage; exit 0 ;;
@@ -111,10 +110,15 @@ fi
 ls -lh "$JAR"
 
 # --- pull image + start container --------------------------------------------
-if [[ $PULL -eq 1 ]]; then
-  echo "==> docker pull clickhouse/clickhouse-server:head"
-  docker pull -q clickhouse/clickhouse-server:head
-fi
+# ALWAYS pull HEAD fresh: 'head' is a mutable tag that advances ~daily, and CH
+# does NOT retain per-build version tags (e.g. 26.6.1.658 is unpullable once head
+# moves on). Running a stale local image silently fuzzes an old build and makes a
+# finding impossible to re-confirm later. There is intentionally no opt-out.
+echo "==> docker pull clickhouse/clickhouse-server:head (always)"
+docker pull -q clickhouse/clickhouse-server:head
+
+# Record the EXACT resolved build so reproducers stay attributable after head moves.
+IMAGE_DIGEST=$(docker inspect --format '{{index .RepoDigests 0}}' clickhouse/clickhouse-server:head 2>/dev/null || echo "unknown")
 
 # Always start from a clean slate so config mounts + env vars match exactly
 docker rm -f "$NAME" >/dev/null 2>&1 || true
@@ -141,12 +145,23 @@ curl -sf "http://127.0.0.1:$PORT/ping" >/dev/null || {
   docker logs "$NAME" 2>&1 | tail -30 >&2
   exit 1
 }
-echo "    CH version: $(curl -s "http://127.0.0.1:$PORT/?query=SELECT%20version()")"
+CH_VERSION="$(curl -s "http://127.0.0.1:$PORT/?query=SELECT%20version()")"
+echo "    CH version: $CH_VERSION"
+echo "    CH image:   $IMAGE_DIGEST"
 
 # --- run sqlancer -------------------------------------------------------------
 mkdir -p logs/runs logs/clickhouse
 TS=$(date -u +%Y%m%d_%H%M%S)
 LOG="logs/runs/sqlancer-${TS}.log"
+
+# Stamp the exact build at the TOP of the run log so every reproducer in it stays
+# attributable to a specific HEAD build even after the 'head' tag advances.
+{
+  echo "# sqlancer run ${TS}Z"
+  echo "# CH version: $CH_VERSION"
+  echo "# CH image:   $IMAGE_DIGEST"
+  echo "# oracles:    $ORACLES"
+} > "$LOG"
 
 echo "==> launching sqlancer for ${DURATION}s ($THREADS threads, heap $HEAP)"
 echo "    oracles: $ORACLES"
@@ -164,7 +179,7 @@ java "-Xmx${HEAP}" -jar "$JAR" \
   --host 127.0.0.1 --port "$PORT" \
   --username default --password "" \
   clickhouse --oracle "$ORACLES" $EXTRA_CH_ARGS \
-  2>&1 | tee "$LOG"
+  2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
 set -e
 
@@ -175,6 +190,8 @@ SIZE=$(du -h "$LOG" 2>/dev/null | cut -f1)
 echo
 echo "==> Summary"
 echo "    exit code:       $RC"
+echo "    CH version:      $CH_VERSION"
+echo "    CH image:        $IMAGE_DIGEST"
 echo "    log:             $LOG ($SIZE)"
 echo "    reproducers:     $REPROS database*.log file(s) in logs/clickhouse/"
 echo "    last progress:   $LAST_PROG"

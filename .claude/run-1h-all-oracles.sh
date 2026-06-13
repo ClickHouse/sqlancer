@@ -20,7 +20,6 @@ echo "Starting 1h run at $(date -u)"
 ./.claude/run-sqlancer.sh \
   --oracles "$ALL_ORACLES" --duration "$DURATION" \
   --threads 8 --heap 16g --ch-cpus 8 --ch-mem 12g \
-  --no-pull \
   2>&1 | tee "$OUT_BASE/runner.out"
 RC=$?
 

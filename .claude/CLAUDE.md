@@ -1,5 +1,11 @@
 # SQLancer fork — operational notes
 
+> **NEVER add comments to code.** Java sources in this repo are kept comment-free
+> (see commit `chore: strip all comments from Java sources`). Do not write `//` or
+> `/* */` comments, Javadoc, or explanatory inline notes in any code you add or
+> edit — make the code self-explanatory through naming instead. Put rationale in
+> commit messages, PR descriptions, or this CLAUDE.md, never in the source.
+
 > **NEVER run sqlancer or ClickHouse locally for this repo.** All fuzz runs,
 > smoke tests, and bug reproduction happen on the **dev-vm** (see "Running on the
 > dev VM" below and the `dev-vm` skill). Do not start a local
@@ -10,7 +16,7 @@
 
 ## Running a ClickHouse head instance for perf (dev-vm only — see banner above)
 
-- Image: `clickhouse/clickhouse-server:head` — pull fresh each session, current head is `26.5.1.779`. Port 18124 was already taken by `ch-querylog` so use a fresh container name/port.
+- Image: `clickhouse/clickhouse-server:head` — **ALWAYS `docker pull` it fresh before every run AND every reproduction**, no exceptions. `head` is a mutable tag that advances ~daily and ClickHouse does **not** retain per-build version tags (e.g. `26.6.1.658` becomes unpullable once head moves to `.694`), so a stale local image silently fuzzes an old build and makes any finding impossible to re-confirm later. `run-sqlancer.sh` enforces this: the pull is unconditional (the old `--no-pull` flag is now a deprecated no-op), and the resolved `SELECT version()` + image `RepoDigest` are stamped at the top of every `logs/runs/sqlancer-*.log` and printed in the run summary so reproducers stay attributable after head advances. **Always record the exact version next to a saved reproducer** — if a finding doesn't replay on current head it may simply be fixed (or, since the prior build is unpullable, an unconfirmable build-specific transient). Port 18124 was already taken by `ch-querylog` so use a fresh container name/port.
 - Required env vars on first run: without `CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1` + `CLICKHOUSE_SKIP_USER_SETUP=1` the entrypoint disables network access for the `default` user (`Authentication failed: password is incorrect`). Logs print `neither CLICKHOUSE_USER nor CLICKHOUSE_PASSWORD is set, disabling network access` — that's the signal.
 - Working command:
   ```
