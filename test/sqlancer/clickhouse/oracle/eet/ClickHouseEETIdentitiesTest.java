@@ -90,10 +90,100 @@ class ClickHouseEETIdentitiesTest {
     }
 
     @Test
+    void stringTypeAcceptsEncodingRoundtripIdentities() {
+        Set<String> seen = new HashSet<>();
+        for (int i = 0; i < 600; i++) {
+            Optional<ClickHouseEETIdentities.Identity> picked = ClickHouseEETIdentities
+                    .pickIdentityForType(new Randomly(2207L + i), "String");
+            assertTrue(picked.isPresent());
+            seen.add(picked.get().name());
+        }
+        assertTrue(seen.contains("unhex_hex"), () -> "unhex_hex not picked for String; saw " + seen);
+        assertTrue(seen.contains("base64_roundtrip"), () -> "base64_roundtrip not picked for String; saw " + seen);
+        assertTrue(seen.contains("try_base64_roundtrip"),
+                () -> "try_base64_roundtrip not picked for String; saw " + seen);
+    }
+
+    @Test
+    void encodingRoundtripIdentitiesRenderExpectedSql() {
+        assertEquals("unhex(hex(t.c))", identity("unhex_hex").applyTo("t.c"));
+        assertEquals("base64Decode(base64Encode(t.c))", identity("base64_roundtrip").applyTo("t.c"));
+        assertEquals("tryBase64Decode(base64Encode(t.c))", identity("try_base64_roundtrip").applyTo("t.c"));
+    }
+
+    @Test
+    void encodingRoundtripIdentitiesExcludedFromNonString() {
+        Set<String> stringOnly = Set.of("unhex_hex", "base64_roundtrip", "try_base64_roundtrip");
+        for (String typeName : new String[] { "Int32", "UInt64", "Float64", "IPv4", "IPv6", "FixedString(8)" }) {
+            for (int i = 0; i < 200; i++) {
+                Optional<ClickHouseEETIdentities.Identity> picked = ClickHouseEETIdentities
+                        .pickIdentityForType(new Randomly(617L + i), typeName);
+                if (picked.isPresent()) {
+                    assertFalse(stringOnly.contains(picked.get().name()),
+                            () -> typeName + " must not pick an encoding roundtrip identity; got "
+                                    + picked.get().name());
+                }
+            }
+        }
+    }
+
+    @Test
+    void ipv4TypeAcceptsNumStringRoundtrip() {
+        Set<String> seen = new HashSet<>();
+        for (int i = 0; i < 200; i++) {
+            Optional<ClickHouseEETIdentities.Identity> picked = ClickHouseEETIdentities
+                    .pickIdentityForType(new Randomly(3301L + i), "IPv4");
+            assertTrue(picked.isPresent(), "IPv4 should have an eligible identity");
+            seen.add(picked.get().name());
+        }
+        assertTrue(seen.contains("ipv4_num_string_roundtrip"),
+                () -> "ipv4_num_string_roundtrip not picked for IPv4; saw " + seen);
+        assertFalse(seen.contains("ipv6_num_string_roundtrip"),
+                () -> "ipv6_num_string_roundtrip must not apply to IPv4; saw " + seen);
+        assertFalse(seen.contains("concat_empty"), () -> "concat_empty must not apply to IPv4; saw " + seen);
+    }
+
+    @Test
+    void ipv6TypeAcceptsNumStringRoundtrip() {
+        Set<String> seen = new HashSet<>();
+        for (int i = 0; i < 200; i++) {
+            Optional<ClickHouseEETIdentities.Identity> picked = ClickHouseEETIdentities
+                    .pickIdentityForType(new Randomly(4407L + i), "IPv6");
+            assertTrue(picked.isPresent(), "IPv6 should have an eligible identity");
+            seen.add(picked.get().name());
+        }
+        assertTrue(seen.contains("ipv6_num_string_roundtrip"),
+                () -> "ipv6_num_string_roundtrip not picked for IPv6; saw " + seen);
+        assertFalse(seen.contains("ipv4_num_string_roundtrip"),
+                () -> "ipv4_num_string_roundtrip must not apply to IPv6; saw " + seen);
+    }
+
+    @Test
+    void ipRoundtripIdentitiesRenderExpectedSql() {
+        assertEquals("toIPv4(IPv4NumToString(toUInt32(t.c)))", identity("ipv4_num_string_roundtrip").applyTo("t.c"));
+        assertEquals("toIPv6(IPv6NumToString(t.c))", identity("ipv6_num_string_roundtrip").applyTo("t.c"));
+    }
+
+    @Test
+    void ipRoundtripIdentitiesExcludedFromStringAndNumeric() {
+        Set<String> ipOnly = Set.of("ipv4_num_string_roundtrip", "ipv6_num_string_roundtrip");
+        for (String typeName : new String[] { "String", "Int32", "UInt64", "Float64", "FixedString(8)" }) {
+            for (int i = 0; i < 200; i++) {
+                Optional<ClickHouseEETIdentities.Identity> picked = ClickHouseEETIdentities
+                        .pickIdentityForType(new Randomly(827L + i), typeName);
+                if (picked.isPresent()) {
+                    assertFalse(ipOnly.contains(picked.get().name()),
+                            () -> typeName + " must not pick an IP roundtrip identity; got " + picked.get().name());
+                }
+            }
+        }
+    }
+
+    @Test
     void fixedStringExcludedFromStringIdentities() {
 
         Set<String> stringOnly = Set.of("reverse_reverse", "substring_whole", "concat_substring_split",
-                "replace_regexp_nomatch", "concat_empty");
+                "replace_regexp_nomatch", "concat_empty", "unhex_hex", "base64_roundtrip", "try_base64_roundtrip");
         for (int i = 0; i < 200; i++) {
             Optional<ClickHouseEETIdentities.Identity> picked = ClickHouseEETIdentities
                     .pickIdentityForType(new Randomly(77L + i), "FixedString(8)");

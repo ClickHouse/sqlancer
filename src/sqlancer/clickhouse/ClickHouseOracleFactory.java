@@ -51,6 +51,15 @@ import sqlancer.clickhouse.oracle.tlp.ClickHouseTLPSetOpOracle;
 import sqlancer.clickhouse.oracle.view.ClickHouseMaterializedViewConsistencyOracle;
 import sqlancer.clickhouse.oracle.view.ClickHouseViewEquivalenceOracle;
 import sqlancer.clickhouse.oracle.window.ClickHouseWindowEquivalenceOracle;
+import sqlancer.clickhouse.oracle.prewhere.ClickHousePrewhereEquivalenceOracle;
+import sqlancer.clickhouse.oracle.readorder.ClickHouseReadInOrderToggleOracle;
+import sqlancer.clickhouse.oracle.countopt.ClickHouseCountOptimizationOracle;
+import sqlancer.clickhouse.oracle.lazymat.ClickHouseLazyMaterializationToggleOracle;
+import sqlancer.clickhouse.oracle.replacingdedup.ClickHouseReplacingDedupOracle;
+import sqlancer.clickhouse.oracle.aggfamily.ClickHouseQuantileConsistencyOracle;
+import sqlancer.clickhouse.oracle.aggfamily.ClickHouseUniqExactnessOracle;
+import sqlancer.clickhouse.oracle.aggfamily.ClickHouseArgExtremumOracle;
+import sqlancer.clickhouse.oracle.matcol.ClickHouseMaterializedColumnOracle;
 import sqlancer.common.oracle.NoRECOracle;
 import sqlancer.common.oracle.TLPWhereOracle;
 import sqlancer.common.oracle.TestOracle;
@@ -380,6 +389,69 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseTextIndexLifecycleOracle(globalState);
+        }
+    },
+    PrewhereEquivalence {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHousePrewhereEquivalenceOracle(globalState);
+        }
+    },
+    ReadInOrderToggle {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseReadInOrderToggleOracle(globalState);
+        }
+    },
+    CountOptimization {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseCountOptimizationOracle(globalState);
+        }
+    },
+    LazyMaterializationToggle {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseLazyMaterializationToggleOracle(globalState);
+        }
+    },
+    ReplacingDedup {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseReplacingDedupOracle(globalState);
+        }
+    },
+    QuantileConsistency {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseQuantileConsistencyOracle(globalState);
+        }
+    },
+    UniqExactness {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseUniqExactnessOracle(globalState);
+        }
+    },
+    ArgExtremum {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseArgExtremumOracle(globalState);
+        }
+    },
+    MaterializedColumn {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseMaterializedColumnOracle(globalState);
         }
     }
 }

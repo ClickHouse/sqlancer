@@ -35,7 +35,7 @@ EXTRA_CH_ARGS=""
 # 26.x coverage oracles (TextIndexLike..StatsToggle) appended 2026-06-10 after their convergence
 # run: 3h x 41 oracles x 1.09M queries with --eet-26x-modes/--variant-where-emission on produced
 # 0 false positives and 1 genuine CH wrong-result (JoinReorder, ANTI/SEMI/INNER chain).
-ALL_ORACLES="TLPWhere,TLPDistinct,TLPGroupBy,TLPAggregate,TLPHaving,NoREC,PQS,CERT,CODDTest,SEMR,SEMRMulti,EET,SetOpTLP,CombinatorTLP,QccCache,SortedUnionLimitBy,SchemaRoundtrip,JoinAlgorithm,Cast,Parallelism,PartitionMirror,KeyCondition,TableFunctionIN,ViewEquivalence,AggregateStateRoundtrip,MaterializedViewConsistency,FinalMerge,ProjectionToggle,PatchPartConsistency,DictGetVsJoin,WindowEquivalence,DynamicSubcolumn,SubqueryMaterialize,MutationAnalyzer,TextIndexLike,TopK,JoinReorder,NaturalJoin,JsonSkipIndex,MaterializedCte,StatsToggle,ExtendedDatetime,JoinUseNulls,QueryCache,TextIndexDirectRead,TextIndexContainer,TextIndexLifecycle"
+ALL_ORACLES="TLPWhere,TLPDistinct,TLPGroupBy,TLPAggregate,TLPHaving,NoREC,PQS,CERT,CODDTest,SEMR,SEMRMulti,EET,SetOpTLP,CombinatorTLP,QccCache,SortedUnionLimitBy,SchemaRoundtrip,JoinAlgorithm,Cast,Parallelism,PartitionMirror,KeyCondition,TableFunctionIN,ViewEquivalence,AggregateStateRoundtrip,MaterializedViewConsistency,FinalMerge,ProjectionToggle,PatchPartConsistency,DictGetVsJoin,WindowEquivalence,DynamicSubcolumn,SubqueryMaterialize,MutationAnalyzer,TextIndexLike,TopK,JoinReorder,NaturalJoin,JsonSkipIndex,MaterializedCte,StatsToggle,ExtendedDatetime,JoinUseNulls,QueryCache,TextIndexDirectRead,TextIndexContainer,TextIndexLifecycle,PrewhereEquivalence,ReadInOrderToggle,CountOptimization,LazyMaterializationToggle,ReplacingDedup,QuantileConsistency,UniqExactness,ArgExtremum,MaterializedColumn"
 
 usage() {
   cat <<EOF

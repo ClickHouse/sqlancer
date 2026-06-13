@@ -33,7 +33,15 @@ public final class ClickHouseEETIdentities {
             new Identity("concat_substring_split", "concat(substring(%s, 1, 1), substring(%s, 2))",
                     t -> isPlainStringKind(t)),
             new Identity("replace_regexp_nomatch", "replaceRegexpAll(%s, 'zzqq_never_matches_9181', 'Q')",
-                    t -> isPlainStringKind(t)));
+                    t -> isPlainStringKind(t)),
+
+            new Identity("unhex_hex", "unhex(hex(%s))", t -> isPlainStringKind(t)),
+            new Identity("base64_roundtrip", "base64Decode(base64Encode(%s))", t -> isPlainStringKind(t)),
+            new Identity("try_base64_roundtrip", "tryBase64Decode(base64Encode(%s))", t -> isPlainStringKind(t)),
+
+            new Identity("ipv4_num_string_roundtrip", "toIPv4(IPv4NumToString(toUInt32(%s)))",
+                    t -> isIPv4Kind(t)),
+            new Identity("ipv6_num_string_roundtrip", "toIPv6(IPv6NumToString(%s))", t -> isIPv6Kind(t)));
 
     public static Optional<Identity> pickIdentityForType(Randomly r, String typeName) {
         ClickHouseType term;
@@ -66,6 +74,14 @@ public final class ClickHouseEETIdentities {
 
     private static boolean isPlainStringKind(ClickHouseType t) {
         return kindOf(unwrapped(t)) == Kind.String;
+    }
+
+    private static boolean isIPv4Kind(ClickHouseType t) {
+        return kindOf(unwrapped(t)) == Kind.IPv4;
+    }
+
+    private static boolean isIPv6Kind(ClickHouseType t) {
+        return kindOf(unwrapped(t)) == Kind.IPv6;
     }
 
     private static boolean isIntegerKind(ClickHouseType inner) {

@@ -74,6 +74,11 @@ public final class ClickHouseTypeParser {
             return agg;
         }
 
+        ClickHouseType interval = tryParseInterval(s);
+        if (interval != null) {
+            return interval;
+        }
+
         if (s.equals("DateTime")) {
             return new Primitive(Kind.DateTime);
         }
@@ -178,6 +183,22 @@ public final class ClickHouseTypeParser {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    private static ClickHouseType tryParseInterval(String s) {
+        if (!s.startsWith("Interval")) {
+            return null;
+        }
+        String kindName = s.substring("Interval".length());
+        if (kindName.isEmpty()) {
+            return null;
+        }
+        for (ClickHouseType.IntervalKind k : ClickHouseType.IntervalKind.values()) {
+            if (k.name().equals(kindName)) {
+                return new ClickHouseType.IntervalType(k);
+            }
+        }
+        return null;
     }
 
     private static ClickHouseType tryParseAggregateFunction(String s) {

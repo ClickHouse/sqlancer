@@ -68,6 +68,33 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--extended-datetime-known-overflow-arm", description = "Let the ExtendedDatetime oracle run its setting=0 (narrowing) arm against a merge-formed part with pre-1970 Date32 values. Default false: that exact combination is the known-open ClickHouse#106419 (toStartOf* filter returns 0 rows after a merge; monotonic-filter range poisoned by Date32->Date narrowing) and would re-fire on every run. When false the oracle still tests the non-merged pre-1970, merged post-1970, and the whole setting=1 surface. Set true to re-confirm #106419; remove the gate once it is fixed on head.", arity = 1)
     public boolean extendedDatetimeKnownOverflowArm = false;
 
+    @Parameter(names = "--prewhere-equivalence-oracle", description = "PrewhereEquivalence oracle: WHERE == PREWHERE == WHERE+optimize_move_to_prewhere=0 over a MergeTree table read (multiset compare).", arity = 1)
+    public boolean prewhereEquivalenceOracle = true;
+
+    @Parameter(names = "--read-in-order-toggle-oracle", description = "ReadInOrderToggle oracle: optimize_read_in_order / optimize_aggregation_in_order / read_in_order_use_buffering all-on vs all-off must not change an ORDER BY LIMIT or non-float GROUP BY result.", arity = 1)
+    public boolean readInOrderToggleOracle = true;
+
+    @Parameter(names = "--count-optimization-oracle", description = "CountOptimization oracle: optimize_trivial_count_query / optimize_use_implicit_projections / optimize_use_projections on vs off (integer-exact count compares + countIf cross-check + GROUP-BY-key count; hardens #106573/#106125).", arity = 1)
+    public boolean countOptimizationOracle = true;
+
+    @Parameter(names = "--lazy-materialization-toggle-oracle", description = "LazyMaterializationToggle oracle: query_plan_optimize_lazy_materialization on vs off must not change an ORDER BY LIMIT read with heavy projections (positional compare).", arity = 1)
+    public boolean lazyMaterializationToggleOracle = true;
+
+    @Parameter(names = "--replacing-dedup-oracle", description = "ReplacingDedup oracle: ReplacingMergeTree(ver) FINAL == argMax(val, ver) GROUP BY key over a private merge-formed fixture with globally-unique versions.", arity = 1)
+    public boolean replacingDedupOracle = true;
+
+    @Parameter(names = "--quantile-consistency-oracle", description = "QuantileConsistency oracle: single-snapshot quantileExact==medianExact, quantilesExact[1]==quantileExact, monotone-in-level and Low<=Exact<=High over an integer column.", arity = 1)
+    public boolean quantileConsistencyOracle = true;
+
+    @Parameter(names = "--uniq-exactness-oracle", description = "UniqExactness oracle: uniqExact(c) == count(DISTINCT c) == length(groupUniqArray(c)) over integer/String columns (single snapshot).", arity = 1)
+    public boolean uniqExactnessOracle = true;
+
+    @Parameter(names = "--arg-extremum-oracle", description = "ArgExtremum oracle: argMax(v,k) / arraySort(groupArray(v)) / groupArraySorted(n)(v) against a Java ground truth over a private unique-key fixture.", arity = 1)
+    public boolean argExtremumOracle = true;
+
+    @Parameter(names = "--materialized-column-oracle", description = "MaterializedColumn oracle: each MATERIALIZED/ALIAS column's stored value == its defining expression recomputed in the same query (single-snapshot two-column compare).", arity = 1)
+    public boolean materializedColumnOracle = true;
+
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;

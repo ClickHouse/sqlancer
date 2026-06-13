@@ -184,7 +184,7 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
         }
 
         private static ClickHouseType pickScalarType() {
-            int roll = (int) Randomly.getNotCachedInteger(0, 100);
+            int roll = (int) Randomly.getNotCachedInteger(0, 101);
             if (roll < 20) {
                 return new Primitive(Kind.Int32);
             }
@@ -226,6 +226,11 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
             }
             if (roll < 92) {
 
+                if (Randomly.getBooleanWithSmallProbability()) {
+                    int p256 = 39 + (int) Randomly.getNotCachedInteger(0, 38);
+                    int s256 = (int) Randomly.getNotCachedInteger(0, p256 + 1);
+                    return new Decimal(p256, s256);
+                }
                 int p = 1 + (int) Randomly.getNotCachedInteger(0, Randomly.getBoolean() ? 18 : 38);
                 int s = (int) Randomly.getNotCachedInteger(0, p + 1);
                 return new Decimal(p, s);
@@ -260,6 +265,10 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
             if (roll < 99) {
 
                 return new Primitive(Randomly.fromOptions(Kind.IPv4, Kind.IPv6, Kind.UUID));
+            }
+            if (roll < 100) {
+
+                return new Primitive(Randomly.getBoolean() ? Kind.Int128 : Kind.Int256);
             }
 
             int entryCount = 2 + (int) Randomly.getNotCachedInteger(0, 4);
