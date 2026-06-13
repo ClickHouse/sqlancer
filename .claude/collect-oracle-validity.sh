@@ -20,7 +20,7 @@ THREADS="${THREADS:-6}"
 OUTDIR="$ROOT/val"
 
 # Full current oracle set (from run-sqlancer.sh ALL_ORACLES).
-IFS=',' read -r -a ORACLES <<< "TLPWhere,TLPDistinct,TLPGroupBy,TLPAggregate,TLPHaving,NoREC,PQS,CERT,CODDTest,SEMR,SEMRMulti,EET,SetOpTLP,CombinatorTLP,QccCache,SortedUnionLimitBy,SchemaRoundtrip,JoinAlgorithm,Cast,Parallelism,PartitionMirror,KeyCondition,TableFunctionIN,ViewEquivalence,AggregateStateRoundtrip,MaterializedViewConsistency,FinalMerge,ProjectionToggle,PatchPartConsistency,DictGetVsJoin,WindowEquivalence,DynamicSubcolumn,SubqueryMaterialize,MutationAnalyzer,TextIndexLike,TopK,JoinReorder,NaturalJoin,JsonSkipIndex,MaterializedCte,StatsToggle,ExtendedDatetime,JoinUseNulls,QueryCache,TextIndexPreprocessor,TextIndexContainer,TextIndexLifecycle"
+IFS=',' read -r -a ORACLES <<< "TLPWhere,TLPDistinct,TLPGroupBy,TLPAggregate,TLPHaving,NoREC,PQS,CERT,CODDTest,SEMR,SEMRMulti,EET,SetOpTLP,CombinatorTLP,QccCache,SortedUnionLimitBy,SchemaRoundtrip,JoinAlgorithm,Cast,Parallelism,PartitionMirror,KeyCondition,TableFunctionIN,ViewEquivalence,AggregateStateRoundtrip,MaterializedViewConsistency,FinalMerge,ProjectionToggle,PatchPartConsistency,DictGetVsJoin,WindowEquivalence,DynamicSubcolumn,SubqueryMaterialize,MutationAnalyzer,TextIndexLike,TopK,JoinReorder,NaturalJoin,JsonSkipIndex,MaterializedCte,StatsToggle,ExtendedDatetime,JoinUseNulls,QueryCache,TextIndexDirectRead,TextIndexContainer,TextIndexLifecycle"
 
 rm -rf "$OUTDIR"; mkdir -p "$OUTDIR"
 

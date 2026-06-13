@@ -104,6 +104,13 @@ recognise an already-filed bug instead of re-investigating it. **Re-verify again
 before acting** — when an issue is fixed/closed, delete its entry from this list. (Check state:
 `gh issue view <N> --repo ClickHouse/ClickHouse --json state -q .state`.)
 
+- **[#107186](https://github.com/ClickHouse/ClickHouse/issues/107186)** — `hasToken` (and `hasAllTokens`/`hasAnyTokens`) return **wrong results with default settings** via *exact direct read* from a text index whose tokenizer is not `splitByNonAlpha` (asciiCJK / array / ngrams / splitByString / sparseGrams) or that has a `preprocessor`. `query_plan_direct_read_from_text_index=1` (default) answers the predicate from the index posting lists using the index's tokenizer instead of `hasToken`'s fixed `splitByNonAlpha` semantics. **NOT GATED — deliberately fires every run** via the `TextIndexDirectRead` oracle (the user opted to let it fire to also catch relatives/regressions); triage by the `#107186` assertion string. Its SPLIT_CONTROL arm must stay clean. **When fixed on head, `TextIndexDirectRead` falls silent — remove this entry then.** Verified reproducing on head 26.6.1.735 (2026-06-13).
+  ```sql
+  CREATE TABLE t (s String, INDEX idx s TYPE text(tokenizer = 'asciiCJK')) ENGINE = MergeTree ORDER BY tuple();
+  INSERT INTO t VALUES ('我来自北京邮电大学');
+  SELECT count() FROM t WHERE hasToken(s, '北京邮电大学');                                -- 1 WRONG (direct read)
+  SELECT count() FROM t WHERE hasToken(s, '北京邮电大学') SETTINGS use_skip_indexes = 0;  -- 0 correct
+  ```
 - **[#106649](https://github.com/ClickHouse/ClickHouse/issues/106649)** — `LOGICAL_ERROR "Column identifier <c> is already registered"` (Code 49) when a mutation's WHERE has an `IN (subquery)` whose inner SELECT joins two subquery-wrapped derived tables projecting the **same column name** (26.6 regression from PR #98884 routing mutations through the new analyzer; fix in flight as PR #106025). Mutation form required; empty tables suffice (analysis-time). **PINNED** via the substring `"is already registered"` in `ClickHouseErrors.getKnownOpenMutationAnalyzerBugs()` (consumed only by the mutation generator + `MutationAnalyzer` oracle) — **remove the pin when #106025 merges and head no longer reproduces.** Verified reproducing on head 26.6.1.399 (2026-06-10).
   ```sql
   CREATE TABLE a (k Int32, m Int64) ENGINE=MergeTree ORDER BY k;
@@ -370,9 +377,16 @@ Consequences baked into the code:
 - **`TextIndexLifecycle`** controls its own tokenizer: LIKE + `hasToken` always;
   `hasAllTokens`/`hasAnyTokens` only on the splitByNonAlpha arm.
 - **`renderSkipIndex`** must NOT emit a `preprocessor` in the general schema —
-  with a preprocessor, `hasToken` index-path ≠ scan-path is documented, which
-  would make NoREC false-positive. Preprocessor coverage lives ONLY in the
-  dedicated `TextIndexPreprocessor` oracle (private tables).
+  with a preprocessor, `hasToken` index-path ≠ scan-path is the #107186 bug, which
+  would make NoREC false-positive.
+
+The divergences above are NOT by-design — they are **ClickHouse#107186** (OPEN):
+`hasToken`'s exact direct read answers from the index posting lists with the
+index's tokenizer/preprocessor instead of `hasToken`'s fixed `splitByNonAlpha`
+semantics, so with `query_plan_direct_read_from_text_index=1` (default) it returns
+wrong rows on asciiCJK/array/ngrams/splitByString/sparseGrams/preprocessor indexes.
+This was MISCLASSIFIED as by-design during the first build; #107186 confirms it is
+a wrong-result bug. The `TextIndexDirectRead` oracle deliberately targets it.
 
 The oracles:
 - `TextIndexLike` — LIKE/ILIKE over splitByNonAlpha|ngrams, arms DEFAULT /
@@ -380,22 +394,29 @@ The oracles:
   / DIRECT_READ_OFF, plus a Java `contains` ground truth, plus an optional
   lightweight-DELETE(+OPTIMIZE FINAL) topology arm whose ground truth counts over
   live rows (the #107309 delete-masked-part class).
-- `TextIndexPreprocessor` — `INDEX(s) preprocessor=lower(s)`, asserts a forced
-  direct read (`force_data_skipping_indices` + `direct_read=1, add_hint=0`) over a
-  mixed-case corpus equals a Java `lower()`-token-membership ground truth. NB the
-  doc's `INDEX(lower(s))` "equivalent" form CANNOT be force-engaged for
-  `hasToken(s,…)` on 26.6.1.734 (raises INDEX_NOT_USED) — that's why the oracle
-  compares against Java ground truth rather than a second table.
+- `TextIndexDirectRead` — the **#107186 detector** (default-ON, fires every run by
+  design until #107186 is fixed). Builds a private table per iteration with one of
+  splitByNonAlpha(control) / asciiCJK / array / ngrams / sparseGrams / splitByString
+  / `preprocessor=lower(s)`, then asserts `hasToken`/`hasAllTokens`/`hasAnyTokens`
+  give identical keys under default (`direct_read=1`) vs `use_skip_indexes=0`. The
+  SPLIT_CONTROL arm must stay clean (sound baseline); all other arms fire on
+  #107186. **When #107186 is fixed on head this oracle should fall silent — if it
+  keeps firing only on SPLIT_CONTROL, that is a NEW bug.** (Replaced the original
+  `TextIndexPreprocessor` oracle, which wrongly codified the buggy direct-read
+  answer as its ground truth.)
 - `TextIndexContainer` — `Array(String)`+`array` tokenizer (`has`/`hasAny`/`hasAll`
   vs exact Java `List` ground truth) and `Map(String,String)` key-vs-value
   isolation (`mapContainsKey`/`mapContainsValue`), across index-on/ignored/scan.
 - `TextIndexLifecycle` — CREATE-with-index == (index-free + `ALTER ADD INDEX` +
   `MATERIALIZE INDEX SETTINGS mutations_sync=2`) == `use_skip_indexes=0` scan.
 
-Validated: 2026-06-13 dev-vm, head 26.6.1.734, 1h full-fleet (167k queries) =
-0 false positives from any FTS unit. Remaining uncovered (optional follow-ups):
-`unicodeWord` tokenizer, `hasPhrase` order-sensitivity, JSON-subcolumn text index,
-`tokens()`/`mergeTreeTextIndex` ground-truth oracles.
+Validated: 2026-06-13 dev-vm, head 26.6.1.735, 1h full-fleet (167k queries) =
+0 false positives from TextIndexLike/Container/Lifecycle/#6. **`TextIndexDirectRead`
+was added afterwards and DELIBERATELY fires on #107186** (the only expected
+"reproducer" family on a current-head run; triage by its `#107186` assertion
+string and ignore until the bug is fixed). Remaining uncovered (optional
+follow-ups): `unicodeWord` tokenizer, `hasPhrase` order-sensitivity,
+JSON-subcolumn text index, `tokens()`/`mergeTreeTextIndex` ground-truth oracles.
 
 ## TLPGroupBy oracle correctness
 

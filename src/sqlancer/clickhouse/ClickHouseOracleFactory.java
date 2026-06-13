@@ -25,9 +25,9 @@ import sqlancer.clickhouse.oracle.mutate.ClickHouseMutationAnalyzerOracle;
 import sqlancer.clickhouse.oracle.patch.ClickHousePatchPartConsistencyOracle;
 import sqlancer.clickhouse.oracle.stats.ClickHouseStatsToggleOracle;
 import sqlancer.clickhouse.oracle.textindex.ClickHouseTextIndexContainerOracle;
+import sqlancer.clickhouse.oracle.textindex.ClickHouseTextIndexDirectReadOracle;
 import sqlancer.clickhouse.oracle.textindex.ClickHouseTextIndexLifecycleOracle;
 import sqlancer.clickhouse.oracle.textindex.ClickHouseTextIndexLikeOracle;
-import sqlancer.clickhouse.oracle.textindex.ClickHouseTextIndexPreprocessorOracle;
 import sqlancer.clickhouse.oracle.topk.ClickHouseTopKOracle;
 import sqlancer.clickhouse.oracle.partition.ClickHousePartitionMirrorOracle;
 import sqlancer.clickhouse.oracle.pqs.ClickHousePivotedQuerySynthesisOracle;
@@ -361,11 +361,11 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
             return new ClickHouseStatsToggleOracle(globalState);
         }
     },
-    TextIndexPreprocessor {
+    TextIndexDirectRead {
 
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
-            return new ClickHouseTextIndexPreprocessorOracle(globalState);
+            return new ClickHouseTextIndexDirectReadOracle(globalState);
         }
     },
     TextIndexContainer {
