@@ -234,8 +234,8 @@ public class ClickHouseAggregateStateExpansionOracle implements TestOracle<Click
                 throw new IgnoreMeException();
             }
 
-            String query = "SELECT toString(k) AS kk, toString(finalizeAggregation(sumMerge(s))) AS ss, "
-                    + "toString(finalizeAggregation(uniqExactMerge(u))) AS uu FROM " + table + " GROUP BY k ORDER BY k";
+            String query = "SELECT toString(k) AS kk, toString(sumMerge(s)) AS ss, "
+                    + "toString(uniqExactMerge(u)) AS uu FROM " + table + " GROUP BY k ORDER BY k";
             logStmt(query);
 
             Map<String, String[]> observed = new TreeMap<>();

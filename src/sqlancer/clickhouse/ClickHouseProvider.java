@@ -172,6 +172,10 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         settings.put("result_overflow_mode", "throw");
 
         settings.put("allow_experimental_analyzer", "1");
+        settings.put("allow_experimental_variant_type", "1");
+        settings.put("allow_experimental_dynamic_type", "1");
+        settings.put("allow_experimental_json_type", "1");
+        settings.put("allow_experimental_vector_similarity_index", "1");
         if (clickHouseOptions.enableLowCardinality) {
             settings.put("allow_suspicious_low_cardinality_types", "1");
         }
