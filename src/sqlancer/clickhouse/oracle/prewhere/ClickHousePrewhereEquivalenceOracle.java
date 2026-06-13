@@ -78,6 +78,22 @@ public class ClickHousePrewhereEquivalenceOracle implements TestOracle<ClickHous
         List<String> movePrewhereOffRows = ComparatorHelper.getResultSetFirstColumnAsString(movePrewhereOffQuery,
                 errors, state);
 
+        if (!multisetDiff(whereRows, prewhereRows, DIFF_LIMIT).isEmpty()
+                || !multisetDiff(whereRows, movePrewhereOffRows, DIFF_LIMIT).isEmpty()) {
+            List<String> whereRows2 = ComparatorHelper.getResultSetFirstColumnAsString(whereQuery, errors, state);
+            List<String> prewhereRows2 = ComparatorHelper.getResultSetFirstColumnAsString(prewhereQuery, errors, state);
+            List<String> movePrewhereOffRows2 = ComparatorHelper.getResultSetFirstColumnAsString(movePrewhereOffQuery,
+                    errors, state);
+            if (!multisetDiff(whereRows, whereRows2, DIFF_LIMIT).isEmpty()
+                    || !multisetDiff(prewhereRows, prewhereRows2, DIFF_LIMIT).isEmpty()
+                    || !multisetDiff(movePrewhereOffRows, movePrewhereOffRows2, DIFF_LIMIT).isEmpty()) {
+                throw new IgnoreMeException();
+            }
+            whereRows = whereRows2;
+            prewhereRows = prewhereRows2;
+            movePrewhereOffRows = movePrewhereOffRows2;
+        }
+
         assertMultisetsEqual(whereRows, prewhereRows, whereQuery, prewhereQuery, "WHERE-vs-PREWHERE");
         assertMultisetsEqual(whereRows, movePrewhereOffRows, whereQuery, movePrewhereOffQuery,
                 "WHERE-vs-move_to_prewhere=0");

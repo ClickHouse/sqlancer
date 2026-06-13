@@ -62,7 +62,8 @@ public class ClickHouseInsertDedupOracle implements TestOracle<ClickHouseGlobalS
         String table = state.getDatabaseName() + ".dedup_" + id + "_t";
         Randomly r = state.getRandomly();
 
-        String create = "CREATE TABLE " + table + " (k UInt32, v Int64) ENGINE = MergeTree ORDER BY k";
+        String create = "CREATE TABLE " + table + " (k UInt32, v Int64) ENGINE = MergeTree ORDER BY k "
+                + "SETTINGS non_replicated_deduplication_window = 1000";
 
         try {
             logStmt(create);

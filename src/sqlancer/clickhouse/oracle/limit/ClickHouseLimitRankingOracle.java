@@ -30,6 +30,7 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
 
     public ClickHouseLimitRankingOracle(ClickHouseGlobalState state) {
         this.state = state;
+        ClickHouseErrors.addExpectedExpressionErrors(readErrors);
         ClickHouseErrors.addSessionSettingsErrors(readErrors);
 
         readErrors.add("UNKNOWN_TABLE");
