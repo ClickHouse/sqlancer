@@ -134,6 +134,27 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--aggregate-state-expansion-oracle", description = "AggregateStateExpansion oracle: finalizeAggregation(arrayReduce('<agg>State', groupArray(x))) == direct <agg>(x) for exact aggregates (sum/min/max/uniqExact/quantileExact/groupArray), plus an AggregatingMergeTree cross-part merge arm.", arity = 1)
     public boolean aggregateStateExpansionOracle = true;
 
+    @Parameter(names = "--sequence-funnel-oracle", description = "SequenceFunnel oracle: windowFunnel/sequenceCount/sequenceMatch/retention over a tiny deterministic (uid,ts,ev) fixture == Java ground truth, with monotonicity relations; timestamps clustered far from the window boundary.", arity = 1)
+    public boolean sequenceFunnelOracle = true;
+
+    @Parameter(names = "--partition-lifecycle-oracle", description = "PartitionLifecycle oracle: DETACH+ATTACH == identity, DROP PARTITION removes exactly that partition's rows, REPLACE PARTITION from identical copy == identity, MOVE PARTITION conserves rows; topology pinned via SYSTEM STOP MERGES.", arity = 1)
+    public boolean partitionLifecycleOracle = true;
+
+    @Parameter(names = "--alter-modify-consistency-oracle", description = "AlterModifyConsistency oracle: a data-preserving ALTER MODIFY COLUMN type-widen/CODEC/TTL/SETTING + MATERIALIZE must not change the visible row multiset (modulo a pre-applied widening cast).", arity = 1)
+    public boolean alterModifyConsistencyOracle = true;
+
+    @Parameter(names = "--ttl-determinism-oracle", description = "TtlDeterminism oracle: TTL DELETE + OPTIMIZE FINAL survivors == the non-expired bucket, using date buckets far from now() so the result is wall-clock-independent.", arity = 1)
+    public boolean ttlDeterminismOracle = true;
+
+    @Parameter(names = "--insert-dedup-oracle", description = "InsertDedup oracle: re-inserting a byte-identical block leaves the row count unchanged (insert_deduplicate default-on), while a distinct block grows the table; optional async-insert arm.", arity = 1)
+    public boolean insertDedupOracle = true;
+
+    @Parameter(names = "--token-bf-oracle", description = "TokenBf oracle: hasToken/=/IN with a tokenbf_v1 skip index == use_skip_indexes=0 scan (a bloom filter must never produce a false negative).", arity = 1)
+    public boolean tokenBfOracle = true;
+
+    @Parameter(names = "--vector-index-recall-oracle", description = "VectorIndexRecall oracle: vector_similarity (HNSW) index top-1 == exact brute-force top-1 (unique NN), and top-k containment (index max distance <= exact k-th distance); never exact set-equality for k>1. No-ops if the vector index is unavailable.", arity = 1)
+    public boolean vectorIndexRecallOracle = true;
+
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;

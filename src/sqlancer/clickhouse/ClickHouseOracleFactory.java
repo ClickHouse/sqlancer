@@ -73,6 +73,13 @@ import sqlancer.clickhouse.oracle.container.ClickHouseMapTupleContainerOracle;
 import sqlancer.clickhouse.oracle.geo.ClickHouseGeoMetamorphicOracle;
 import sqlancer.clickhouse.oracle.dynamicsub.ClickHouseVariantSubcolumnOracle;
 import sqlancer.clickhouse.oracle.aggstate.ClickHouseAggregateStateExpansionOracle;
+import sqlancer.clickhouse.oracle.sequence.ClickHouseSequenceFunnelOracle;
+import sqlancer.clickhouse.oracle.partlifecycle.ClickHousePartitionLifecycleOracle;
+import sqlancer.clickhouse.oracle.altermodify.ClickHouseAlterModifyConsistencyOracle;
+import sqlancer.clickhouse.oracle.ttl.ClickHouseTtlDeterminismOracle;
+import sqlancer.clickhouse.oracle.insertdedup.ClickHouseInsertDedupOracle;
+import sqlancer.clickhouse.oracle.tokenbf.ClickHouseTokenBfOracle;
+import sqlancer.clickhouse.oracle.vecindex.ClickHouseVectorIndexRecallOracle;
 import sqlancer.common.oracle.NoRECOracle;
 import sqlancer.common.oracle.TLPWhereOracle;
 import sqlancer.common.oracle.TestOracle;
@@ -556,6 +563,55 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseAggregateStateExpansionOracle(globalState);
+        }
+    },
+    SequenceFunnel {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseSequenceFunnelOracle(globalState);
+        }
+    },
+    PartitionLifecycle {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHousePartitionLifecycleOracle(globalState);
+        }
+    },
+    AlterModifyConsistency {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseAlterModifyConsistencyOracle(globalState);
+        }
+    },
+    TtlDeterminism {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseTtlDeterminismOracle(globalState);
+        }
+    },
+    InsertDedup {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseInsertDedupOracle(globalState);
+        }
+    },
+    TokenBf {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseTokenBfOracle(globalState);
+        }
+    },
+    VectorIndexRecall {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseVectorIndexRecallOracle(globalState);
         }
     }
 }
