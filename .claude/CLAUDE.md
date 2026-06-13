@@ -340,6 +340,63 @@ the same bug class via the mutation generator's predicate-grade WHEREs (forced
 #106649 arm ~10%, `generatePredicate()` arm ~35%) — both delivery vehicles are
 intentional, breadth + depth.
 
+## Text-index / full-text-search oracles (2026-06-13)
+
+Four oracles plus a general-fleet predicate injection cover the ClickHouse text
+(inverted) index surface. **Text-search-function soundness across tokenizers is
+NON-OBVIOUS and bit hard** — a naive "index-on == use_skip_indexes=0 scan"
+differential is unsound for several function×tokenizer combinations because the
+two paths tokenize the *needle* differently. Empirically verified on head
+26.6.1.734 (probe these again if head moves):
+
+- `startsWith` / `endsWith` / `multiSearchAny`: **index==scan on ALL tokenizers**
+  (incl. `array`). Safe to emit on a column of unknown tokenizer.
+- `hasToken(fullword)`: index==scan on splitByNonAlpha + ngrams(N) + sparseGrams +
+  asciiCJK + splitByString, but **DIVERGES on `array`** (array indexes the whole
+  value as one token, so `hasToken(s,'word')` via index = [] while the scan
+  whole-word-tokenizes → matches). By design, not a bug.
+- `hasAllTokens` / `hasAnyTokens` with a **multi-word string needle**: sound on
+  splitByNonAlpha, **DIVERGE on ngrams** (the needle's space-spanning N-grams are
+  absent from non-adjacent data; the scan path tokenizes the needle into whole
+  words instead). By design ("results may differ" territory), not a bug.
+- `hasToken(short-fragment < N)` on ngrams(N): diverges (fragment is itself an
+  N-gram). Irrelevant if the corpus/needles are full vocabulary words (≥4 chars).
+- `LIKE`/`ILIKE`: sound on splitByNonAlpha + ngrams (the original `TextIndexLike`).
+
+Consequences baked into the code:
+- **`generateTextSearchPredicate`** (general fleet, `--text-search-predicate-emission`,
+  default on) emits ONLY `startsWith`/`endsWith`/`multiSearchAny` — the column's
+  index tokenizer is unknown, so only the all-tokenizer-safe trio is allowed.
+- **`TextIndexLifecycle`** controls its own tokenizer: LIKE + `hasToken` always;
+  `hasAllTokens`/`hasAnyTokens` only on the splitByNonAlpha arm.
+- **`renderSkipIndex`** must NOT emit a `preprocessor` in the general schema —
+  with a preprocessor, `hasToken` index-path ≠ scan-path is documented, which
+  would make NoREC false-positive. Preprocessor coverage lives ONLY in the
+  dedicated `TextIndexPreprocessor` oracle (private tables).
+
+The oracles:
+- `TextIndexLike` — LIKE/ILIKE over splitByNonAlpha|ngrams, arms DEFAULT /
+  `ignore_data_skipping_indices` / `use_text_index_like_evaluation_by_dictionary_scan=0`
+  / DIRECT_READ_OFF, plus a Java `contains` ground truth, plus an optional
+  lightweight-DELETE(+OPTIMIZE FINAL) topology arm whose ground truth counts over
+  live rows (the #107309 delete-masked-part class).
+- `TextIndexPreprocessor` — `INDEX(s) preprocessor=lower(s)`, asserts a forced
+  direct read (`force_data_skipping_indices` + `direct_read=1, add_hint=0`) over a
+  mixed-case corpus equals a Java `lower()`-token-membership ground truth. NB the
+  doc's `INDEX(lower(s))` "equivalent" form CANNOT be force-engaged for
+  `hasToken(s,…)` on 26.6.1.734 (raises INDEX_NOT_USED) — that's why the oracle
+  compares against Java ground truth rather than a second table.
+- `TextIndexContainer` — `Array(String)`+`array` tokenizer (`has`/`hasAny`/`hasAll`
+  vs exact Java `List` ground truth) and `Map(String,String)` key-vs-value
+  isolation (`mapContainsKey`/`mapContainsValue`), across index-on/ignored/scan.
+- `TextIndexLifecycle` — CREATE-with-index == (index-free + `ALTER ADD INDEX` +
+  `MATERIALIZE INDEX SETTINGS mutations_sync=2`) == `use_skip_indexes=0` scan.
+
+Validated: 2026-06-13 dev-vm, head 26.6.1.734, 1h full-fleet (167k queries) =
+0 false positives from any FTS unit. Remaining uncovered (optional follow-ups):
+`unicodeWord` tokenizer, `hasPhrase` order-sensitivity, JSON-subcolumn text index,
+`tokens()`/`mergeTreeTextIndex` ground-truth oracles.
+
 ## TLPGroupBy oracle correctness
 
 TLPGroupBy is fundamentally hard to make sound when fetch columns are arbitrary
