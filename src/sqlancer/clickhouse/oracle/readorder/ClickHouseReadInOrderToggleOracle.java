@@ -127,8 +127,6 @@ public class ClickHouseReadInOrderToggleOracle implements TestOracle<ClickHouseG
         case UInt64:
         case UInt128:
         case UInt256:
-        case Float32:
-        case Float64:
         case Decimal:
         case Bool:
         case String:

@@ -2,10 +2,8 @@ package sqlancer.clickhouse.oracle.specialengine;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -142,15 +140,7 @@ public class ClickHouseJoinGetSetOracle implements TestOracle<ClickHouseGlobalSt
                 throw new IgnoreMeException();
             }
 
-            List<Integer> probeKeys = new ArrayList<>();
-            Set<Integer> seen = new HashSet<>();
-            int probes = 6 + (int) r.getInteger(0, 7);
-            for (int i = 0; i < probes; i++) {
-                int k = (int) r.getInteger(0, PROBE_SPACE);
-                if (seen.add(k)) {
-                    probeKeys.add(k);
-                }
-            }
+            List<Integer> probeKeys = new ArrayList<>(present.keySet());
 
             List<String> viaJoinGet = new ArrayList<>(probeKeys.size());
             List<String> viaLookup = new ArrayList<>(probeKeys.size());

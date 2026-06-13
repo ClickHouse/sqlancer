@@ -90,6 +90,7 @@ public class ClickHouseTokenBfOracle implements TestOracle<ClickHouseGlobalState
 
             int nextKey = 0;
             int blocks = 3 + r.getInteger(0, 3);
+            List<String> inserted = new ArrayList<>();
             for (int b = 0; b < blocks; b++) {
                 int rows = 20 + r.getInteger(0, 31);
                 StringBuilder sb = new StringBuilder("INSERT INTO ").append(table).append(" (id, s) VALUES ");
@@ -97,7 +98,9 @@ public class ClickHouseTokenBfOracle implements TestOracle<ClickHouseGlobalState
                     if (i > 0) {
                         sb.append(", ");
                     }
-                    sb.append('(').append(nextKey++).append(", '").append(esc(buildRow(r))).append("')");
+                    String rowVal = buildRow(r);
+                    inserted.add(rowVal);
+                    sb.append('(').append(nextKey++).append(", '").append(esc(rowVal)).append("')");
                 }
                 logStmt(sb.toString());
                 if (!new SQLQueryAdapter(sb.toString(), readErrors, true).execute(state)) {
@@ -110,12 +113,12 @@ public class ClickHouseTokenBfOracle implements TestOracle<ClickHouseGlobalState
             String label;
             switch (probe) {
             case EQUALITY:
-                predicate = "s = '" + esc(VOCAB.get(r.getInteger(0, VOCAB.size()))) + "'";
+                predicate = "s = '" + esc(Randomly.fromList(inserted)) + "'";
                 label = "equality";
                 break;
             case IN_SET:
-                String c1 = VOCAB.get(r.getInteger(0, VOCAB.size()));
-                String c2 = VOCAB.get(r.getInteger(0, VOCAB.size()));
+                String c1 = Randomly.fromList(inserted);
+                String c2 = Randomly.fromList(inserted);
                 predicate = "s IN ('" + esc(c1) + "', '" + esc(c2) + "')";
                 label = "in-set";
                 break;

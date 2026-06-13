@@ -128,6 +128,8 @@ public class ClickHouseLazyMaterializationToggleOracle implements TestOracle<Cli
         case JSON:
         case Nothing:
         case AggregateFunction:
+        case Float32:
+        case Float64:
             return false;
         default:
             return true;

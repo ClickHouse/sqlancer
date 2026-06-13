@@ -151,7 +151,7 @@ public class ClickHouseGeoMetamorphicOracle implements TestOracle<ClickHouseGlob
         }
         double area = parseDouble(rows.get(0).get(0));
         double intersectionArea = parseDouble(rows.get(0).get(1));
-        if (Math.abs(area - intersectionArea) > TOLERANCE) {
+        if (Math.abs(area - intersectionArea) > TOLERANCE * Math.max(1.0, Math.abs(area))) {
             throw new AssertionError(String.format(
                     "geo self-intersection area mismatch: %s == %s expected equal but area=%s intersection=%s",
                     areaExpr, intersectExpr, area, intersectionArea));

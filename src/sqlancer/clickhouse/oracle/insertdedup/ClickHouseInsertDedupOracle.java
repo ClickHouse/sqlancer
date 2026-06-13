@@ -125,17 +125,10 @@ public class ClickHouseInsertDedupOracle implements TestOracle<ClickHouseGlobalS
     }
 
     private void runAsyncArm(String table, Randomly r, long baselineCount, String create) throws SQLException {
-        String[] settings = { "SET async_insert = 1", "SET wait_for_async_insert = 1" };
-        for (String setStmt : settings) {
-            logStmt(setStmt);
-            if (!new SQLQueryAdapter(setStmt, asyncErrors, false).execute(state)) {
-                return;
-            }
-        }
-
         int sizeAsync = 18 + r.getInteger(0, 35);
         List<long[]> blockAsync = buildBlock(r, 100000, sizeAsync);
-        String insertAsync = renderInsert(table, blockAsync);
+        String insertAsync = renderInsert(table, blockAsync).replace(" VALUES ",
+                " SETTINGS async_insert = 1, wait_for_async_insert = 1 VALUES ");
 
         logStmt(insertAsync);
         if (!new SQLQueryAdapter(insertAsync, asyncErrors, true).execute(state)) {

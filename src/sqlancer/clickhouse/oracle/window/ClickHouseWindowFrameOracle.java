@@ -32,7 +32,6 @@ public class ClickHouseWindowFrameOracle implements TestOracle<ClickHouseGlobalS
         errors.add("Limit for result exceeded");
         errors.add("TOO_MANY_ROWS_OR_BYTES");
         errors.add("Window frame");
-        errors.add("frame");
         errors.add("lagInFrame");
         errors.add("NOT_IMPLEMENTED");
         errors.add("SYNTAX_ERROR");

@@ -34,7 +34,6 @@ public class ClickHousePrewhereEquivalenceOracle implements TestOracle<ClickHous
         ClickHouseErrors.addExpectedExpressionErrors(errors);
         ClickHouseErrors.addSessionSettingsErrors(errors);
         errors.add("ILLEGAL_PREWHERE");
-        errors.add("PREWHERE");
     }
 
     @Override
