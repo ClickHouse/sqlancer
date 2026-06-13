@@ -122,6 +122,18 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--remote-local-equivalence-oracle", description = "RemoteLocalEquivalence oracle: remote('127.0.0.1', db, t) == local table read (multiset, single-node distributed-read path), plus numbers(n) ground-truth checks.", arity = 1)
     public boolean remoteLocalEquivalenceOracle = true;
 
+    @Parameter(names = "--map-tuple-container-oracle", description = "MapTupleContainer oracle: Map/Tuple/Array scalar extractions (mapKeys/mapValues/length/mapContains/tupleElement) toString-rendered == Java ground truth over a private fixture. All wire values are String/number (reader-safe).", arity = 1)
+    public boolean mapTupleContainerOracle = true;
+
+    @Parameter(names = "--geo-metamorphic-oracle", description = "GeoMetamorphic oracle: geo-function metamorphic identities (greatCircleDistance(p,p)==0, polygonArea>=0 and ==square area, pointInPolygon interior/outside, self-intersection area==self area) over inline integer coordinates, float-tolerance compares.", arity = 1)
+    public boolean geoMetamorphicOracle = true;
+
+    @Parameter(names = "--variant-subcolumn-oracle", description = "VariantSubcolumn oracle: Variant/Dynamic/JSON subcolumn roundtrip (toString-wrapped reads only; raw-column emission stays gated off). CAST/subcolumn-access roundtrip == inserted value. No-ops if the experimental types are unavailable.", arity = 1)
+    public boolean variantSubcolumnOracle = true;
+
+    @Parameter(names = "--aggregate-state-expansion-oracle", description = "AggregateStateExpansion oracle: finalizeAggregation(arrayReduce('<agg>State', groupArray(x))) == direct <agg>(x) for exact aggregates (sum/min/max/uniqExact/quantileExact/groupArray), plus an AggregatingMergeTree cross-part merge arm.", arity = 1)
+    public boolean aggregateStateExpansionOracle = true;
+
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;

@@ -69,6 +69,10 @@ import sqlancer.clickhouse.oracle.engineq.ClickHouseEngineEquivalenceOracle;
 import sqlancer.clickhouse.oracle.coalesce.ClickHouseCoalescingFinalOracle;
 import sqlancer.clickhouse.oracle.specialengine.ClickHouseJoinGetSetOracle;
 import sqlancer.clickhouse.oracle.tablefn.ClickHouseRemoteLocalEquivalenceOracle;
+import sqlancer.clickhouse.oracle.container.ClickHouseMapTupleContainerOracle;
+import sqlancer.clickhouse.oracle.geo.ClickHouseGeoMetamorphicOracle;
+import sqlancer.clickhouse.oracle.dynamicsub.ClickHouseVariantSubcolumnOracle;
+import sqlancer.clickhouse.oracle.aggstate.ClickHouseAggregateStateExpansionOracle;
 import sqlancer.common.oracle.NoRECOracle;
 import sqlancer.common.oracle.TLPWhereOracle;
 import sqlancer.common.oracle.TestOracle;
@@ -524,6 +528,34 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseRemoteLocalEquivalenceOracle(globalState);
+        }
+    },
+    MapTupleContainer {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseMapTupleContainerOracle(globalState);
+        }
+    },
+    GeoMetamorphic {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseGeoMetamorphicOracle(globalState);
+        }
+    },
+    VariantSubcolumn {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseVariantSubcolumnOracle(globalState);
+        }
+    },
+    AggregateStateExpansion {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseAggregateStateExpansionOracle(globalState);
         }
     }
 }
