@@ -26,20 +26,26 @@
     -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 -e CLICKHOUSE_SKIP_USER_SETUP=1 \
     -v "$CFG/log_level.xml:/etc/clickhouse-server/config.d/sf_log_level.xml:ro" \
     -v "$CFG/trace_log_disabled.xml:/etc/clickhouse-server/config.d/sf_trace_log_disabled.xml:ro" \
-    -v "$CFG/system_log_ttl.xml:/etc/clickhouse-server/config.d/sf_system_log_ttl.xml:ro" \
+    -v "$CFG/system_logs_disabled.xml:/etc/clickhouse-server/config.d/sf_system_logs_disabled.xml:ro" \
     clickhouse/clickhouse-server:head
   ```
   The three `-v` flags mount disk-pressure mitigation overrides (`log_level.xml` drops logger to
   `warning`; `trace_log_disabled.xml` removes the trace_log table entirely via the
-  `remove="remove"` attribute; `system_log_ttl.xml` caps `processors_profile_log` retention at 1
-  hour). Files must be mounted directly into config.d — ClickHouse's config processor scans only
-  flat `*.xml` files there, not subdirectories. The `sf_` prefix on each filename keeps them
-  sorted next to the entrypoint-generated `docker_related_config.xml` for easy inspection. With 6
-  sqlancer threads these three together hold the data dir + file logs under ~150 MB during a
-  15-minute run versus ~1 GB without them. Drop a `-v` flag (or all three) if you specifically
-  want trace_log / verbose server logs for a debugging session.
+  `remove="remove"` attribute; `system_logs_disabled.xml` removes the rest of the heavy
+  non-diagnostic system logs the same way — `metric_log`, `asynchronous_metric_log`,
+  `query_metric_log`, `processors_profile_log` (moved here from the former `system_log_ttl.xml`,
+  full remove beats a TTL cap), `query_thread_log`, `query_views_log`, `opentelemetry_span_log`,
+  `latency_log`, `blob_storage_log`, `backup_log`; `query_log`/`text_log`/`part_log`/`error_log`/
+  `crash_log` stay enabled for reproducer triage). Files must be mounted directly into config.d —
+  ClickHouse's config processor scans only flat `*.xml` files there, not subdirectories. The `sf_`
+  prefix on each filename keeps them sorted next to the entrypoint-generated
+  `docker_related_config.xml` for easy inspection. With 6 sqlancer threads these together hold the
+  data dir + file logs under ~150 MB during a 15-minute run versus ~1 GB without them. Drop a `-v`
+  flag (or all three) if you specifically want trace_log / metric_log / verbose server logs for a
+  debugging session.
 - **Required config set (mounted by `run-sqlancer.sh` on the dev-vm).** Five files, not three:
-  the three disk-pressure overrides above **plus** `async_insert_off.xml` (config.d) and
+  the three disk-pressure overrides above (`log_level.xml`, `trace_log_disabled.xml`,
+  `system_logs_disabled.xml`) **plus** `async_insert_off.xml` (config.d) and
   `alter_mutation_sync.xml` (**users.d**, sets `alter_sync=2` + `mutations_sync=2`). The
   `mutations_sync=2` mount is load-bearing for oracle soundness: without it, async `ALTER … DELETE`
   mutations issued during DB generation run in the background and can complete *between* the two

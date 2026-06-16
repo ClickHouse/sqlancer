@@ -1,0 +1,33 @@
+<clickhouse>
+    <!-- Disable the heavy, non-diagnostic system.*_log tables entirely, mirroring
+         trace_log_disabled.xml. Under a fuzzer-paced workload these tables accumulate parts
+         continuously and are pure disk/IO overhead: metric_log / asynchronous_metric_log /
+         query_metric_log write periodic metric snapshots every few hundred ms regardless of
+         query activity, and the per-query/per-thread/per-view logs multiply with sqlancer's
+         high statement rate. sqlancer dev runs never read any of them.
+
+         The `remove="remove"` attribute is the documented ClickHouse mechanism for cancelling a
+         parent-config entry from a config.d override: it deletes the <NAME_log> block from
+         /etc/clickhouse-server/config.xml so the server never creates the table on startup. This
+         skips the writes altogether (heavier hammer than a TTL cap, which still accumulates writes
+         between merges). A name that does not exist on the running build is silently ignored, so
+         listing a superset is safe across head versions.
+
+         processors_profile_log is moved here from system_log_ttl.xml: a full remove beats the
+         former 1-hour TTL (no writes vs capped retention).
+
+         DELIBERATELY KEPT ENABLED (do not add here): query_log and text_log are the canonical
+         reproducer-triage inputs (which query failed on which thread); part_log is the merge/part
+         lifecycle log that several MergeTree wrong-result bugs (merge-formed parts) are diagnosed
+         from; error_log and crash_log are tiny and load-bearing for triage. -->
+    <metric_log remove="remove"/>
+    <asynchronous_metric_log remove="remove"/>
+    <query_metric_log remove="remove"/>
+    <processors_profile_log remove="remove"/>
+    <query_thread_log remove="remove"/>
+    <query_views_log remove="remove"/>
+    <opentelemetry_span_log remove="remove"/>
+    <latency_log remove="remove"/>
+    <blob_storage_log remove="remove"/>
+    <backup_log remove="remove"/>
+</clickhouse>

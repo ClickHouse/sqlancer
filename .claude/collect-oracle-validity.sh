@@ -35,7 +35,7 @@ docker run --ulimit nofile=262144:262144 --name "$NAME" -p "$PORT":8123 -d \
   -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 -e CLICKHOUSE_SKIP_USER_SETUP=1 \
   -v "$CFG/log_level.xml:/etc/clickhouse-server/config.d/sf_log_level.xml:ro" \
   -v "$CFG/trace_log_disabled.xml:/etc/clickhouse-server/config.d/sf_trace_log_disabled.xml:ro" \
-  -v "$CFG/system_log_ttl.xml:/etc/clickhouse-server/config.d/sf_system_log_ttl.xml:ro" \
+  -v "$CFG/system_logs_disabled.xml:/etc/clickhouse-server/config.d/sf_system_logs_disabled.xml:ro" \
   -v "$CFG/async_insert_off.xml:/etc/clickhouse-server/config.d/sf_async_insert_off.xml:ro" \
   -v "$CFG/alter_mutation_sync.xml:/etc/clickhouse-server/users.d/sf_alter_mutation_sync.xml:ro" \
   clickhouse/clickhouse-server:head >/dev/null
