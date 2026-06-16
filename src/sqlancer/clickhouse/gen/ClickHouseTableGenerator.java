@@ -138,7 +138,9 @@ public class ClickHouseTableGenerator {
                             2 + (int) Randomly.getNotCachedInteger(0, Math.min(2, bareCols.size() - 1)));
                     int pkCount = 1 + (int) Randomly.getNotCachedInteger(0, obCols.size() - 1);
                     sb.append(" ORDER BY (").append(String.join(", ", obCols)).append(")");
-                    primaryKeyClause = " PRIMARY KEY (" + String.join(", ", obCols.subList(0, pkCount)) + ")";
+                    java.util.List<String> pkCols = obCols.subList(0, pkCount);
+                    primaryKeyClause = " PRIMARY KEY (" + String.join(", ", pkCols) + ")";
+                    sampleByColumn = firstBareUnsignedIntIn(pkCols);
                     orderByHandled = true;
                 }
             }
@@ -558,22 +560,32 @@ public class ClickHouseTableGenerator {
         if (!(expr instanceof ClickHouseColumnReference cr)) {
             return null;
         }
-        sqlancer.clickhouse.ClickHouseType term = cr.getColumn().getType().getTypeTerm();
+        return bareUnsignedIntColumnName(cr.getColumn());
+    }
+
+    static String bareUnsignedIntColumnName(ClickHouseSchema.ClickHouseColumn col) {
+        sqlancer.clickhouse.ClickHouseType term = col.getType().getTypeTerm();
         if (term instanceof sqlancer.clickhouse.ClickHouseType.Nullable
                 || term instanceof sqlancer.clickhouse.ClickHouseType.LowCardinality
                 || term instanceof sqlancer.clickhouse.ClickHouseType.Array
                 || term instanceof sqlancer.clickhouse.ClickHouseType.Unknown) {
             return null;
         }
-        switch (cr.getColumn().getType().getType()) {
+        switch (col.getType().getType()) {
         case UInt8:
         case UInt16:
         case UInt32:
         case UInt64:
-            return cr.getColumn().getName();
+            return col.getName();
         default:
             return null;
         }
+    }
+
+    private String firstBareUnsignedIntIn(java.util.List<String> pkColumnNames) {
+        return columns.stream().filter(c -> pkColumnNames.contains(c.getName()))
+                .map(ClickHouseTableGenerator::bareUnsignedIntColumnName).filter(java.util.Objects::nonNull)
+                .findFirst().orElse(null);
     }
 
     private String fallbackSampleColumn(boolean engineRequiresNonEmptyOrderBy) {

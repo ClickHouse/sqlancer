@@ -155,6 +155,15 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--vector-index-recall-oracle", description = "VectorIndexRecall oracle: vector_similarity (HNSW) index top-1 == exact brute-force top-1 (unique NN), and top-k containment (index max distance <= exact k-th distance); never exact set-equality for k>1. No-ops if the vector index is unavailable.", arity = 1)
     public boolean vectorIndexRecallOracle = true;
 
+    @Parameter(names = "--sample-clause-oracle", description = "SampleClause oracle: query-level SAMPLE invariants on a table with a SAMPLE BY key -- SAMPLE 1 == full read (identity), SAMPLE k rows are a subset of the full read, and SAMPLE 1/k OFFSET i/k tiles are each a subset of the full read. Sound invariants only (SAMPLE is non-deterministic), so it never runs in the general fleet. Self-creates a sampleable fixture when no schema table has a sampling key.", arity = 1)
+    public boolean sampleClauseOracle = true;
+
+    @Parameter(names = "--sample-factor-arm", description = "Enable the SampleClause oracle's statistical _sample_factor reconstruction arm (sum(_sample_factor) over a sample ~= full count() within a tolerance band). Default false: this arm is approximate, not exact, and must be demonstrated 0-FP before being enabled.", arity = 1)
+    public boolean sampleFactorArm;
+
+    @Parameter(names = "--distributed-table-oracle", description = "DistributedTable oracle: a Distributed('default', db, local) wrapper over a local MergeTree must answer reads identically to the underlying table (multiset), route INSERTs through to the local table, and agree on exact-integer aggregates / non-float GROUP BY. Single-node, self-contained fixture.", arity = 1)
+    public boolean distributedTableOracle = true;
+
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;

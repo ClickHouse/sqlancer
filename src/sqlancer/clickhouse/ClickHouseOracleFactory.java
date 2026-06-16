@@ -80,6 +80,8 @@ import sqlancer.clickhouse.oracle.ttl.ClickHouseTtlDeterminismOracle;
 import sqlancer.clickhouse.oracle.insertdedup.ClickHouseInsertDedupOracle;
 import sqlancer.clickhouse.oracle.tokenbf.ClickHouseTokenBfOracle;
 import sqlancer.clickhouse.oracle.vecindex.ClickHouseVectorIndexRecallOracle;
+import sqlancer.clickhouse.oracle.sample.ClickHouseSampleClauseOracle;
+import sqlancer.clickhouse.oracle.distributed.ClickHouseDistributedTableOracle;
 import sqlancer.common.oracle.NoRECOracle;
 import sqlancer.common.oracle.TLPWhereOracle;
 import sqlancer.common.oracle.TestOracle;
@@ -612,6 +614,20 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseVectorIndexRecallOracle(globalState);
+        }
+    },
+    SampleClause {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseSampleClauseOracle(globalState);
+        }
+    },
+    DistributedTable {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseDistributedTableOracle(globalState);
         }
     }
 }

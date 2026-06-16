@@ -420,6 +420,7 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
             extends AbstractRelationalTable<ClickHouseColumn, TableIndex, ClickHouseGlobalState> {
 
         private final String engine;
+        private final String samplingKey;
 
         public ClickHouseTable(String tableName, List<ClickHouseColumn> columns, List<TableIndex> indexes,
                 boolean isView) {
@@ -428,12 +429,26 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
 
         public ClickHouseTable(String tableName, List<ClickHouseColumn> columns, List<TableIndex> indexes,
                 boolean isView, String engine) {
+            this(tableName, columns, indexes, isView, engine, "");
+        }
+
+        public ClickHouseTable(String tableName, List<ClickHouseColumn> columns, List<TableIndex> indexes,
+                boolean isView, String engine, String samplingKey) {
             super(tableName, columns, indexes, isView);
             this.engine = engine == null ? "" : engine;
+            this.samplingKey = samplingKey == null ? "" : samplingKey;
         }
 
         public String getEngine() {
             return engine;
+        }
+
+        public String getSamplingKey() {
+            return samplingKey;
+        }
+
+        public boolean hasSamplingKey() {
+            return !samplingKey.isEmpty();
         }
 
         public boolean supportsFinal() {
@@ -446,13 +461,14 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
     public static ClickHouseSchema fromConnection(SQLConnection con, String databaseName) throws SQLException {
         List<ClickHouseTable> databaseTables = new ArrayList<>();
         List<String> tableNames = getTableNames(con);
-        java.util.Map<String, String> engineByName = getTableEngines(con, databaseName);
+        java.util.Map<String, TableMeta> metaByName = getTableMeta(con, databaseName);
         for (String tableName : tableNames) {
             List<ClickHouseColumn> databaseColumns = getTableColumns(con, tableName);
             List<TableIndex> indexes = Collections.emptyList();
             boolean isView = matchesViewName(tableName);
-            String engine = engineByName.getOrDefault(tableName, "");
-            ClickHouseTable t = new ClickHouseTable(tableName, databaseColumns, indexes, isView, engine);
+            TableMeta meta = metaByName.getOrDefault(tableName, TableMeta.EMPTY);
+            ClickHouseTable t = new ClickHouseTable(tableName, databaseColumns, indexes, isView, meta.engine,
+                    meta.samplingKey);
             for (ClickHouseColumn c : databaseColumns) {
                 c.setTable(t);
             }
@@ -462,19 +478,30 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
         return new ClickHouseSchema(databaseTables);
     }
 
-    private static java.util.Map<String, String> getTableEngines(SQLConnection con, String databaseName)
+    private static final class TableMeta {
+        static final TableMeta EMPTY = new TableMeta("", "");
+        final String engine;
+        final String samplingKey;
+
+        TableMeta(String engine, String samplingKey) {
+            this.engine = engine == null ? "" : engine;
+            this.samplingKey = samplingKey == null ? "" : samplingKey;
+        }
+    }
+
+    private static java.util.Map<String, TableMeta> getTableMeta(SQLConnection con, String databaseName)
             throws SQLException {
-        java.util.Map<String, String> engines = new java.util.HashMap<>();
+        java.util.Map<String, TableMeta> meta = new java.util.HashMap<>();
         try (Statement s = con.createStatement()) {
-            String q = "SELECT name, engine FROM system.tables WHERE database = '" + databaseName.replace("'", "''")
-                    + "'";
+            String q = "SELECT name, engine, sampling_key FROM system.tables WHERE database = '"
+                    + databaseName.replace("'", "''") + "'";
             try (ResultSet rs = s.executeQuery(q)) {
                 while (rs.next()) {
-                    engines.put(rs.getString(1), rs.getString(2));
+                    meta.put(rs.getString(1), new TableMeta(rs.getString(2), rs.getString(3)));
                 }
             }
         }
-        return engines;
+        return meta;
     }
 
     private static List<String> getTableNames(SQLConnection con) throws SQLException {
