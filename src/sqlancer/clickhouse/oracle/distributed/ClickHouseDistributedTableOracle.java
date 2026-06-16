@@ -134,8 +134,8 @@ public class ClickHouseDistributedTableOracle implements TestOracle<ClickHouseGl
             long uid = 1_000_000_000L + i;
             values.append("(").append(uid).append(", 0, ").append(i).append(")");
         }
-        String insertDist = "INSERT INTO " + dist + " (id, g, v) VALUES " + values
-                + " SETTINGS distributed_foreground_insert = 1";
+        String insertDist = "INSERT INTO " + dist + " (id, g, v) SETTINGS distributed_foreground_insert = 1 VALUES "
+                + values;
         logStatements(insertDist);
         if (!new SQLQueryAdapter(insertDist, errors, true).execute(state)) {
             return;
