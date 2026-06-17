@@ -82,6 +82,19 @@ import sqlancer.clickhouse.oracle.tokenbf.ClickHouseTokenBfOracle;
 import sqlancer.clickhouse.oracle.vecindex.ClickHouseVectorIndexRecallOracle;
 import sqlancer.clickhouse.oracle.sample.ClickHouseSampleClauseOracle;
 import sqlancer.clickhouse.oracle.distributed.ClickHouseDistributedTableOracle;
+import sqlancer.clickhouse.oracle.join.ClickHouseAsofJoinOracle;
+import sqlancer.clickhouse.oracle.groupby.ClickHouseCubeGroupingSetsOracle;
+import sqlancer.clickhouse.oracle.join.ClickHousePasteJoinOracle;
+import sqlancer.clickhouse.oracle.subquery.ClickHouseCorrelatedSubqueryOracle;
+import sqlancer.clickhouse.oracle.bitfn.ClickHouseBitFunctionOracle;
+import sqlancer.clickhouse.oracle.arrayfn.ClickHouseArrayFunctionOracle;
+import sqlancer.clickhouse.oracle.stringfn.ClickHouseStringFunctionOracle;
+import sqlancer.clickhouse.oracle.aggstate.ClickHouseAggregateFunctionColumnOracle;
+import sqlancer.clickhouse.oracle.datetime.ClickHouseTimezoneDatetimeOracle;
+import sqlancer.clickhouse.oracle.arrayjoin.ClickHouseArrayJoinOracle;
+import sqlancer.clickhouse.oracle.window.ClickHouseWindowFrameGroundTruthOracle;
+import sqlancer.clickhouse.oracle.join.ClickHouseJoinUsingOracle;
+import sqlancer.clickhouse.oracle.withfill.ClickHouseWithFillOracle;
 import sqlancer.common.oracle.NoRECOracle;
 import sqlancer.common.oracle.TLPWhereOracle;
 import sqlancer.common.oracle.TestOracle;
@@ -628,6 +641,97 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseDistributedTableOracle(globalState);
+        }
+    },
+    AsofJoin {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseAsofJoinOracle(globalState);
+        }
+    },
+    CubeGroupingSets {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseCubeGroupingSetsOracle(globalState);
+        }
+    },
+    PasteJoin {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHousePasteJoinOracle(globalState);
+        }
+    },
+    CorrelatedSubquery {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseCorrelatedSubqueryOracle(globalState);
+        }
+    },
+    BitFunction {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseBitFunctionOracle(globalState);
+        }
+    },
+    ArrayFunction {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseArrayFunctionOracle(globalState);
+        }
+    },
+    StringFunction {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseStringFunctionOracle(globalState);
+        }
+    },
+    AggregateFunctionColumn {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseAggregateFunctionColumnOracle(globalState);
+        }
+    },
+    TimezoneDatetime {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseTimezoneDatetimeOracle(globalState);
+        }
+    },
+    ArrayJoinUnfold {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseArrayJoinOracle(globalState);
+        }
+    },
+    WindowFrameGroundTruth {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseWindowFrameGroundTruthOracle(globalState);
+        }
+    },
+    JoinUsing {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseJoinUsingOracle(globalState);
+        }
+    },
+    WithFill {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseWithFillOracle(globalState);
         }
     }
 }

@@ -164,6 +164,46 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--distributed-table-oracle", description = "DistributedTable oracle: a Distributed('default', db, local) wrapper over a local MergeTree must answer reads identically to the underlying table (multiset), route INSERTs through to the local table, and agree on exact-integer aggregates / non-float GROUP BY. Single-node, self-contained fixture.", arity = 1)
     public boolean distributedTableOracle = true;
 
+
+    @Parameter(names = "--with-fill-oracle", description = "WithFill oracle: ORDER BY x WITH FILL FROM f TO t STEP s over a private Int64 table whose inserted rows are a subset of the step grid must return exactly the full grid [f, t) in ascending order -- present rows are kept, absent grid points are synthesized, no duplicates, no off-grid rows.", arity = 1)
+    public boolean withFillOracle = true;
+
+    @Parameter(names = "--array-function-oracle", description = "ArrayFunction oracle: Array(Int64) scalar functions (has/indexOf/countEqual/length/empty/notEmpty/arraySort/arrayReverseSort/arrayReverse/arrayDistinct/arrayCompact/arrayConcat/arrayPushBack/arrayPushFront/arraySlice/arraySum/arrayMin/arrayMax/hasAll/hasAny) toString-rendered == Java ground truth over a private fixture. All results are exact-integer or deterministic-order arrays; no floats.", arity = 1)
+    public boolean arrayFunctionOracle = true;
+
+    @Parameter(names = "--aggregate-function-column-oracle", description = "AggregateFunctionColumn oracle: SimpleAggregateFunction column round-trip (insert literal, read back via finalizeAggregation or direct read) and AggregatingMergeTree state accumulation == direct aggregate over same data.", arity = 1)
+    public boolean aggregateFunctionColumnOracle = true;
+
+    @Parameter(names = "--array-join-oracle", description = "ArrayJoin oracle: ARRAY JOIN unnest == arrayJoin() scalar function == a lateral-like JOIN expansion, count of output rows == sum of array lengths.", arity = 1)
+    public boolean arrayJoinOracle = true;
+
+    @Parameter(names = "--asof-join-oracle", description = "AsofJoin oracle: ASOF LEFT JOIN nearest-predecessor lookup == Java model lower-bound scan over sorted fixture data (exact integer values).", arity = 1)
+    public boolean asofJoinOracle = true;
+
+    @Parameter(names = "--correlated-subquery-oracle", description = "CorrelatedSubquery oracle: correlated EXISTS/NOT EXISTS == IN/NOT IN rewrite (semijoin/antijoin equivalence) over non-nullable integer keys, reading only the preserved-side key. No-ops if allow_experimental_correlated_subqueries is unsupported.", arity = 1)
+    public boolean correlatedSubqueryOracle = true;
+
+    @Parameter(names = "--cube-grouping-sets-oracle", description = "CubeGroupingSets oracle: GROUP BY CUBE / GROUPING SETS == manual UNION ALL of the individual group-by combinations (exact-integer counts, no floats).", arity = 1)
+    public boolean cubeGroupingSetsOracle = true;
+
+    @Parameter(names = "--join-using-oracle", description = "JoinUsing oracle: JOIN USING(k) == JOIN ON a.k=b.k for INNER, LEFT, and a 3-table INNER chain. Multiset-exact via arraySort(groupArray(tuple)) for INNER/LEFT, exact-integer aggregate for the chain. Private fixtures with overlapping Int32 key domain and Int64 payload columns.", arity = 1)
+    public boolean joinUsingOracle = true;
+
+    @Parameter(names = "--paste-join-oracle", description = "PasteJoin oracle: PASTE JOIN positional row-zip == manually zipped Java model (exact integer values, ORDER BY both sides).", arity = 1)
+    public boolean pasteJoinOracle = true;
+
+    @Parameter(names = "--string-function-oracle", description = "StringFunction oracle: ASCII string function ground-truth (length/lengthUTF8/lower/upper/reverse/substring/position/countSubstrings/startsWith/endsWith/concat/repeat/replaceAll/empty/notEmpty) == Java model over a private fixture. ASCII-only inputs so byte length == char length and all mappings are trivial; replaceAll is literal.", arity = 1)
+    public boolean stringFunctionOracle = true;
+
+    @Parameter(names = "--timezone-datetime-oracle", description = "TimezoneDatetime oracle: datetime metamorphic identities (toStartOfInterval aliases, dateDiff antisymmetry/known deltas, UTC round-trip idempotency, monotone truncation) verified as zero-violation countIf checks over a numbers()-generated DateTime/Date32 set. No DDL; single-snapshot; exact integer result.", arity = 1)
+    public boolean timezoneDatetimeOracle = true;
+
+    @Parameter(names = "--window-frame-ground-truth-oracle", description = "WindowFrameGroundTruth oracle: window function results (row_number/rank/dense_rank/lag/lead/sum OVER) == Java ground truth computed from the sorted model data.", arity = 1)
+    public boolean windowFrameGroundTruthOracle = true;
+
+    @Parameter(names = "--bit-function-oracle", description = "BitFunction oracle: bitAnd/bitOr/bitXor/bitNot/bitShiftLeft/bitShiftRight/bitCount/bitTest vs Java unsigned-64-bit ground truth (SCALAR arm), and bitmapCardinality/bitmapAndCardinality vs Java distinct-count/set-intersection (BITMAP arm). All comparisons are exact integer; no floats.", arity = 1)
+    public boolean bitFunctionOracle = true;
+
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;
