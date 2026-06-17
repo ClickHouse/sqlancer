@@ -114,7 +114,7 @@ public class ClickHouseAsofJoinOracle implements TestOracle<ClickHouseGlobalStat
             }
 
             String query = "SELECT toString(R.val) FROM " + left + " AS L ASOF LEFT JOIN " + right
-                    + " AS R ON L.k = R.k AND L.ts >= R.ts ORDER BY L.k, L.ts";
+                    + " AS R ON L.k = R.k AND L.ts >= R.ts ORDER BY L.k, L.ts SETTINGS join_use_nulls = 1";
             logStmt(query);
             List<String> actual = ComparatorHelper.getResultSetFirstColumnAsString(query, readErrors, state);
 

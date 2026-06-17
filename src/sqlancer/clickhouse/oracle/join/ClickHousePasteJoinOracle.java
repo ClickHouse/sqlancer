@@ -81,15 +81,15 @@ public class ClickHousePasteJoinOracle implements TestOracle<ClickHouseGlobalSta
                 throw new IgnoreMeException();
             }
 
-            String query = "SELECT toString(tuple(x, y)) FROM (SELECT x FROM " + tableA + " ORDER BY id) AS a "
-                    + "PASTE JOIN (SELECT y FROM " + tableB + " ORDER BY id) AS b";
+            String query = "SELECT concat(toString(x), ',', toString(y)) FROM (SELECT x FROM " + tableA
+                    + " ORDER BY id) AS a PASTE JOIN (SELECT y FROM " + tableB + " ORDER BY id) AS b";
 
             List<Long> orderedX = new ArrayList<>(rowsA.values());
             List<Long> orderedY = new ArrayList<>(rowsB.values());
             int n = Math.min(orderedX.size(), orderedY.size());
             List<String> expected = new ArrayList<>(n);
             for (int i = 0; i < n; i++) {
-                expected.add("(" + orderedX.get(i) + "," + orderedY.get(i) + ")");
+                expected.add(orderedX.get(i) + "," + orderedY.get(i));
             }
 
             logStmt(query);
