@@ -35,8 +35,11 @@
   non-diagnostic system logs the same way — `metric_log`, `asynchronous_metric_log`,
   `query_metric_log`, `processors_profile_log` (moved here from the former `system_log_ttl.xml`,
   full remove beats a TTL cap), `query_thread_log`, `query_views_log`, `opentelemetry_span_log`,
-  `latency_log`, `blob_storage_log`, `backup_log`; `query_log`/`text_log`/`part_log`/`error_log`/
-  `crash_log` stay enabled for reproducer triage). Files must be mounted directly into config.d —
+  `latency_log`, `blob_storage_log`, `backup_log`, `text_log` (added 2026-06-17 — the
+  `database*.log` reproducers already carry the failing query + stack, so text_log is redundant for
+  triage and pure disk/IO overhead under the fuzzer statement rate; it is recreated only on server
+  start, so `DROP TABLE system.text_log` disables it on a live container without a restart);
+  `query_log`/`part_log`/`error_log`/`crash_log` stay enabled for reproducer triage). Files must be mounted directly into config.d —
   ClickHouse's config processor scans only flat `*.xml` files there, not subdirectories. The `sf_`
   prefix on each filename keeps them sorted next to the entrypoint-generated
   `docker_related_config.xml` for easy inspection. With 6 sqlancer threads these together hold the

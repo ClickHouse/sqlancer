@@ -16,10 +16,16 @@
          processors_profile_log is moved here from system_log_ttl.xml: a full remove beats the
          former 1-hour TTL (no writes vs capped retention).
 
-         DELIBERATELY KEPT ENABLED (do not add here): query_log and text_log are the canonical
-         reproducer-triage inputs (which query failed on which thread); part_log is the merge/part
-         lifecycle log that several MergeTree wrong-result bugs (merge-formed parts) are diagnosed
-         from; error_log and crash_log are tiny and load-bearing for triage. -->
+         DELIBERATELY KEPT ENABLED (do not add here): query_log is the canonical reproducer-triage
+         input (which query failed on which thread); part_log is the merge/part lifecycle log that
+         several MergeTree wrong-result bugs (merge-formed parts) are diagnosed from; error_log and
+         crash_log are tiny and load-bearing for triage.
+
+         text_log was moved to the removed set (it is recreated only on server start, so dropping it
+         at runtime disables it without a restart): the reproducer files (database*.log) already
+         carry the failing query + stack, so text_log is redundant for triage and is pure
+         disk/IO overhead under the fuzzer-paced statement rate. -->
+    <text_log remove="remove"/>
     <metric_log remove="remove"/>
     <asynchronous_metric_log remove="remove"/>
     <query_metric_log remove="remove"/>
