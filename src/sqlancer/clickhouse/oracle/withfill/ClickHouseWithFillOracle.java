@@ -76,8 +76,8 @@ public class ClickHouseWithFillOracle implements TestOracle<ClickHouseGlobalStat
                 throw new IgnoreMeException();
             }
 
-            String query = "SELECT toString(x) FROM (SELECT x FROM " + table + ") ORDER BY x WITH FILL FROM "
-                    + from + " TO " + to + " STEP " + step;
+            String query = "SELECT x FROM (SELECT x FROM " + table + ") ORDER BY x WITH FILL FROM " + from + " TO " + to
+                    + " STEP " + step;
 
             List<String> actual = ComparatorHelper.getResultSetFirstColumnAsString(query, errors, state);
             logStmt(query);

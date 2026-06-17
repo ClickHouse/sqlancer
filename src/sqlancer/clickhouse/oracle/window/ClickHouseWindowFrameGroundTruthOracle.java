@@ -171,9 +171,9 @@ public class ClickHouseWindowFrameGroundTruthOracle implements TestOracle<ClickH
         case LAST_VALUE:
             return String.valueOf(values.get(i));
         case LAG:
-            return i == 0 ? NULL_TOKEN : String.valueOf(values.get(i - 1));
+            return i == 0 ? "0" : String.valueOf(values.get(i - 1));
         case LEAD:
-            return i == n - 1 ? NULL_TOKEN : String.valueOf(values.get(i + 1));
+            return i == n - 1 ? "0" : String.valueOf(values.get(i + 1));
         default:
             throw new AssertionError(probe.name());
         }
