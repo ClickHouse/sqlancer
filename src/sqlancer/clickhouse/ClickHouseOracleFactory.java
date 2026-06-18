@@ -95,6 +95,9 @@ import sqlancer.clickhouse.oracle.arrayjoin.ClickHouseArrayJoinOracle;
 import sqlancer.clickhouse.oracle.window.ClickHouseWindowFrameGroundTruthOracle;
 import sqlancer.clickhouse.oracle.join.ClickHouseJoinUsingOracle;
 import sqlancer.clickhouse.oracle.withfill.ClickHouseWithFillOracle;
+import sqlancer.clickhouse.oracle.settingflip.ClickHouseSettingFlipOracle;
+import sqlancer.clickhouse.oracle.concurrentmutation.ClickHouseConcurrentMutationOracle;
+import sqlancer.clickhouse.oracle.lowcardinality.ClickHouseLowCardinalityEquivalenceOracle;
 import sqlancer.common.oracle.NoRECOracle;
 import sqlancer.common.oracle.TLPWhereOracle;
 import sqlancer.common.oracle.TestOracle;
@@ -732,6 +735,27 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseWithFillOracle(globalState);
+        }
+    },
+    SettingFlip {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseSettingFlipOracle(globalState);
+        }
+    },
+    ConcurrentMutation {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseConcurrentMutationOracle(globalState);
+        }
+    },
+    LowCardinalityEquivalence {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseLowCardinalityEquivalenceOracle(globalState);
         }
     }
 }

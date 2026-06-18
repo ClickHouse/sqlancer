@@ -61,20 +61,10 @@ public class ClickHouseExtendedDatetimeOracle implements TestOracle<ClickHouseGl
         String seedPre = "INSERT INTO " + t + " SELECT toDate32('1905-01-01') + toIntervalDay(number * 30) "
                 + "FROM numbers(9)";
 
-        boolean gateActive = pre1970 && !merged && !state.getClickHouseOptions().extendedDatetimeKnownOverflowArm;
-
         try {
             logStmt(create);
             if (!new SQLQueryAdapter(create, errors, true).execute(state)) {
                 throw new IgnoreMeException();
-            }
-            if (gateActive) {
-
-                String stopMerges = "SYSTEM STOP MERGES " + t;
-                logStmt(stopMerges);
-                if (!new SQLQueryAdapter(stopMerges, errors, false).execute(state)) {
-                    throw new IgnoreMeException();
-                }
             }
             for (String stmt : List.of(seedA, seedB)) {
                 logStmt(stmt);
@@ -104,10 +94,6 @@ public class ClickHouseExtendedDatetimeOracle implements TestOracle<ClickHouseGl
 
             for (int v = 0; v <= 1; v++) {
 
-                if (v == 0 && merged && pre1970
-                        && !state.getClickHouseOptions().extendedDatetimeKnownOverflowArm) {
-                    continue;
-                }
                 String settings = " SETTINGS enable_extended_results_for_datetime_functions = " + v;
                 String filterQuery = "SELECT toString(count()) FROM " + t + " WHERE " + pred + settings;
                 String rowEvalQuery = "SELECT toString(countIf(" + pred + ")) FROM " + t + settings;

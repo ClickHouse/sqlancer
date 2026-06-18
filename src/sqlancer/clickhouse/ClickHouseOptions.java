@@ -65,9 +65,6 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--join-reorder-allow-dropped-key-ref", description = "Let the JoinReorder oracle build ON clauses that reference a key column dropped by a preceding SEMI/ANTI join. Default false, PERMANENTLY: ClickHouse#107073 was closed by the optimizer team as by-design non-determinism -- columns read from the eliminated side of a SEMI/ANTI join are ANY-like (filled from whichever matching row arrives first), so any plan change or physical row-order change legally flips the result and a differential oracle comparing such queries is unsound. The restriction is therefore a soundness rule, not a temporary known-bug pin. Set true only to demonstrate the documented non-determinism.", arity = 1)
     public boolean joinReorderAllowDroppedKeyRef = false;
 
-    @Parameter(names = "--extended-datetime-known-overflow-arm", description = "Let the ExtendedDatetime oracle run its setting=0 (narrowing) arm against a merge-formed part with pre-1970 Date32 values. Default false: that exact combination is the known-open ClickHouse#106419 (toStartOf* filter returns 0 rows after a merge; monotonic-filter range poisoned by Date32->Date narrowing) and would re-fire on every run. When false the oracle still tests the non-merged pre-1970, merged post-1970, and the whole setting=1 surface. Set true to re-confirm #106419; remove the gate once it is fixed on head.", arity = 1)
-    public boolean extendedDatetimeKnownOverflowArm = false;
-
     @Parameter(names = "--prewhere-equivalence-oracle", description = "PrewhereEquivalence oracle: WHERE == PREWHERE == WHERE+optimize_move_to_prewhere=0 over a MergeTree table read (multiset compare).", arity = 1)
     public boolean prewhereEquivalenceOracle = true;
 
@@ -203,6 +200,15 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
 
     @Parameter(names = "--bit-function-oracle", description = "BitFunction oracle: bitAnd/bitOr/bitXor/bitNot/bitShiftLeft/bitShiftRight/bitCount/bitTest vs Java unsigned-64-bit ground truth (SCALAR arm), and bitmapCardinality/bitmapAndCardinality vs Java distinct-count/set-intersection (BITMAP arm). All comparisons are exact integer; no floats.", arity = 1)
     public boolean bitFunctionOracle = true;
+
+    @Parameter(names = "--setting-flip-oracle", description = "SettingFlip oracle: a single curated result-neutral setting (optimize_read_in_order / query_plan_* / compile_* / max_threads / group_by_two_level_threshold / ... ) flipped between two values must not change a ProjectionToggle-style integer-aggregate read. Data-driven catalog; deliberately excludes join-reorder and optimize_use_implicit_projections (known-unsound/known-buggy surfaces covered elsewhere).", arity = 1)
+    public boolean settingFlipOracle = true;
+
+    @Parameter(names = "--concurrent-mutation-oracle", description = "ConcurrentMutation oracle: while background threads (own connections) hammer multiset-preserving churn (OPTIMIZE FINAL / ALTER DELETE WHERE 0 / concurrent SELECTs) on a private multi-part MergeTree, repeated reads on the main connection must always equal the pre-churn baseline. Targets read-vs-merge/mutation race wrong-results unreachable by single-snapshot oracles.", arity = 1)
+    public boolean concurrentMutationOracle = true;
+
+    @Parameter(names = "--low-cardinality-equivalence-oracle", description = "LowCardinalityEquivalence oracle: over a private fixture with paired plain/LowCardinality columns (Int32, String, Nullable(Int32), FixedString(4)) holding identical values, any read (row projection / GROUP BY / uniqExact / predicate) over the plain columns must equal the same read over the LowCardinality twins.", arity = 1)
+    public boolean lowCardinalityEquivalenceOracle = true;
 
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
