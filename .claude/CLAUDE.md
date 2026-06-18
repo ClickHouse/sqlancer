@@ -127,38 +127,6 @@ before acting** — when an issue is fixed/closed, delete its entry from this li
   ALTER TABLE a UPDATE m = 1 WHERE k IN (SELECT x.k FROM (SELECT k FROM b) AS x
     JOIN b AS e ON e.k = x.k JOIN (SELECT k FROM b) AS y ON y.k = e.k);  -- Code 49 LOGICAL_ERROR
   ```
-- **[#106419](https://github.com/ClickHouse/ClickHouse/issues/106419)** — `WHERE toStartOf{Year,Month,Quarter}(Date32) < const` returns 0 rows after a merge when the column has pre-1970 values (Date32→Date narrowing overflows; monotonic-filter range poisoned). Needs a **merge-formed part**. **GATED** (2026-06-11): the `ExtendedDatetime` oracle deliberately constructs this exact surface (private Date32 table, pre-1970 outlier part, optional `OPTIMIZE FINAL`); its setting=0 arm on a merged+pre-1970 table is skipped unless `--extended-datetime-known-overflow-arm` is true, and the non-merged pre-1970 arm pins part topology with `SYSTEM STOP MERGES` so a background merge can't re-form the filed shape behind the gate. Set the flag true to re-confirm; **REMOVE the gate when #106419 is fixed on head.**
-  ```sql
-  CREATE TABLE t (c1 Date32) ENGINE=MergeTree ORDER BY tuple();
-  INSERT INTO t SELECT toDate32('1971-01-01')+toIntervalDay(number%18000) FROM numbers(9991);
-  INSERT INTO t SELECT toDate32('1905-01-01')+toIntervalDay(number*30)    FROM numbers(9);
-  OPTIMIZE TABLE t FINAL;
-  SELECT count() FROM t WHERE toStartOfYear(c1) < toStartOfYear(toDate('2021-06-15'));  -- 0 WRONG
-  SELECT countIf(toStartOfYear(c1) < toStartOfYear(toDate('2021-06-15'))) FROM t;       -- 9991 correct
-  ```
-- **[#106426](https://github.com/ClickHouse/ClickHouse/issues/106426)** — `LOGICAL_ERROR "Join restriction violated"` in `JoinOrderOptimizer::solveGreedy` on comma-join + LEFT JOIN with `IS NULL` in `ON` + cross-relation WHERE. Trigger = cardinality asymmetry (large comma table vs 1-row joined tables). `count()` masks it.
-  ```sql
-  CREATE TABLE t0 (c0 UInt64) ENGINE=MergeTree ORDER BY tuple();
-  CREATE TABLE t1 (c0 Int64, c1 String) ENGINE=MergeTree ORDER BY tuple();
-  CREATE TABLE t3 (c1 UInt64, c2 String) ENGINE=MergeTree ORDER BY tuple();
-  INSERT INTO t0 SELECT number FROM numbers(1000); INSERT INTO t1 VALUES (1,'a'); INSERT INTO t3 VALUES (1,'a');
-  SELECT * FROM t1, t3, t0 JOIN t3 AS right_0 ON (t1.c1=right_0.c2)
-    LEFT OUTER JOIN t3 AS right_1 ON (t1.c1=right_1.c2) AND (right_1.c2 IS NULL)
-    WHERE t1.c0 < t3.c1;   -- Code 49 LOGICAL_ERROR
-  ```
-- **[#106262](https://github.com/ClickHouse/ClickHouse/issues/106262)** — `col = const` equality drops rows when the ORDER BY key is a NaN-producing function (`sqrt`/`log` of negatives): the range KeyCondition becomes `[nan, nan]`. `IN (const)` works; range predicates work.
-  ```sql
-  CREATE TABLE t (c0 Int32) ENGINE=MergeTree ORDER BY sqrt(c0) SETTINGS allow_suspicious_indices=1, index_granularity=4;
-  INSERT INTO t SELECT number-50 FROM numbers(100);
-  SELECT countIf(c0=-30) FROM t;             -- 1 (exists)
-  SELECT count() FROM t WHERE c0=-30;        -- 0 WRONG
-  ```
-- **[#106124](https://github.com/ClickHouse/ClickHouse/issues/106124)** — partition pruning with `intDiv`/divide by a **negative** constant drops rows for range predicates (decreasing fn flips the inequality in the partition KeyCondition). *(Fix PR may be in flight — re-check state.)*
-  ```sql
-  CREATE TABLE t (c1 UInt32) ENGINE=MergeTree() ORDER BY tuple() PARTITION BY intDiv(c1,-683);
-  INSERT INTO t VALUES (0),(1),(700),(5000),(9976);
-  SELECT count() FROM t WHERE c1 < 1000;     -- 1 WRONG (expected 3)
-  ```
 - **[#106125](https://github.com/ClickHouse/ClickHouse/issues/106125)** — SummingMergeTree FINAL drops a present row when the query reads only a summation column that is 0 for that row (read-in-order + column pruning). **Measure with row output, not `count()`** (count() masks it).
   ```sql
   CREATE TABLE s (c0 UInt32, v_keep Int32, v_zero UInt32) ENGINE=SummingMergeTree ORDER BY c0;
