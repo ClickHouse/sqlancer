@@ -195,25 +195,7 @@ public class ClickHouseTableGenerator {
                 sb.append(sampleByColumn);
             }
 
-            sb.append(" SETTINGS allow_suspicious_indices=1, allow_nullable_key=1");
-            if (Randomly.getBooleanWithSmallProbability()) {
-                sb.append(", min_bytes_for_wide_part=0");
-            }
-
-            if (Randomly.getBooleanWithSmallProbability()) {
-                sb.append(", index_granularity=").append(Randomly.fromOptions(1L, 2L, 4L, 8L));
-            }
-            if (Randomly.getBooleanWithSmallProbability()) {
-                sb.append(", enable_mixed_granularity_parts=1");
-            }
-            if (Randomly.getBooleanWithSmallProbability()) {
-                sb.append(", ratio_of_defaults_for_sparse_serialization=")
-                        .append(Randomly.fromOptions(0.0, 0.5, 0.95, 1.0));
-            }
-
-            if (Randomly.getBooleanWithRatherLowProbability()) {
-                sb.append(", enable_block_number_column=1, enable_block_offset_column=1");
-            }
+            sb.append(renderMergeTreeSettings());
         }
 
     }
@@ -329,6 +311,60 @@ public class ClickHouseTableGenerator {
         return "";
     }
 
+    private String renderMergeTreeSettings() {
+        List<String> settings = new ArrayList<>();
+        settings.add("allow_suspicious_indices=1");
+        settings.add("allow_nullable_key=1");
+
+        if (Randomly.getBooleanWithSmallProbability()) {
+            settings.add("min_bytes_for_wide_part=" + Randomly.fromOptions(0L, 0L, 1L, 1048576L, 10485760L));
+        }
+        if (Randomly.getBooleanWithSmallProbability()) {
+            settings.add("min_rows_for_wide_part=" + Randomly.fromOptions(0L, 1L, 1024L, 1048576L));
+        }
+        if (Randomly.getBooleanWithSmallProbability()) {
+            settings.add("min_bytes_for_full_part_storage=" + Randomly.fromOptions(0L, 1L, 1048576L));
+        }
+        if (Randomly.getBooleanWithSmallProbability()) {
+            settings.add("min_rows_for_full_part_storage=" + Randomly.fromOptions(0L, 1L, 1024L));
+        }
+        if (Randomly.getBooleanWithSmallProbability()) {
+            settings.add("index_granularity=" + Randomly.fromOptions(1L, 2L, 4L, 8L));
+        }
+        if (Randomly.getBooleanWithSmallProbability()) {
+            settings.add("index_granularity_bytes=" + Randomly.fromOptions(0L, 1024L, 10485760L));
+        }
+        if (Randomly.getBooleanWithSmallProbability()) {
+            settings.add("enable_mixed_granularity_parts=1");
+        }
+        if (Randomly.getBooleanWithSmallProbability()) {
+            settings.add("enable_vertical_merge_algorithm=" + Randomly.fromOptions(0, 1));
+        }
+        if (Randomly.getBooleanWithSmallProbability()) {
+            settings.add("vertical_merge_algorithm_min_rows_to_activate=" + Randomly.fromOptions(0L, 1L, 1000L));
+        }
+        if (Randomly.getBooleanWithSmallProbability()) {
+            settings.add("vertical_merge_algorithm_min_columns_to_activate=" + Randomly.fromOptions(0L, 1L, 2L));
+        }
+        if (Randomly.getBooleanWithSmallProbability()) {
+            settings.add("merge_max_block_size=" + Randomly.fromOptions(1L, 1024L, 8192L));
+        }
+        if (Randomly.getBooleanWithSmallProbability()) {
+            settings.add("ratio_of_defaults_for_sparse_serialization="
+                    + Randomly.fromOptions(0.0, 0.5, 0.95, 1.0));
+        }
+        if (Randomly.getBooleanWithSmallProbability()) {
+            settings.add("min_compress_block_size=" + Randomly.fromOptions(0L, 65536L));
+            settings.add("max_compress_block_size=" + Randomly.fromOptions(65536L, 1048576L));
+        }
+        if (Randomly.getBooleanWithRatherLowProbability()) {
+            settings.add("enable_block_number_column=1");
+            settings.add("enable_block_offset_column=1");
+        }
+
+        return " SETTINGS " + String.join(", ", settings);
+    }
+
     private boolean isValidReplacingVer(ClickHouseSchema.ClickHouseColumn col) {
         sqlancer.clickhouse.ClickHouseType term = col.getType().getTypeTerm();
         if (term instanceof sqlancer.clickhouse.ClickHouseType.Nullable
@@ -407,11 +443,12 @@ public class ClickHouseTableGenerator {
         List<String[]> candidates = new ArrayList<>();
         candidates.add(new String[] { col.getName(), "bloom_filter(0.01)" });
         candidates.add(new String[] { col.getName(), "set(100)" });
-        if (t == ClickHouseDataType.Int32 || t == ClickHouseDataType.String) {
+        if (isBareKeyColumn(col)) {
             candidates.add(new String[] { col.getName(), "minmax" });
         }
         if (t == ClickHouseDataType.String) {
             candidates.add(new String[] { col.getName(), "ngrambf_v1(3, 256, 2, 0)" });
+            candidates.add(new String[] { col.getName(), "tokenbf_v1(256, 2, 0)" });
         }
         if (textTarget != null) {
             candidates.add(new String[] { textTarget, "text(tokenizer = " + pickTokenizer() + ")" });

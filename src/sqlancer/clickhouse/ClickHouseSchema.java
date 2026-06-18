@@ -518,6 +518,7 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
 
     private static List<ClickHouseColumn> getTableColumns(SQLConnection con, String tableName) throws SQLException {
         List<ClickHouseColumn> columns = new ArrayList<>();
+        List<ClickHouseColumn> ephemeral = new ArrayList<>();
         try (Statement s = con.createStatement()) {
             try (ResultSet rs = s.executeQuery("DESCRIBE " + tableName)) {
                 while (rs.next()) {
@@ -528,11 +529,15 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
                     boolean isMaterialized = "MATERIALIZED".compareTo(defaultType) == 0;
                     ClickHouseColumn c = new ClickHouseColumn(columnName, getColumnType(dataType), isAlias,
                             isMaterialized, null);
-                    columns.add(c);
+                    if ("EPHEMERAL".compareTo(defaultType) == 0) {
+                        ephemeral.add(c);
+                    } else {
+                        columns.add(c);
+                    }
                 }
             }
         }
-        return columns;
+        return columns.isEmpty() ? ephemeral : columns;
     }
 
 }

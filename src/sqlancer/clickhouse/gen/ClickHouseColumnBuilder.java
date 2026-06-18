@@ -21,9 +21,10 @@ public class ClickHouseColumnBuilder {
     private static boolean allowMaterialized = true;
     private static boolean allowDefaultValue = true;
     private static boolean allowCodec = true;
+    private static boolean allowEphemeral = true;
 
     private enum Constraints {
-        DEFAULT, MATERIALIZED, CODEC, STATISTICS, ALIAS
+        DEFAULT, MATERIALIZED, CODEC, STATISTICS, ALIAS, EPHEMERAL
     }
 
     private static final List<String> STATISTICS_KINDS_NUMERIC = List.of("tdigest", "uniq", "countmin", "minmax");
@@ -49,13 +50,22 @@ public class ClickHouseColumnBuilder {
             if (!allowAlias || columns.isEmpty() || columns.size() == 1) {
                 constraints.remove(Constraints.ALIAS);
             }
+            if (!allowEphemeral || columns.size() <= 1) {
+                constraints.remove(Constraints.EPHEMERAL);
+            }
             if (!allowMaterialized) {
                 constraints.remove(Constraints.MATERIALIZED);
             }
             if (!allowDefaultValue) {
                 constraints.remove(Constraints.DEFAULT);
             }
-            if (constraints.contains(Constraints.MATERIALIZED)) {
+            if (constraints.contains(Constraints.EPHEMERAL)) {
+                constraints.remove(Constraints.DEFAULT);
+                constraints.remove(Constraints.MATERIALIZED);
+                constraints.remove(Constraints.ALIAS);
+                constraints.remove(Constraints.CODEC);
+                constraints.remove(Constraints.STATISTICS);
+            } else if (constraints.contains(Constraints.MATERIALIZED)) {
                 constraints.remove(Constraints.ALIAS);
                 constraints.remove(Constraints.DEFAULT);
             } else if (constraints.contains(Constraints.ALIAS)) {
@@ -99,6 +109,16 @@ public class ClickHouseColumnBuilder {
                     sb.append(" ALIAS ");
                     sb.append(Randomly.fromList(columns.stream().filter(p -> !p.getName().contentEquals(columnName))
                             .collect(Collectors.toList())).getName());
+                }
+                break;
+            case EPHEMERAL:
+                if (allowEphemeral) {
+                    sb.append(" EPHEMERAL");
+                    if (Randomly.getBoolean()) {
+                        sb.append(" ");
+                        sb.append(ClickHouseVisitor
+                                .asString(new ClickHouseExpressionGenerator(globalState).generateConstant(dataType)));
+                    }
                 }
                 break;
             case CODEC:
