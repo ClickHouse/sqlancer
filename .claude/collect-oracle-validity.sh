@@ -17,12 +17,17 @@ JAR="$ROOT/target/sqlancer-2.0.0.jar"
 CFG="$ROOT/.claude/clickhouse-config"
 DUR="${DUR:-50}"
 THREADS="${THREADS:-6}"
+HEAP="${HEAP:-8g}"
+CH_CPUS="${CH_CPUS:-10}"
+CH_MEM="${CH_MEM:-10g}"
 OUTDIR="$ROOT/val"
 
-# Full current oracle set (from run-sqlancer.sh ALL_ORACLES).
-IFS=',' read -r -a ORACLES <<< "TLPWhere,TLPDistinct,TLPGroupBy,TLPAggregate,TLPHaving,NoREC,PQS,CERT,CODDTest,SEMR,SEMRMulti,EET,SetOpTLP,CombinatorTLP,QccCache,SortedUnionLimitBy,SchemaRoundtrip,JoinAlgorithm,Cast,Parallelism,PartitionMirror,KeyCondition,TableFunctionIN,ViewEquivalence,AggregateStateRoundtrip,MaterializedViewConsistency,FinalMerge,ProjectionToggle,PatchPartConsistency,DictGetVsJoin,WindowEquivalence,DynamicSubcolumn,SubqueryMaterialize,MutationAnalyzer,TextIndexLike,TopK,JoinReorder,NaturalJoin,JsonSkipIndex,MaterializedCte,StatsToggle,ExtendedDatetime,JoinUseNulls,QueryCache,TextIndexDirectRead,TextIndexContainer,TextIndexLifecycle"
+# Full current oracle set (mirrors run-sqlancer.sh ALL_ORACLES, 91 oracles),
+# reordered so the branch-relevant oracles run first.
+IFS=',' read -r -a ORACLES <<< "${ORACLES:-PQS,CERT,CODDTest,AsofJoin,CubeGroupingSets,PasteJoin,CorrelatedSubquery,BitFunction,ArrayFunction,StringFunction,AggregateFunctionColumn,TimezoneDatetime,ArrayJoinUnfold,WindowFrameGroundTruth,JoinUsing,WithFill,TLPWhere,TLPDistinct,TLPGroupBy,TLPAggregate,TLPHaving,NoREC,SEMR,SEMRMulti,EET,SetOpTLP,CombinatorTLP,QccCache,SortedUnionLimitBy,SchemaRoundtrip,JoinAlgorithm,Cast,Parallelism,PartitionMirror,KeyCondition,TableFunctionIN,ViewEquivalence,AggregateStateRoundtrip,MaterializedViewConsistency,FinalMerge,ProjectionToggle,PatchPartConsistency,DictGetVsJoin,WindowEquivalence,DynamicSubcolumn,SubqueryMaterialize,MutationAnalyzer,TextIndexLike,TopK,JoinReorder,NaturalJoin,JsonSkipIndex,MaterializedCte,StatsToggle,ExtendedDatetime,JoinUseNulls,QueryCache,TextIndexDirectRead,TextIndexContainer,TextIndexLifecycle,PrewhereEquivalence,ReadInOrderToggle,CountOptimization,LazyMaterializationToggle,ReplacingDedup,QuantileConsistency,UniqExactness,ArgExtremum,MaterializedColumn,GroupingDecomposition,LimitRanking,WindowFrame,SemiJoinRewrite,ColumnTransformer,EngineEquivalence,CoalescingFinal,JoinGetSet,RemoteLocalEquivalence,MapTupleContainer,GeoMetamorphic,VariantSubcolumn,AggregateStateExpansion,SequenceFunnel,PartitionLifecycle,AlterModifyConsistency,TtlDeterminism,InsertDedup,TokenBf,VectorIndexRecall,SampleClause,DistributedTable}"
 
-rm -rf "$OUTDIR"; mkdir -p "$OUTDIR"
+[ -z "${RESUME:-}" ] && rm -rf "$OUTDIR"
+mkdir -p "$OUTDIR"
 
 echo "==> docker pull clickhouse/clickhouse-server:head"
 docker pull -q clickhouse/clickhouse-server:head
@@ -31,7 +36,7 @@ docker rm -f "$NAME" >/dev/null 2>&1 || true
 
 echo "==> starting $NAME on :$PORT"
 docker run --ulimit nofile=262144:262144 --name "$NAME" -p "$PORT":8123 -d \
-  --cpus=10 -m=10g \
+  --cpus="$CH_CPUS" -m="$CH_MEM" \
   -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 -e CLICKHOUSE_SKIP_USER_SETUP=1 \
   -v "$CFG/log_level.xml:/etc/clickhouse-server/config.d/sf_log_level.xml:ro" \
   -v "$CFG/trace_log_disabled.xml:/etc/clickhouse-server/config.d/sf_trace_log_disabled.xml:ro" \
@@ -54,7 +59,7 @@ for O in "${ORACLES[@]}"; do
   rm -f logs/clickhouse/database*.log 2>/dev/null || true
 
   set +e
-  timeout $((DUR+40)) java -Xmx8g -jar "$JAR" \
+  timeout -k 30 $((DUR+40)) java -Xmx"$HEAP" -jar "$JAR" \
     --num-threads "$THREADS" --num-tries 999999 --timeout-seconds "$DUR" \
     --use-connection-test false --print-progress-summary true \
     --host 127.0.0.1 --port "$PORT" --username default --password "" \
@@ -64,6 +69,10 @@ for O in "${ORACLES[@]}"; do
 
   CH -q "SYSTEM FLUSH LOGS" 2>/dev/null || true
   REPROS=$(find logs/clickhouse -maxdepth 1 -name 'database*.log' ! -name '*-cur.log' 2>/dev/null | wc -l)
+  if [ "$REPROS" -gt 0 ]; then
+    mkdir -p "$OUTDIR/$O.repros"
+    find logs/clickhouse -maxdepth 1 -name 'database*.log' ! -name '*-cur.log' -exec cp {} "$OUTDIR/$O.repros/" \; 2>/dev/null || true
+  fi
 
   {
     echo "=== ORACLE: $O ==="

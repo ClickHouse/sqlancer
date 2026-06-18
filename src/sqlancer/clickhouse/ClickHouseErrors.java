@@ -192,7 +192,11 @@ public final class ClickHouseErrors {
                 "Projection with name", "NO_SUCH_PROJECTION_IN_TABLE", "ILLEGAL_PROJECTION",
                 "Projection is fully supported", "projection", "Cannot add projection",
 
-                "Cannot add index", "index with name", "NO_SUCH_DATA_PART", "already exists");
+                "Cannot add index", "index with name", "NO_SUCH_DATA_PART", "already exists",
+
+                "Cannot drop statistics", "Statistics of type", "CANNOT_CONVERT_TYPE",
+                "is not supported: In scope _CAST", "Conversion from", "There is no column",
+                "Cannot convert type", "is not supported for specified type", "codec is not supported");
     }
 
     public static void addAlterErrors(ExpectedErrors errors) {
@@ -213,7 +217,7 @@ public final class ClickHouseErrors {
     public static List<String> getMutationErrors() {
         return List.of("TIMEOUT_EXCEEDED", "Cannot UPDATE key column", "Cannot DELETE", "Mutation cannot be executed",
 
-                "affects MATERIALIZED column",
+                "CANNOT_UPDATE_COLUMN", "Cannot UPDATE materialized column", "affects MATERIALIZED column",
                 "Mutations are not supported by", "UNFINISHED_MUTATION", "Cannot read from", "Lightweight DELETE",
                 "_row_exists", "Background mutation", "ATTEMPT_TO_READ_AFTER_EOF", "Cannot find column",
 

@@ -702,12 +702,16 @@ public class ClickHouseExpressionGenerator
         return cols.stream().filter(c -> isNumeric(c.getColumn().getType().getType())).collect(Collectors.toList());
     }
 
-    private static List<ClickHouseColumnReference> integerColumns(List<ClickHouseColumnReference> cols) {
+    public static List<ClickHouseColumnReference> integerColumns(List<ClickHouseColumnReference> cols) {
         return cols.stream().filter(c -> isInteger(c.getColumn().getType().getType())).collect(Collectors.toList());
     }
 
     private static boolean isNumeric(ClickHouseDataType type) {
         return isInteger(type) || type == ClickHouseDataType.Float32 || type == ClickHouseDataType.Float64;
+    }
+
+    private static boolean isFloat(ClickHouseDataType type) {
+        return type == ClickHouseDataType.Float32 || type == ClickHouseDataType.Float64;
     }
 
     private static boolean isInteger(ClickHouseDataType type) {
@@ -839,8 +843,14 @@ public class ClickHouseExpressionGenerator
         List<ClickHouseColumnReference[]> numericPairs = new ArrayList<>();
         for (ClickHouseColumnReference l : leftColumns) {
             ClickHouseDataType lt = l.getColumn().getType().getType();
+            if (isFloat(lt)) {
+                continue;
+            }
             for (ClickHouseColumnReference r : rightColumns) {
                 ClickHouseDataType rt = r.getColumn().getType().getType();
+                if (isFloat(rt)) {
+                    continue;
+                }
                 if (lt == rt) {
                     sameType.add(new ClickHouseColumnReference[] { l, r });
                 } else if (isNumeric(lt) && isNumeric(rt)) {

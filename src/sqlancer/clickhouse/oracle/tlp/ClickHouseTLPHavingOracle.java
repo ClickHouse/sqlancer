@@ -14,10 +14,12 @@ import sqlancer.clickhouse.ClickHouseErrors;
 import sqlancer.clickhouse.ClickHouseProvider;
 import sqlancer.clickhouse.ClickHouseVisitor;
 import sqlancer.clickhouse.ast.ClickHouseAggregate;
+import sqlancer.clickhouse.ast.ClickHouseColumnReference;
 import sqlancer.clickhouse.ast.ClickHouseExpression;
 import sqlancer.clickhouse.ast.ClickHouseSelect;
 import sqlancer.clickhouse.ast.ClickHouseUnaryPostfixOperation;
 import sqlancer.clickhouse.ast.ClickHouseUnaryPrefixOperation;
+import sqlancer.clickhouse.gen.ClickHouseExpressionGenerator;
 
 public class ClickHouseTLPHavingOracle extends ClickHouseTLPBase {
 
@@ -29,12 +31,16 @@ public class ClickHouseTLPHavingOracle extends ClickHouseTLPBase {
     @Override
     public void check() throws SQLException {
         super.check();
+        List<ClickHouseColumnReference> intCols = ClickHouseExpressionGenerator.integerColumns(columns);
+        if (intCols.isEmpty()) {
+            throw new IgnoreMeException();
+        }
         List<ClickHouseExpression> groupByColumns = IntStream.range(0, 1 + Randomly.smallNumber())
                 .mapToObj(i -> gen.generateExpressionWithColumns(columns, 6)).collect(Collectors.toList());
 
         List<ClickHouseExpression> fetchColumns = new ArrayList<>(groupByColumns);
         IntStream.range(0, 1 + Randomly.smallNumber())
-                .forEach(i -> fetchColumns.add(new ClickHouseAggregate(gen.generateExpressionWithColumns(columns, 3),
+                .forEach(i -> fetchColumns.add(new ClickHouseAggregate(Randomly.fromList(intCols),
                         Randomly.fromOptions(ClickHouseAggregate.ClickHouseAggregateFunction.MIN,
                                 ClickHouseAggregate.ClickHouseAggregateFunction.MAX,
                                 ClickHouseAggregate.ClickHouseAggregateFunction.SUM))));
