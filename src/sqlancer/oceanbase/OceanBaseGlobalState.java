@@ -1,4 +1,3 @@
-
 package sqlancer.oceanbase;
 
 import java.sql.SQLException;

@@ -18,9 +18,9 @@ public final class YSQLSequenceGenerator {
             sb.append(Randomly.fromOptions("TEMPORARY", "TEMP"));
         }
         sb.append(" SEQUENCE");
-        // TODO keep track of sequences
+
         sb.append(" IF NOT EXISTS");
-        // TODO generate sequence names
+
         sb.append(" seq");
         if (Randomly.getBoolean()) {
             sb.append(" AS ");
@@ -78,11 +78,9 @@ public final class YSQLSequenceGenerator {
         }
         if (Randomly.getBoolean()) {
             sb.append(" OWNED BY ");
-            // if (Randomly.getBoolean()) {
+
             sb.append("NONE");
-            // } else {
-            // sb.append(s.getRandomTable().getRandomColumn().getFullQualifiedName());
-            // }
+
         }
         return new SQLQueryAdapter(sb.toString(), errors);
     }

@@ -27,13 +27,13 @@ public final class DatabendRandomQuerySynthesizer {
         DatabendTables targetTables = globalState.getSchema().getRandomTableNonEmptyAndViewTables();
         List<DatabendColumn> targetColumns = targetTables.getColumns();
         DatabendNewExpressionGenerator gen = new DatabendNewExpressionGenerator(globalState).setColumns(targetColumns);
-        // boolean allowAggregates = Randomly.getBooleanWithSmallProbability();
+
         List<DatabendExpression> columns = new ArrayList<>();
         HashSet<DatabendColumnValue> columnOfLeafNode = new HashSet<>();
         gen.setColumnOfLeafNode(columnOfLeafNode);
         int freeColumns = targetColumns.size();
         for (int i = 0; i < nrColumns; i++) {
-            // if (allowAggregates && Randomly.getBoolean()) {
+
             DatabendExpression column = null;
             if (freeColumns > 0 && Randomly.getBoolean()) {
                 column = new DatabendColumnValue(targetColumns.get(freeColumns - 1), null);
@@ -62,12 +62,10 @@ public final class DatabendRandomQuerySynthesizer {
 
         if (Randomly.getBoolean() && !noExprColumns.isEmpty() && !isDistinct) {
             select.setOrderByClauses(Randomly.nonEmptySubset(noExprColumns));
-            // TODO (for SELECT DISTINCT, ORDER BY expressions must appear in select list)
-            // isDistinct
-            // 需要orderby输入每个select list，可以用数字代替比如：1,2,3...
+
         }
 
-        if (Randomly.getBoolean()) { // 可能产生新的column叶子结点
+        if (Randomly.getBoolean()) {
             select.setHavingClause(gen.generateHavingClause());
         }
 

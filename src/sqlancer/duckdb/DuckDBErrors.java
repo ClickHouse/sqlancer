@@ -24,14 +24,14 @@ public final class DuckDBErrors {
         errors.add("Unimplemented type for cast");
 
         errors.add("Escape string must be empty or one character.");
-        errors.add("Type mismatch when combining rows"); // BETWEEN
+        errors.add("Type mismatch when combining rows");
 
-        errors.add("invalid UTF-8"); // TODO
+        errors.add("invalid UTF-8");
         errors.add("String value is not valid UTF8");
 
-        errors.add("Invalid TypeId "); // TODO
+        errors.add("Invalid TypeId ");
 
-        errors.add("GROUP BY clause cannot contain aggregates!"); // investigate
+        errors.add("GROUP BY clause cannot contain aggregates!");
 
         errors.addAll(getRegexErrors());
 
@@ -41,20 +41,18 @@ public final class DuckDBErrors {
         errors.add("Out of Range");
         errors.add("Date out of range");
 
-        // collate
         errors.add("Cannot combine types with different collation!");
         errors.add("collations are only supported for type varchar");
         errors.add("COLLATE can only be applied to varchar columns");
 
-        errors.add("Like pattern must not end with escape character!"); // LIKE
+        errors.add("Like pattern must not end with escape character!");
 
-        errors.add("does not have a column named"); // TODO: this only happens for views whose underlying table has a
-                                                    // removed column
+        errors.add("does not have a column named");
+
         errors.add("Contents of view were altered: types don't match!");
         errors.add("Not implemented: ROUND(DECIMAL, INTEGER) with non-constant precision is not supported");
         errors.add("ORDER BY non-integer literal has no effect");
 
-        // timestamp
         errors.add("Cannot subtract infinite timestamps");
         errors.add("Timestamp difference is out of bounds");
 
@@ -88,23 +86,23 @@ public final class DuckDBErrors {
         ArrayList<String> errors = new ArrayList<>();
 
         errors.add("SUBSTRING cannot handle negative lengths");
-        errors.add("is undefined outside [-1,1]"); // ACOS etc
-        errors.add("invalid type specifier"); // PRINTF
-        errors.add("argument index out of range"); // PRINTF
-        errors.add("invalid format string"); // PRINTF
-        errors.add("number is too big"); // PRINTF
-        errors.add("Like pattern must not end with escape character!"); // LIKE
-        errors.add("Could not choose a best candidate function for the function call \"date_part"); // date_part
-        errors.add("extract specifier"); // date_part
-        errors.add("not recognized"); // date_part
-        errors.add("not supported"); // date_part
+        errors.add("is undefined outside [-1,1]");
+        errors.add("invalid type specifier");
+        errors.add("argument index out of range");
+        errors.add("invalid format string");
+        errors.add("number is too big");
+        errors.add("Like pattern must not end with escape character!");
+        errors.add("Could not choose a best candidate function for the function call \"date_part");
+        errors.add("extract specifier");
+        errors.add("not recognized");
+        errors.add("not supported");
         errors.add("Failed to cast");
         errors.add("Conversion Error");
         errors.add("Could not cast value");
-        errors.add("Insufficient padding in RPAD"); // RPAD
-        errors.add("Could not choose a best candidate function for the function call"); // monthname
-        errors.add("expected a numeric precision field"); // ROUND
-        errors.add("with non-constant precision is not supported"); // ROUND
+        errors.add("Insufficient padding in RPAD");
+        errors.add("Could not choose a best candidate function for the function call");
+        errors.add("expected a numeric precision field");
+        errors.add("with non-constant precision is not supported");
 
         return errors;
     }
@@ -123,9 +121,9 @@ public final class DuckDBErrors {
         errors.add("Unimplemented type for cast");
         errors.add("field value out of range");
         errors.add("CHECK constraint failed");
-        errors.add("Cannot explicitly insert values into rowid column"); // TODO: don't insert into rowid
-        errors.add(" Column with name rowid does not exist!"); // currently, there doesn't seem to way to determine if
-                                                               // the table has a primary key
+        errors.add("Cannot explicitly insert values into rowid column");
+        errors.add(" Column with name rowid does not exist!");
+
         errors.add("Could not cast value");
         errors.add("create unique index, table contains duplicate data");
         errors.add("Failed to cast");

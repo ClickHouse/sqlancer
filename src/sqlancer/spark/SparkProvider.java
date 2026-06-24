@@ -92,10 +92,8 @@ public class SparkProvider extends SQLProviderAdapter<SparkGlobalState, SparkOpt
 
         String databaseName = globalState.getDatabaseName();
 
-        // Spark uses the Hive driver for JDBC usually
         String url = String.format("jdbc:hive2://%s:%d/%s", host, port, "default");
 
-        // Connect to default to create the fuzzing DB
         Connection con = DriverManager.getConnection(url, username, password);
         try (Statement s = con.createStatement()) {
             s.execute("DROP DATABASE IF EXISTS " + databaseName + " CASCADE");
@@ -105,12 +103,10 @@ public class SparkProvider extends SQLProviderAdapter<SparkGlobalState, SparkOpt
         }
         con.close();
 
-        // Connect to the specific fuzzing DB
         con = DriverManager.getConnection(String.format("jdbc:hive2://%s:%d/%s", host, port, databaseName), username,
                 password);
         try (Statement s = con.createStatement()) {
-            // This allows casting things like BOOLEAN to DATE/TIMESTAMP, which the
-            // generator loves to do.
+
             s.execute("SET spark.sql.ansi.enabled=false");
         }
         return new SQLConnection(con);

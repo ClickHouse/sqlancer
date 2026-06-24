@@ -41,11 +41,11 @@ public class YCQLProvider extends SQLProviderAdapter<YCQLGlobalState, YCQLOption
 
     public enum Action implements AbstractAction<YCQLGlobalState> {
 
-        ALTER(YCQLAlterTableGenerator::getQuery), //
-        INSERT(YCQLInsertGenerator::getQuery), //
-        CREATE_INDEX(YCQLIndexGenerator::getQuery), //
-        DELETE(YCQLDeleteGenerator::generate), //
-        UPDATE(YCQLUpdateGenerator::getQuery), //
+        ALTER(YCQLAlterTableGenerator::getQuery),
+        INSERT(YCQLInsertGenerator::getQuery),
+        CREATE_INDEX(YCQLIndexGenerator::getQuery),
+        DELETE(YCQLDeleteGenerator::generate),
+        UPDATE(YCQLUpdateGenerator::getQuery),
         EXPLAIN((g) -> {
             ExpectedErrors errors = new ExpectedErrors();
             YCQLErrors.addExpressionErrors(errors);
@@ -105,7 +105,7 @@ public class YCQLProvider extends SQLProviderAdapter<YCQLGlobalState, YCQLOption
             } while (!success);
         }
         if (globalState.getSchema().getDatabaseTables().isEmpty()) {
-            throw new IgnoreMeException(); // TODO
+            throw new IgnoreMeException();
         }
         StatementExecutor<YCQLGlobalState, Action> se = new StatementExecutor<>(globalState, Action.values(),
                 YCQLProvider::mapActions, (q) -> {
@@ -143,7 +143,7 @@ public class YCQLProvider extends SQLProviderAdapter<YCQLGlobalState, YCQLOption
                 try {
                     stmt.execute("DROP KEYSPACE IF EXISTS " + globalState.getDatabaseName());
                 } catch (Exception se) {
-                    // try again
+
                     List<String> tableNames = getTableNames(
                             new SQLConnection(DriverManager.getConnection(String.format(url, host, port,
                                     globalState.getDatabaseName(), globalState.getDbmsSpecificOptions().datacenter))),

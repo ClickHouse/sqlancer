@@ -38,7 +38,7 @@ public class SQLite3TLPHavingOracle implements TestOracle<SQLite3GlobalState> {
     public SQLite3TLPHavingOracle(SQLite3GlobalState state) {
         this.state = state;
         SQLite3Errors.addExpectedExpressionErrors(errors);
-        errors.add("no such column"); // FIXME why?
+        errors.add("no such column");
         errors.add("ON clause references tables to its right");
     }
 
@@ -58,7 +58,7 @@ public class SQLite3TLPHavingOracle implements TestOracle<SQLite3GlobalState> {
         select.setJoinClauses(joinStatements);
         select.setSelectType(SelectType.ALL);
         select.setFromList(from);
-        // TODO order by?
+
         select.setGroupByClause(groupByColumns);
         select.setHavingClause(null);
         String originalQueryString = SQLite3Visitor.asString(select);

@@ -6,7 +6,7 @@ import sqlancer.common.visitor.UnaryOperation.OperatorKind;
 
 public abstract class ToStringVisitor<T> extends NodeVisitor<T> {
 
-    protected final StringBuilder sb = new StringBuilder();
+    protected final StringBuilder sb = new StringBuilder(512);
 
     public void visit(BinaryOperation<T> op) {
         sb.append('(');

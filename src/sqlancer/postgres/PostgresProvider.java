@@ -53,14 +53,9 @@ import sqlancer.postgres.gen.PostgresUpdateGenerator;
 import sqlancer.postgres.gen.PostgresVacuumGenerator;
 import sqlancer.postgres.gen.PostgresViewGenerator;
 
-// EXISTS
-// IN
 @AutoService(DatabaseProvider.class)
 public class PostgresProvider extends SQLProviderAdapter<PostgresGlobalState, PostgresOptions> {
 
-    /**
-     * Generate only data types and expressions that are understood by PQS.
-     */
     public static boolean generateOnlyKnown;
 
     protected String entryURL;
@@ -83,10 +78,10 @@ public class PostgresProvider extends SQLProviderAdapter<PostgresGlobalState, Po
     }
 
     public enum Action implements AbstractAction<PostgresGlobalState> {
-        ANALYZE(PostgresAnalyzeGenerator::create), //
+        ANALYZE(PostgresAnalyzeGenerator::create),
         ALTER_TABLE(g -> PostgresAlterTableGenerator.create(g.getSchema().getRandomTable(t -> !t.isView()), g,
-                generateOnlyKnown)), //
-        CLUSTER(PostgresClusterGenerator::create), //
+                generateOnlyKnown)),
+        CLUSTER(PostgresClusterGenerator::create),
         COMMIT(g -> {
             SQLQueryAdapter query;
             if (Randomly.getBoolean()) {
@@ -97,38 +92,37 @@ public class PostgresProvider extends SQLProviderAdapter<PostgresGlobalState, Po
                 query = new SQLQueryAdapter("ROLLBACK", true);
             }
             return query;
-        }), //
-        CREATE_STATISTICS(PostgresStatisticsGenerator::insert), //
-        DROP_STATISTICS(PostgresStatisticsGenerator::remove), //
-        ALTER_STATISTICS(PostgresStatisticsGenerator::alter), //
-        DELETE(PostgresDeleteGenerator::create), //
-        DISCARD(PostgresDiscardGenerator::create), //
-        DROP_INDEX(PostgresDropIndexGenerator::create), //
-        INSERT(PostgresInsertGenerator::insert), //
-        UPDATE(PostgresUpdateGenerator::create), //
-        TRUNCATE(PostgresTruncateGenerator::create), //
-        VACUUM(PostgresVacuumGenerator::create), //
-        REINDEX(PostgresReindexGenerator::create), //
-        SET(PostgresSetGenerator::create), //
-        CREATE_INDEX(PostgresIndexGenerator::generate), //
+        }),
+        CREATE_STATISTICS(PostgresStatisticsGenerator::insert),
+        DROP_STATISTICS(PostgresStatisticsGenerator::remove),
+        ALTER_STATISTICS(PostgresStatisticsGenerator::alter),
+        DELETE(PostgresDeleteGenerator::create),
+        DISCARD(PostgresDiscardGenerator::create),
+        DROP_INDEX(PostgresDropIndexGenerator::create),
+        INSERT(PostgresInsertGenerator::insert),
+        UPDATE(PostgresUpdateGenerator::create),
+        TRUNCATE(PostgresTruncateGenerator::create),
+        VACUUM(PostgresVacuumGenerator::create),
+        REINDEX(PostgresReindexGenerator::create),
+        SET(PostgresSetGenerator::create),
+        CREATE_INDEX(PostgresIndexGenerator::generate),
         SET_CONSTRAINTS((g) -> {
             StringBuilder sb = new StringBuilder();
             sb.append("SET CONSTRAINTS ALL ");
             sb.append(Randomly.fromOptions("DEFERRED", "IMMEDIATE"));
             return new SQLQueryAdapter(sb.toString());
-        }), //
-        RESET_ROLE((g) -> new SQLQueryAdapter("RESET ROLE")), //
-        COMMENT_ON(PostgresCommentGenerator::generate), //
-        RESET((g) -> new SQLQueryAdapter("RESET ALL") /*
-                                                       * https://www.postgresql.org/docs/13/sql-reset.html TODO: also
-                                                       * configuration parameter
-                                                       */), //
-        NOTIFY(PostgresNotifyGenerator::createNotify), //
-        LISTEN((g) -> PostgresNotifyGenerator.createListen()), //
-        UNLISTEN((g) -> PostgresNotifyGenerator.createUnlisten()), //
-        CREATE_SEQUENCE(PostgresSequenceGenerator::createSequence), //
-        EXPLAIN(PostgresExplainGenerator::create), //
-        CREATE_VIEW(PostgresViewGenerator::create), //
+        }),
+        RESET_ROLE((g) -> new SQLQueryAdapter("RESET ROLE")),
+        COMMENT_ON(PostgresCommentGenerator::generate),
+        RESET((g) -> new SQLQueryAdapter("RESET ALL")
+
+),
+        NOTIFY(PostgresNotifyGenerator::createNotify),
+        LISTEN((g) -> PostgresNotifyGenerator.createListen()),
+        UNLISTEN((g) -> PostgresNotifyGenerator.createUnlisten()),
+        CREATE_SEQUENCE(PostgresSequenceGenerator::createSequence),
+        EXPLAIN(PostgresExplainGenerator::create),
+        CREATE_VIEW(PostgresViewGenerator::create),
         CREATE_TABLESPACE(PostgresTableSpaceGenerator::generate);
 
         private final SQLQueryProvider<PostgresGlobalState> sqlQueryProvider;
@@ -222,10 +216,6 @@ public class PostgresProvider extends SQLProviderAdapter<PostgresGlobalState, Po
         if (!extensionsList.isEmpty()) {
             String[] extensionNames = extensionsList.split(",");
 
-            /*
-             * To avoid of a test interference with an extension objects, create them in a separate schema. Of course,
-             * they must be truly relocatable.
-             */
             globalState.executeStatement(new SQLQueryAdapter("CREATE SCHEMA extensions;", true));
             for (int i = 0; i < extensionNames.length; i++) {
                 globalState.executeStatement(new SQLQueryAdapter(
@@ -247,7 +237,7 @@ public class PostgresProvider extends SQLProviderAdapter<PostgresGlobalState, Po
         port = globalState.getOptions().getPort();
         entryPath = "/test";
         entryURL = globalState.getDbmsSpecificOptions().connectionURL;
-        // trim URL to exclude "jdbc:"
+
         if (entryURL.startsWith("jdbc:")) {
             entryURL = entryURL.substring(5);
         }
@@ -259,7 +249,7 @@ public class PostgresProvider extends SQLProviderAdapter<PostgresGlobalState, Po
             String userInfoURI = uri.getUserInfo();
             String pathURI = uri.getPath();
             if (userInfoURI != null) {
-                // username and password specified in URL take precedence
+
                 if (userInfoURI.contains(":")) {
                     String[] userInfo = userInfoURI.split(":", 2);
                     username = userInfo[0];
@@ -300,7 +290,7 @@ public class PostgresProvider extends SQLProviderAdapter<PostgresGlobalState, Po
         try (Statement s = con.createStatement()) {
             s.execute(dropCommand);
         } catch (SQLException e) {
-            // If force fails, fall back to regular drop
+
             if (forceDrop) {
                 String fallbackDrop = "DROP DATABASE IF EXISTS " + databaseName;
                 globalState.getState().logStatement(fallbackDrop + ";");
@@ -312,7 +302,6 @@ public class PostgresProvider extends SQLProviderAdapter<PostgresGlobalState, Po
             }
         }
 
-        // Create database section
         createDatabaseCommand = getCreateDatabaseCommand(globalState);
         globalState.getState().logStatement(createDatabaseCommand + ";");
         try (Statement s = con.createStatement()) {
@@ -443,12 +432,11 @@ public class PostgresProvider extends SQLProviderAdapter<PostgresGlobalState, Po
     public String formatQueryPlan(String queryPlan) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
         JsonNode root = mapper.readTree(queryPlan).get(0).get("Plan");
-        // Extract nodes using BFS algorithm
+
         List<String> nodeTypes = extractNodeTypesIterative(root);
         return String.join(" ", nodeTypes);
     }
 
-    // BFS algorithm for traversing the Json Query Plan
     private static List<String> extractNodeTypesIterative(JsonNode root) {
         List<String> result = new ArrayList<>();
         Queue<JsonNode> queue = new LinkedList<>();

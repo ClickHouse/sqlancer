@@ -76,12 +76,12 @@ public final class DataFusionBaseExprFactory {
             return new DataFusionBaseExpr("NOT", 1, DataFusionBaseExprCategory.UNARY_PREFIX,
                     Arrays.asList(DataFusionDataType.BOOLEAN),
                     Arrays.asList(new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BOOLEAN)))));
-        case PLUS: // unary prefix '+'
+        case PLUS:
             return new DataFusionBaseExpr("+", 1, DataFusionBaseExprCategory.UNARY_PREFIX,
                     Arrays.asList(DataFusionDataType.BIGINT, DataFusionDataType.DOUBLE),
                     Arrays.asList(new ArgumentType.Fixed(
                             new ArrayList<>(Arrays.asList(DataFusionDataType.BIGINT, DataFusionDataType.DOUBLE)))));
-        case MINUS: // unary prefix '-'
+        case MINUS:
             return new DataFusionBaseExpr("-", 1, DataFusionBaseExprCategory.UNARY_PREFIX,
                     Arrays.asList(DataFusionDataType.BIGINT, DataFusionDataType.DOUBLE),
                     Arrays.asList(new ArgumentType.Fixed(
@@ -176,29 +176,29 @@ public final class DataFusionBaseExprFactory {
         case AND:
             return new DataFusionBaseExpr("AND", 2, DataFusionBaseExprCategory.BINARY,
                     Arrays.asList(DataFusionDataType.BOOLEAN),
-                    Arrays.asList(new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BOOLEAN))), // arg1
-                            new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BOOLEAN))) // arg2
+                    Arrays.asList(new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BOOLEAN))),
+                            new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BOOLEAN)))
                     ));
         case OR:
             return new DataFusionBaseExpr("OR", 2, DataFusionBaseExprCategory.BINARY,
                     Arrays.asList(DataFusionDataType.BOOLEAN),
-                    Arrays.asList(new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BOOLEAN))), // arg1
-                            new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BOOLEAN))) // arg2
+                    Arrays.asList(new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BOOLEAN))),
+                            new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BOOLEAN)))
                     ));
-        case ADD: // binary arithmetic operator '+'
+        case ADD:
             return new DataFusionBaseExpr("+", 2, DataFusionBaseExprCategory.BINARY,
                     Arrays.asList(DataFusionDataType.BIGINT),
-                    Arrays.asList(new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BIGINT))), // arg1
-                            new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BIGINT))) // arg2
+                    Arrays.asList(new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BIGINT))),
+                            new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BIGINT)))
                     ));
-        case SUB: // binary arithmetic operator '-'
+        case SUB:
             return new DataFusionBaseExpr("-", 2, DataFusionBaseExprCategory.BINARY,
                     Arrays.asList(DataFusionDataType.BIGINT, DataFusionDataType.DOUBLE),
                     Arrays.asList(
                             new ArgumentType.Fixed(new ArrayList<>(
-                                    Arrays.asList(DataFusionDataType.BIGINT, DataFusionDataType.DOUBLE))), // arg1
+                                    Arrays.asList(DataFusionDataType.BIGINT, DataFusionDataType.DOUBLE))),
                             new ArgumentType.Fixed(new ArrayList<>(
-                                    Arrays.asList(DataFusionDataType.BIGINT, DataFusionDataType.DOUBLE))) // arg2
+                                    Arrays.asList(DataFusionDataType.BIGINT, DataFusionDataType.DOUBLE)))
                     ));
         case FUNC_ABS:
             return createCommonNumericFuncSingleArg("ABS");
@@ -298,7 +298,7 @@ public final class DataFusionBaseExprFactory {
                                     Arrays.asList(DataFusionDataType.BIGINT, DataFusionDataType.DOUBLE))),
                             new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BIGINT)))));
         case FUNC_COALESCE:
-            return new DataFusionBaseExpr("COALESCE", -1, // overide by variadic
+            return new DataFusionBaseExpr("COALESCE", -1,
                     DataFusionBaseExprCategory.FUNC,
                     Arrays.asList(DataFusionDataType.BIGINT, DataFusionDataType.DOUBLE), Arrays.asList(), true);
         case FUNC_NULLIF:
@@ -358,14 +358,12 @@ public final class DataFusionBaseExprFactory {
         return null;
     }
 
-    // if input is Optional.empty(), return all possible `DataFusionBaseExpr`s
-    // else, return all `DataFusionBaseExpr` which might be evaluated to arg's type
     public static List<DataFusionBaseExpr> getExprsWithReturnType(Optional<DataFusionDataType> dataTypeOptional) {
         List<DataFusionBaseExpr> allExpressions = Arrays.stream(DataFusionBaseExprType.values())
                 .map(DataFusionBaseExprFactory::createExpr).collect(Collectors.toList());
 
         if (!dataTypeOptional.isPresent()) {
-            return allExpressions; // If Optional is empty, return all expressions
+            return allExpressions;
         }
 
         DataFusionDataType filterType = dataTypeOptional.get();
@@ -373,7 +371,7 @@ public final class DataFusionBaseExprFactory {
                 .filter(expr -> expr.possibleReturnTypes.contains(filterType)).collect(Collectors.toList());
 
         if (Randomly.getBoolean()) {
-            // Too many similar function, so test them less often
+
             return exprsWithReturnType;
         }
 

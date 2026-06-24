@@ -12,11 +12,11 @@ public final class PrestoConstantUtils {
         return str.replaceAll("[^\\x00-\\x7F]", "");
     }
 
-    public static String removeNonePrintable(String str) { // All Control Char
+    public static String removeNonePrintable(String str) {
         return str.replaceAll("[\\p{C}]", "");
     }
 
-    public static String removeOthersControlChar(String str) { // Some Control Char
+    public static String removeOthersControlChar(String str) {
         return str.replaceAll("[\\p{Cntrl}\\p{Cc}\\p{Cf}\\p{Co}\\p{Cn}]", "");
     }
 
@@ -26,9 +26,9 @@ public final class PrestoConstantUtils {
 
     public static BigDecimal getDecimal(double val, int scale, int precision) {
         int part = precision - scale;
-        // long part
+
         long lng = (long) val;
-        // decimal places
+
         double d1 = val - lng;
         String xStr = Long.toString(lng);
         String substring = xStr.substring(xStr.length() - part);

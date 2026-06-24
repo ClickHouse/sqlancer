@@ -6,9 +6,6 @@ import sqlancer.common.query.SQLQueryAdapter;
 import sqlancer.sqlite3.SQLite3GlobalState;
 import sqlancer.sqlite3.schema.SQLite3Schema;
 
-/**
- * @see <a href="https://www.sqlite.org/lang_reindex.html">REINDEX</a>
- */
 public final class SQLite3ReindexGenerator {
 
     private SQLite3ReindexGenerator() {
@@ -29,7 +26,7 @@ public final class SQLite3ReindexGenerator {
             switch (t) {
             case INDEX:
                 sb.append(s.getRandomIndexOrBailout());
-                // temp table
+
                 errors.add("unable to identify the object to be reindexed");
                 break;
             case COLLATION_NAME:

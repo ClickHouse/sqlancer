@@ -5,16 +5,28 @@ import sqlancer.Randomly;
 public class ClickHouseBinaryFunctionOperation extends ClickHouseExpression {
 
     public enum ClickHouseBinaryFunctionOperator {
-        INT_DIV("intDiv"), GCD("gcd"), LCM("lcm"), MAX2("max2"), MIN2("min2"), POW("pow");
 
-        String textRepresentation;
+        INT_DIV("intDiv", true), GCD("gcd", true), LCM("lcm", true), MAX2("max2", false), MIN2("min2", false),
+        POW("pow", false);
 
-        ClickHouseBinaryFunctionOperator(String textRepresentation) {
+        private final String textRepresentation;
+        private final boolean requiresIntegerOperands;
+
+        ClickHouseBinaryFunctionOperator(String textRepresentation, boolean requiresIntegerOperands) {
             this.textRepresentation = textRepresentation;
+            this.requiresIntegerOperands = requiresIntegerOperands;
         }
 
         public static ClickHouseBinaryFunctionOperator getRandom() {
             return Randomly.fromOptions(values());
+        }
+
+        public static ClickHouseBinaryFunctionOperator getRandomAnyNumeric() {
+            return Randomly.fromOptions(MAX2, MIN2, POW);
+        }
+
+        public boolean requiresIntegerOperands() {
+            return requiresIntegerOperands;
         }
 
         public String getTextRepresentation() {

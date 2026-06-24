@@ -10,12 +10,12 @@ import sqlancer.clickhouse.ast.ClickHouseColumnReference;
 import sqlancer.clickhouse.ast.ClickHouseConstant;
 import sqlancer.clickhouse.ast.ClickHouseExpression;
 import sqlancer.clickhouse.ast.ClickHouseSelect;
+import sqlancer.clickhouse.ast.ClickHouseSetOperation;
 import sqlancer.clickhouse.ast.ClickHouseTableReference;
 import sqlancer.clickhouse.ast.ClickHouseUnaryPostfixOperation;
 import sqlancer.clickhouse.ast.ClickHouseUnaryPrefixOperation;
 
 public interface ClickHouseVisitor {
-    // TODO remove these default methods
 
     default void visit(ClickHouseBinaryComparisonOperation op) {
 
@@ -41,6 +41,10 @@ public interface ClickHouseVisitor {
 
     };
 
+    default void visit(ClickHouseSetOperation s, boolean inner) {
+
+    };
+
     default void visit(ClickHouseColumnReference columnReference) {
 
     };
@@ -61,6 +65,22 @@ public interface ClickHouseVisitor {
 
     void visit(ClickHouseBinaryFunctionOperation func);
 
+    void visit(sqlancer.clickhouse.ast.ClickHouseLambda lambda);
+
+    void visit(sqlancer.clickhouse.ast.ClickHouseWindowFunction window);
+
+    void visit(sqlancer.clickhouse.ast.ClickHouseTupleAccess access);
+
+    void visit(sqlancer.clickhouse.ast.ClickHouseMapAccess access);
+
+    void visit(sqlancer.clickhouse.ast.ClickHouseJsonPath path);
+
+    void visit(sqlancer.clickhouse.ast.ClickHouseVariantElement element);
+
+    void visit(sqlancer.clickhouse.ast.ClickHouseDynamicElement element);
+
+    void visit(sqlancer.clickhouse.ast.ClickHouseRawText raw);
+
     default void visit(ClickHouseExpression expr) {
         if (expr instanceof ClickHouseBinaryFunctionOperation) {
             visit((ClickHouseBinaryFunctionOperation) expr);
@@ -74,6 +94,8 @@ public interface ClickHouseVisitor {
             visit((ClickHouseUnaryPrefixOperation) expr);
         } else if (expr instanceof ClickHouseSelect) {
             visit((ClickHouseSelect) expr, true);
+        } else if (expr instanceof ClickHouseSetOperation) {
+            visit((ClickHouseSetOperation) expr, true);
         } else if (expr instanceof ClickHouseColumnReference) {
             visit((ClickHouseColumnReference) expr);
         } else if (expr instanceof ClickHouseTableReference) {
@@ -88,6 +110,22 @@ public interface ClickHouseVisitor {
             visit((ClickHouseAggregate) expr);
         } else if (expr instanceof ClickHouseAliasOperation) {
             visit((ClickHouseAliasOperation) expr);
+        } else if (expr instanceof sqlancer.clickhouse.ast.ClickHouseLambda) {
+            visit((sqlancer.clickhouse.ast.ClickHouseLambda) expr);
+        } else if (expr instanceof sqlancer.clickhouse.ast.ClickHouseWindowFunction) {
+            visit((sqlancer.clickhouse.ast.ClickHouseWindowFunction) expr);
+        } else if (expr instanceof sqlancer.clickhouse.ast.ClickHouseTupleAccess) {
+            visit((sqlancer.clickhouse.ast.ClickHouseTupleAccess) expr);
+        } else if (expr instanceof sqlancer.clickhouse.ast.ClickHouseMapAccess) {
+            visit((sqlancer.clickhouse.ast.ClickHouseMapAccess) expr);
+        } else if (expr instanceof sqlancer.clickhouse.ast.ClickHouseJsonPath) {
+            visit((sqlancer.clickhouse.ast.ClickHouseJsonPath) expr);
+        } else if (expr instanceof sqlancer.clickhouse.ast.ClickHouseVariantElement) {
+            visit((sqlancer.clickhouse.ast.ClickHouseVariantElement) expr);
+        } else if (expr instanceof sqlancer.clickhouse.ast.ClickHouseDynamicElement) {
+            visit((sqlancer.clickhouse.ast.ClickHouseDynamicElement) expr);
+        } else if (expr instanceof sqlancer.clickhouse.ast.ClickHouseRawText) {
+            visit((sqlancer.clickhouse.ast.ClickHouseRawText) expr);
         } else if (expr instanceof ClickHouseExpression.ClickHouseJoinOnClause) {
             visit((ClickHouseExpression.ClickHouseJoinOnClause) expr);
         } else {
@@ -102,6 +140,8 @@ public interface ClickHouseVisitor {
         ClickHouseToStringVisitor visitor = new ClickHouseToStringVisitor();
         if (expr instanceof ClickHouseSelect) {
             visitor.visit((ClickHouseSelect) expr, false);
+        } else if (expr instanceof ClickHouseSetOperation) {
+            visitor.visit((ClickHouseSetOperation) expr, false);
         } else {
             visitor.visit(expr);
         }

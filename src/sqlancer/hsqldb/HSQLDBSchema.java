@@ -26,7 +26,7 @@ public class HSQLDBSchema extends AbstractSchema<HSQLDBProvider.HSQLDBGlobalStat
         List<String> tableNames = getTableNames(connection);
         for (String tableName : tableNames) {
             if (DBMSCommon.matchesIndexName(tableName)) {
-                continue; // TODO: unexpected?
+                continue;
             }
             List<HSQLDBSchema.HSQLDBColumn> databaseColumns = getTableColumns(connection, tableName);
             boolean isView = matchesViewName(tableName);
@@ -136,8 +136,7 @@ public class HSQLDBSchema extends AbstractSchema<HSQLDBProvider.HSQLDBGlobalStat
             case BOOLEAN:
             case INTEGER:
             case DOUBLE:
-                // case UUID:
-                // case OTHER:
+
             case DATE:
                 size = 0;
                 break;

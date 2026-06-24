@@ -8,9 +8,6 @@ import sqlancer.common.query.SQLQueryAdapter;
 import sqlancer.mysql.MySQLGlobalState;
 import sqlancer.mysql.MySQLSchema.MySQLTable;
 
-/**
- * @see <a href="https://dev.mysql.com/doc/refman/8.0/en/optimize-table.html">OPTIMIZE TABLE Statement</a>
- */
 public class MySQLOptimize {
 
     private final List<MySQLTable> tables;
@@ -24,8 +21,6 @@ public class MySQLOptimize {
         return new MySQLOptimize(globalState.getSchema().getDatabaseTablesRandomSubsetNotEmpty()).optimize();
     }
 
-    // OPTIMIZE [NO_WRITE_TO_BINLOG | LOCAL]
-    // TABLE tbl_name [, tbl_name] ...
     private SQLQueryAdapter optimize() {
         sb.append("OPTIMIZE");
         if (Randomly.getBoolean()) {

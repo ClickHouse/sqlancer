@@ -76,7 +76,7 @@ public class YSQLTLPAggregateOracle extends YSQLTLPBase implements TestOracle<YS
                 || firstResult != null && !firstResult.contentEquals(secondResult)
                         && !ComparatorHelper.isEqualDouble(firstResult, secondResult)) {
             if (secondResult != null && secondResult.contains("Inf")) {
-                throw new IgnoreMeException(); // FIXME: average computation
+                throw new IgnoreMeException();
             }
             String assertionMessage = String.format("the results mismatch!\n%s\n%s", firstQueryString,
                     secondQueryString);
@@ -101,14 +101,14 @@ public class YSQLTLPAggregateOracle extends YSQLTLPBase implements TestOracle<YS
     }
 
     private String getAggregateResult(String queryString) throws SQLException {
-        // log TLP Aggregate SELECT queries on the current log file
+
         if (state.getOptions().logEachSelect()) {
-            // TODO: refactor me
+
             state.getLogger().writeCurrent(queryString);
             try {
                 state.getLogger().getCurrentFileWriter().flush();
             } catch (IOException e) {
-                // TODO Auto-generated catch block
+
                 e.printStackTrace();
             }
         }
@@ -140,19 +140,7 @@ public class YSQLTLPAggregateOracle extends YSQLTLPBase implements TestOracle<YS
         case MAX:
         case MIN:
             return aliasArgs(Arrays.asList(aggregate));
-        // case AVG:
-        //// List<YSQLExpression> arg = Arrays.asList(new
-        // YSQLCast(aggregate.getExpr().get(0),
-        // YSQLDataType.DECIMAL.get()));
-        // YSQLAggregate sum = new YSQLAggregate(YSQLAggregateFunction.SUM,
-        // aggregate.getExpr());
-        // YSQLCast count = new YSQLCast(
-        // new YSQLAggregate(YSQLAggregateFunction.COUNT, aggregate.getExpr()),
-        // YSQLDataType.DECIMAL.get());
-        //// YSQLBinaryArithmeticOperation avg = new
-        // YSQLBinaryArithmeticOperation(sum, count,
-        // YSQLBinaryArithmeticOperator.DIV);
-        // return aliasArgs(Arrays.asList(sum, count));
+
         default:
             throw new AssertionError(aggregate.getFunction());
         }
@@ -169,8 +157,7 @@ public class YSQLTLPAggregateOracle extends YSQLTLPBase implements TestOracle<YS
 
     private String getOuterAggregateFunction(YSQLAggregate aggregate) {
         switch (aggregate.getFunction()) {
-        // case AVG:
-        // return "SUM(agg0::DECIMAL)/SUM(agg1)::DECIMAL";
+
         case COUNT:
             return YSQLAggregateFunction.SUM + "(agg0)";
         default:

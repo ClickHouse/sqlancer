@@ -21,29 +21,7 @@ public interface NoRECGenerator<S extends Select<J, E, T, C>, J extends Join<E, 
 
     List<E> getTableRefs();
 
-    /**
-     * Generates a query string that is likely to be optimized by the DBMS.
-     *
-     * @param select
-     *            the base select expression used to generate the query
-     * @param whereCondition
-     *            a condition where records will be checked with
-     * @param shouldUseAggregate
-     *            whether to aggregate the record counts (`true`) or display records as is (`false`)
-     *
-     * @return a query string to be executed
-     */
     String generateOptimizedQueryString(S select, E whereCondition, boolean shouldUseAggregate);
 
-    /**
-     * Generates a query string that is unlikely to be optimized by the DBMS.
-     *
-     * @param select
-     *            the base select expression used to generate the query
-     * @param whereCondition
-     *            the condition each record will be checked with
-     *
-     * @return a query string to be executed
-     */
     String generateUnoptimizedQueryString(S select, E whereCondition);
 }

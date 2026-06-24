@@ -8,19 +8,10 @@ import sqlancer.Randomly;
 
 public enum MariaDBFunctionName {
 
-    // LEAST("LEAST", 2, FunctionAttribute.VARIADIC)
-    // GREATEST("GREATEST", 2, FunctionAttribute.VARIADIC)
-
-    // CONCAT("CONCAT", 2, FunctionAttribute.VARIADIC),
-
-    // LEFT("LEFT", 2, FunctionAttribute.VARIADIC),
-    // IF("IF", 3),
-    // IFNULL("IFNULL", 2),
     BITCOUNT("BIT_COUNT", 1), LENGTH("LENGTH", 1), LENGTHB("LENGTHB", 1), LOCATE1("LOCATE", 2), LOCATE2("LOCATE", 3),
-    // NULLIF("NULLIF", 2),
+
     ORD("ORD", 1),
-    // ROUND("ROUND", 1),
-    // ROUND2("ROUND", 2),
+
     TRIM("TRIM", 1), UNCOMPRESSED_LENGTH("UNCOMPRESSED_LENGTH", 1);
 
     String functionName;

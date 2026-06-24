@@ -6,9 +6,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/**
- * The base class of transformations. Defines APIs to remove, replace, remove elements of a list.
- */
 public class Transformation {
 
     private static Supplier<Boolean> bugJudgement;
@@ -68,7 +65,7 @@ public class Transformation {
         return true;
     }
 
-    public <P, T> void tryRemoveElms(P parent, List<T> elms, // NOPMD
+    public <P, T> void tryRemoveElms(P parent, List<T> elms,
             BiConsumer<P, List<T>> setter) {
         boolean observeChange;
         do {

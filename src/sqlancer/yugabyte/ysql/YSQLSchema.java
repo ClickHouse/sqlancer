@@ -79,11 +79,9 @@ public class YSQLSchema extends AbstractSchema<YSQLGlobalState, YSQLTable> {
                         String tableName = rs.getString("table_name");
                         String tableTypeSchema = rs.getString("table_schema");
                         boolean isInsertable = rs.getBoolean("is_insertable_into");
-                        // TODO: also check insertable
-                        // TODO: insert into view?
-                        boolean isView = matchesViewName(tableName); // tableTypeStr.contains("VIEW") ||
-                        // tableTypeStr.contains("LOCAL TEMPORARY") &&
-                        // !isInsertable;
+
+                        boolean isView = matchesViewName(tableName);
+
                         YSQLTable.TableType tableType = getTableType(tableTypeSchema);
                         List<YSQLColumn> databaseColumns = getTableColumns(con, tableName);
                         List<YSQLIndex> indexes = getIndexes(con, tableName);
@@ -164,7 +162,7 @@ public class YSQLSchema extends AbstractSchema<YSQLGlobalState, YSQLTable> {
         try (Statement s = con.createStatement(); ResultSet rs = s.executeQuery("SELECT yb_is_database_colocated();")) {
             rs.next();
             String result = rs.getString(1);
-            // The query will result in a 'f' for a non-colocated database
+
             return !"f".equals(result);
 
         } catch (SQLException e) {
@@ -181,9 +179,7 @@ public class YSQLSchema extends AbstractSchema<YSQLGlobalState, YSQLTable> {
     }
 
     public enum YSQLDataType {
-        // TODO: 23.02.2022 Planned types
-        // SMALLINT, INT, BIGINT, NUMERIC, DECIMAL, REAL, DOUBLE_PRECISION, VARCHAR, CHAR, TEXT, DATE, TIME,
-        // TIMESTAMP, TIMESTAMPZ, INTERVAL, INTEGER_ARR
+
         INT, BOOLEAN, BYTEA, TEXT, DECIMAL, FLOAT, REAL, RANGE, MONEY, BIT, INET;
 
         public static YSQLDataType getRandomType() {
@@ -222,8 +218,7 @@ public class YSQLSchema extends AbstractSchema<YSQLGlobalState, YSQLTable> {
         public YSQLRowValue getRandomRowValue(SQLConnection con) throws SQLException {
             String randomRow = String.format("SELECT %s FROM %s ORDER BY RANDOM() LIMIT 1", columnNamesAsString(
                     c -> c.getTable().getName() + "." + c.getName() + " AS " + c.getTable().getName() + c.getName()),
-                    // columnNamesAsString(c -> "typeof(" + c.getTable().getName() + "." +
-                    // c.getName() + ")")
+
                     tableNamesAsString());
             Map<YSQLColumn, YSQLConstant> values = new HashMap<>();
             try (Statement s = con.createStatement()) {

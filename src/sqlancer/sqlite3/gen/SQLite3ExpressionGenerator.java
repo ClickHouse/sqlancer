@@ -152,9 +152,7 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
         List<JoinType> options = new ArrayList<>(Arrays.asList(JoinType.values()));
         if (Randomly.getBoolean() && tables.size() > 1) {
             int nrJoinClauses = (int) Randomly.getNotCachedInteger(0, tables.size());
-            // Natural join is incompatible with other joins
-            // because it needs unique column names
-            // while other joins will produce duplicate column names
+
             if (nrJoinClauses > 1) {
                 options.remove(JoinType.NATURAL);
             }
@@ -164,7 +162,7 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
                 tables.remove(table);
                 JoinType selectedOption = Randomly.fromList(options);
                 if (selectedOption == JoinType.NATURAL) {
-                    // NATURAL joins do not have an ON clause
+
                     joinClause = null;
                 }
                 Join j = new SQLite3Expression.Join(table, joinClause, selectedOption);
@@ -177,13 +175,13 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
 
     public SQLite3Expression generateOrderingTerm() {
         SQLite3Expression expr = generateExpression();
-        // COLLATE is potentially already generated
+
         if (Randomly.getBoolean()) {
             expr = new SQLite3OrderingTerm(expr, Ordering.getRandomValue());
         }
         if (globalState.getDbmsSpecificOptions().testNullsFirstLast && Randomly.getBoolean()) {
             expr = new SQLite3PostfixText(expr, Randomly.fromOptions(" NULLS FIRST", " NULLS LAST"),
-                    null /* expr.getExpectedValue() */) {
+                    null ) {
                 @Override
                 public boolean omitBracketsWhenPrinting() {
                     return true;
@@ -193,9 +191,6 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
         return expr;
     }
 
-    /*
-     * https://www.sqlite.org/syntax/literal-value.html
-     */
     private SQLite3Expression getRandomLiteralValueInternal(Randomly r) {
         LiteralValueType randomLiteral = Randomly.fromOptions(LiteralValueType.values());
         switch (randomLiteral) {
@@ -313,8 +308,7 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
         case ROW_VALUE_COMPARISON:
             return getRowValueComparison(depth + 1);
         case RANDOM_QUERY:
-            // TODO: pass schema from the outside
-            // TODO: depth
+
             return SQLite3RandomQuerySynthesizer.generate(globalState, 1);
         default:
             throw new AssertionError(randomExpressionType);
@@ -334,9 +328,9 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
     public SQLite3Expression getAggregateFunction(boolean asWindowFunction) {
         SQLite3AggregateFunction random = SQLite3AggregateFunction.getRandom();
         if (asWindowFunction) {
-            while (/* random == SQLite3AggregateFunction.ZIPFILE || */random == SQLite3AggregateFunction.MAX
+            while (random == SQLite3AggregateFunction.MAX
                     || random == SQLite3AggregateFunction.MIN) {
-                // ZIPFILE() may not be used as a window function
+
                 random = SQLite3AggregateFunction.getRandom();
             }
         }
@@ -350,11 +344,7 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
 
     private SQLite3Expression getAggregate(int depth, SQLite3AggregateFunction random) {
         int nrArgs;
-        // if (random == SQLite3AggregateFunction.ZIPFILE) {
-        // nrArgs = Randomly.fromOptions(2, 4);
-        // } else {
-        // nrArgs = 1;
-        // }
+
         nrArgs = 1;
         return new SQLite3Aggregate(getRandomExpressions(nrArgs, depth + 1), random);
     }
@@ -363,31 +353,23 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
         STANDARD_COMPARISON, BETWEEN, IN
     }
 
-    /*
-     * https://www.sqlite.org/rowvalue.html
-     */
     private SQLite3Expression getRowValueComparison(int depth) {
         int size = Randomly.smallNumber() + 1;
         List<SQLite3Expression> left = getRandomExpressions(size, depth + 1);
         List<SQLite3Expression> right = getRandomExpressions(size, depth + 1);
         RowValueComparison randomOption;
-        // if (Randomly.getBooleanWithSmallProbability()) {
-        // // for the right hand side a random query is required, which is expensive
-        // randomOption = RowValueComparison.IN;
-        // } else {
+
         randomOption = Randomly.fromOptions(RowValueComparison.STANDARD_COMPARISON, RowValueComparison.BETWEEN);
-        // }
+
         switch (randomOption) {
-        // TODO case
+
         case STANDARD_COMPARISON:
             return new BinaryComparisonOperation(new SQLite3RowValueExpression(left),
                     new SQLite3RowValueExpression(right), BinaryComparisonOperator.getRandomRowValueOperator());
         case BETWEEN:
             return new BetweenOperation(getRandomRowValue(depth + 1, size), Randomly.getBoolean(),
                     new SQLite3RowValueExpression(left), new SQLite3RowValueExpression(right));
-        // case IN:
-        // return new SQLite3Expression.InOperation(new SQLite3RowValue(left),
-        // SQLite3RandomQuerySynthesizer.generate(globalState, size));
+
         default:
             throw new AssertionError(randomOption);
         }
@@ -418,17 +400,17 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
     };
 
     private enum AnyFunction {
-        ABS("ABS", 1), //
-        CHANGES("CHANGES", 0, Attribute.NONDETERMINISTIC), //
-        CHAR("CHAR", 1, Attribute.VARIADIC), //
-        COALESCE("COALESCE", 2, Attribute.VARIADIC), //
-        GLOB("GLOB", 2), //
-        HEX("HEX", 1), //
-        IFNULL("IFNULL", 2), //
-        INSTR("INSTR", 2), //
-        LAST_INSERT_ROWID("LAST_INSERT_ROWID", 0, Attribute.NONDETERMINISTIC), //
-        LENGTH("LENGTH", 1), //
-        LIKE("LIKE", 2), //
+        ABS("ABS", 1),
+        CHANGES("CHANGES", 0, Attribute.NONDETERMINISTIC),
+        CHAR("CHAR", 1, Attribute.VARIADIC),
+        COALESCE("COALESCE", 2, Attribute.VARIADIC),
+        GLOB("GLOB", 2),
+        HEX("HEX", 1),
+        IFNULL("IFNULL", 2),
+        INSTR("INSTR", 2),
+        LAST_INSERT_ROWID("LAST_INSERT_ROWID", 0, Attribute.NONDETERMINISTIC),
+        LENGTH("LENGTH", 1),
+        LIKE("LIKE", 2),
         LIKE2("LIKE", 3) {
             @Override
             List<SQLite3Expression> generateArguments(int nrArgs, int depth, SQLite3ExpressionGenerator gen) {
@@ -436,62 +418,51 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
                 args.set(2, gen.getRandomSingleCharString());
                 return args;
             }
-        }, //
-        LIKELIHOOD("LIKELIHOOD", 2), //
-        LIKELY("LIKELY", 1), //
-        LOAD_EXTENSION("load_extension", 1), //
-        LOAD_EXTENSION2("load_extension", 2, Attribute.NONDETERMINISTIC), LOWER("LOWER", 1), //
-        LTRIM1("LTRIM", 1), //
-        LTRIM2("LTRIM", 2), //
-        MAX("MAX", 2, Attribute.VARIADIC), //
-        MIN("MIN", 2, Attribute.VARIADIC), //
-        NULLIF("NULLIF", 2), //
-        PRINTF("PRINTF", 1, Attribute.VARIADIC), //
-        QUOTE("QUOTE", 1), //
-        ROUND("ROUND", 2), //
-        RTRIM("RTRIM", 1), //
-        SOUNDEX("soundex", 1), //
-        SQLITE_COMPILEOPTION_GET("SQLITE_COMPILEOPTION_GET", 1, Attribute.NONDETERMINISTIC), //
-        SQLITE_COMPILEOPTION_USED("SQLITE_COMPILEOPTION_USED", 1, Attribute.NONDETERMINISTIC), //
-        // SQLITE_OFFSET(1), //
+        },
+        LIKELIHOOD("LIKELIHOOD", 2),
+        LIKELY("LIKELY", 1),
+        LOAD_EXTENSION("load_extension", 1),
+        LOAD_EXTENSION2("load_extension", 2, Attribute.NONDETERMINISTIC), LOWER("LOWER", 1),
+        LTRIM1("LTRIM", 1),
+        LTRIM2("LTRIM", 2),
+        MAX("MAX", 2, Attribute.VARIADIC),
+        MIN("MIN", 2, Attribute.VARIADIC),
+        NULLIF("NULLIF", 2),
+        PRINTF("PRINTF", 1, Attribute.VARIADIC),
+        QUOTE("QUOTE", 1),
+        ROUND("ROUND", 2),
+        RTRIM("RTRIM", 1),
+        SOUNDEX("soundex", 1),
+        SQLITE_COMPILEOPTION_GET("SQLITE_COMPILEOPTION_GET", 1, Attribute.NONDETERMINISTIC),
+        SQLITE_COMPILEOPTION_USED("SQLITE_COMPILEOPTION_USED", 1, Attribute.NONDETERMINISTIC),
+
         SQLITE_SOURCE_ID("SQLITE_SOURCE_ID", 0, Attribute.NONDETERMINISTIC),
-        SQLITE_VERSION("SQLITE_VERSION", 0, Attribute.NONDETERMINISTIC), //
-        SUBSTR("SUBSTR", 2), //
-        TOTAL_CHANGES("TOTAL_CHANGES", 0, Attribute.NONDETERMINISTIC), //
-        TRIM("TRIM", 1), //
-        TYPEOF("TYPEOF", 1), //
-        UNICODE("UNICODE", 1), UNLIKELY("UNLIKELY", 1), //
-        UPPER("UPPER", 1), // "ZEROBLOB"
-        // ZEROBLOB("ZEROBLOB", 1),
-        DATE("DATE", 3, Attribute.VARIADIC), //
-        TIME("TIME", 3, Attribute.VARIADIC), //
-        DATETIME("DATETIME", 3, Attribute.VARIADIC), //
-        JULIANDAY("JULIANDAY", 3, Attribute.VARIADIC), //
+        SQLITE_VERSION("SQLITE_VERSION", 0, Attribute.NONDETERMINISTIC),
+        SUBSTR("SUBSTR", 2),
+        TOTAL_CHANGES("TOTAL_CHANGES", 0, Attribute.NONDETERMINISTIC),
+        TRIM("TRIM", 1),
+        TYPEOF("TYPEOF", 1),
+        UNICODE("UNICODE", 1), UNLIKELY("UNLIKELY", 1),
+        UPPER("UPPER", 1),
+
+        DATE("DATE", 3, Attribute.VARIADIC),
+        TIME("TIME", 3, Attribute.VARIADIC),
+        DATETIME("DATETIME", 3, Attribute.VARIADIC),
+        JULIANDAY("JULIANDAY", 3, Attribute.VARIADIC),
         STRFTIME("STRFTIME", 3, Attribute.VARIADIC),
-        // json functions
-        JSON("json", 1), //
-        JSON_ARRAY("json_array", 2, Attribute.VARIADIC), JSON_ARRAY_LENGTH("json_array_length", 1), //
-        JSON_ARRAY_LENGTH2("json_array_length", 2), //
+
+        JSON("json", 1),
+        JSON_ARRAY("json_array", 2, Attribute.VARIADIC), JSON_ARRAY_LENGTH("json_array_length", 1),
+        JSON_ARRAY_LENGTH2("json_array_length", 2),
         JSON_EXTRACT("json_extract", 2, Attribute.VARIADIC), JSON_INSERT("json_insert", 3, Attribute.VARIADIC),
         JSON_OBJECT("json_object", 2, Attribute.VARIADIC), JSON_PATCH("json_patch", 2),
-        JSON_REMOVE("json_remove", 2, Attribute.VARIADIC), JSON_TYPE("json_type", 1), //
-        JSON_VALID("json_valid", 1), //
-        JSON_QUOTE("json_quote", 1), //
+        JSON_REMOVE("json_remove", 2, Attribute.VARIADIC), JSON_TYPE("json_type", 1),
+        JSON_VALID("json_valid", 1),
+        JSON_QUOTE("json_quote", 1),
 
         RTREENODE("rtreenode", 2),
 
-        // FTS
         HIGHLIGHT("highlight", 4);
-
-        // testing functions
-        // EXPR_COMPARE("expr_compare", 2), EXPR_IMPLIES_EXPR("expr_implies_expr", 2);
-
-        // fts5_decode("fts5_decode", 2),
-        // fts5_decode_none("fts5_decode_none", 2),
-        // fts5_expr("fts5_expr", 1),
-        // fts5_expr_tcl("fts5_expr_tcl", 1),
-        // fts5_fold("fts5_fold", 1),
-        // fts5_isalnum("fts5_isalnum", 1);
 
         private int minNrArgs;
         private boolean variadic;
@@ -563,7 +534,7 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
                 nrArgs += Randomly.smallNumber();
             }
             List<SQLite3Expression> expressions = randomFunction.generateArguments(nrArgs, depth + 1, this);
-            // The second argument of LIKELIHOOD must be a float number within 0.0 -1.0
+
             if (randomFunction == AnyFunction.LIKELIHOOD) {
                 SQLite3Expression lastArg = SQLite3Constant.createRealConstant(Randomly.getPercentage());
                 expressions.remove(expressions.size() - 1);
@@ -626,7 +597,7 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
                 args[i] = new SQLite3Distinct(args[i]);
             }
         }
-        // The second argument of LIKELIHOOD must be a float number within 0.0 -1.0
+
         if (func == ComputableFunction.LIKELIHOOD) {
             SQLite3Expression lastArg = SQLite3Constant.createRealConstant(Randomly.getPercentage());
             args[args.length - 1] = lastArg;
@@ -642,14 +613,11 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
         return new SQLite3Expression.BetweenOperation(expr, tr, left, right);
     }
 
-    // TODO: incomplete
     private SQLite3Expression getBinaryOperator(int depth) {
         SQLite3Expression leftExpression = getRandomExpression(depth + 1);
-        // TODO: operators
+
         BinaryOperator operator = BinaryOperator.getRandomOperator();
-        // while (operator == BinaryOperator.DIVIDE) {
-        // operator = BinaryOperator.getRandomOperator();
-        // }
+
         SQLite3Expression rightExpression = getRandomExpression(depth + 1);
         return new SQLite3Expression.Sqlite3BinaryOperation(leftExpression, rightExpression, operator);
     }
@@ -670,14 +638,12 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
         return new SQLite3Expression.BinaryComparisonOperation(leftExpression, rightExpression, operator);
     }
 
-    // complete
     private SQLite3Expression getRandomPostfixUnaryOperator(int depth) {
         SQLite3Expression subExpression = getRandomExpression(depth + 1);
         PostfixUnaryOperator operator = PostfixUnaryOperator.getRandomOperator();
         return new SQLite3Expression.SQLite3PostfixUnaryOperation(operator, subExpression);
     }
 
-    // complete
     public SQLite3Expression getRandomUnaryOperator(int depth) {
         SQLite3Expression subExpression = getRandomExpression(depth + 1);
         UnaryOperator unaryOperation = Randomly.fromOptions(UnaryOperator.values());

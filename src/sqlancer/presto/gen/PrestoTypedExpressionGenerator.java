@@ -82,8 +82,7 @@ public final class PrestoTypedExpressionGenerator extends
     public PrestoExpression generateConstant(PrestoSchema.PrestoCompositeDataType type) {
         if (Objects.requireNonNull(type.getPrimitiveDataType()) == PrestoSchema.PrestoDataType.ARRAY) {
             return PrestoConstant.createArrayConstant(type);
-            // case MAP:
-            // return PrestoConstant.createMapConstant(type);
+
         }
         return PrestoConstant.generateConstant(type, false);
     }
@@ -91,8 +90,7 @@ public final class PrestoTypedExpressionGenerator extends
     public PrestoExpression generateInsertConstant(PrestoSchema.PrestoCompositeDataType type) {
         if (Objects.requireNonNull(type.getPrimitiveDataType()) == PrestoSchema.PrestoDataType.ARRAY) {
             return PrestoConstant.createArrayConstant(type);
-            // case MAP:
-            // return PrestoConstant.createMapConstant(type);
+
         }
         return PrestoConstant.generateConstant(type, true);
     }
@@ -105,22 +103,13 @@ public final class PrestoTypedExpressionGenerator extends
         if (depth >= globalState.getOptions().getMaxExpressionDepth() || Randomly.getBoolean()) {
             return generateLeafNode(type);
         } else {
-            // TODO: functions
+
             List<PrestoDefaultFunction> applicableFunctions = PrestoDefaultFunction.getFunctionsCompatibleWith(type);
             if (Randomly.getBooleanWithRatherLowProbability() && !applicableFunctions.isEmpty()) {
                 PrestoDefaultFunction function = Randomly.fromList(applicableFunctions);
                 return generateFunction(type, depth, function);
             }
-            // TODO: try
-            // if (Randomly.getBooleanWithRatherLowProbability()) {
-            // return generateTry(type, depth);
-            // }
 
-            // TODO: cast
-            //
-            // if (Randomly.getBooleanWithRatherLowProbability()) {
-            // Node<PrestoExpression> expressionNode = generateCast(type, depth);
-            // }
             if (Randomly.getBooleanWithRatherLowProbability()) {
                 return getCase(type, depth);
             }
@@ -147,8 +136,8 @@ public final class PrestoTypedExpressionGenerator extends
                 return generateJsonExpression(type);
             case VARBINARY:
             case ARRAY:
-                // case MAP:
-                return generateLeafNode(type); // TODO
+
+                return generateLeafNode(type);
             default:
                 throw new AssertionError(type);
             }
@@ -160,7 +149,7 @@ public final class PrestoTypedExpressionGenerator extends
     }
 
     private PrestoExpression generateCast(PrestoSchema.PrestoCompositeDataType type, int depth) {
-        // check can cast
+
         PrestoExpression expressionNode = generateExpression(getRandomType(), depth + 1);
         return new PrestoCastFunction(expressionNode, type);
     }
@@ -202,15 +191,13 @@ public final class PrestoTypedExpressionGenerator extends
         PrestoSchema.PrestoDataType[] argumentTypes = function.getArgumentTypes(returnType);
         List<PrestoExpression> arguments = new ArrayList<>();
 
-        // This is a workaround based on the assumption that array types should refer to
-        // the same element type.
         PrestoSchema.PrestoCompositeDataType savedArrayType = null;
         if (returnType.getPrimitiveDataType() == PrestoSchema.PrestoDataType.ARRAY) {
             savedArrayType = returnType;
         }
         if (function.getNumberOfArguments() == -1) {
             PrestoSchema.PrestoDataType dataType = argumentTypes[0];
-            // TODO: consider upper
+
             long no = Randomly.getNotCachedInteger(2, 10);
             for (int i = 0; i < no; i++) {
                 PrestoSchema.PrestoCompositeDataType type;
@@ -294,7 +281,7 @@ public final class PrestoTypedExpressionGenerator extends
             return getBetween(depth);
         case LIKE:
             return getLike(depth);
-        case MULTI_VALUED_COMPARISON: // TODO other operators
+        case MULTI_VALUED_COMPARISON:
             return getMultiValuedComparison(depth);
         default:
             throw new AssertionError(exprType);
@@ -314,7 +301,7 @@ public final class PrestoTypedExpressionGenerator extends
         PrestoMultiValuedComparisonOperator comparisonOperator = PrestoMultiValuedComparisonOperator
                 .getRandomForType(type);
         PrestoExpression left = generateExpression(type, depth + 1);
-        // sub-query
+
         PrestoSchema.PrestoCompositeDataType finalType = type;
         List<PrestoSchema.PrestoColumn> columnsOfType = columns.stream().filter(c -> c.getType() == finalType)
                 .collect(Collectors.toList());
@@ -380,7 +367,6 @@ public final class PrestoTypedExpressionGenerator extends
             return new PrestoBinaryOperation(left, right, operator);
         }
 
-        // timestamp at time zone
         if (Randomly.getBooleanWithSmallProbability()
                 && (type.getPrimitiveDataType() == PrestoSchema.PrestoDataType.TIMESTAMP
                         || type.getPrimitiveDataType() == PrestoSchema.PrestoDataType.TIMESTAMP_WITH_TIME_ZONE)) {
@@ -410,9 +396,6 @@ public final class PrestoTypedExpressionGenerator extends
         }
         return generateLeafNode(type);
 
-        // functions
-
-        // timestamp at time zone
     }
 
     private PrestoExpression getLike(int depth) {
@@ -568,11 +551,11 @@ public final class PrestoTypedExpressionGenerator extends
             PrestoAggregateFunction aggregateFunction) {
         List<PrestoSchema.PrestoDataType> returnTypes = aggregateFunction.getReturnTypes(type.getPrimitiveDataType());
         List<PrestoExpression> arguments = new ArrayList<>();
-        allowAggregates = false; //
+        allowAggregates = false;
         for (PrestoSchema.PrestoDataType argumentType : returnTypes) {
             arguments.add(generateExpression(PrestoSchema.PrestoCompositeDataType.fromDataType(argumentType)));
         }
-        // return new NewFunctionNode<>(arguments, aggregateFunction);
+
         return arguments;
     }
 
@@ -689,7 +672,7 @@ public final class PrestoTypedExpressionGenerator extends
     }
 
     public enum PrestoLikeOperator implements BinaryOperatorNode.Operator {
-        LIKE("LIKE"), //
+        LIKE("LIKE"),
         NOT_LIKE("NOT LIKE");
 
         private final String textRepresentation;
@@ -749,9 +732,7 @@ public final class PrestoTypedExpressionGenerator extends
             case ARRAY:
             case INTERVAL_YEAR_TO_MONTH:
             case INTERVAL_DAY_TO_SECOND:
-                // return Randomly.fromOptions(EQUALS, NOT_EQUALS, NOT_EQUALS_ALT,
-                // IS_DISTINCT_FROM,
-                // IS_NOT_DISTINCT_FROM);
+
             default:
                 return Randomly.fromOptions(EQUALS, NOT_EQUALS, NOT_EQUALS_ALT, IS_DISTINCT_FROM, IS_NOT_DISTINCT_FROM);
             }

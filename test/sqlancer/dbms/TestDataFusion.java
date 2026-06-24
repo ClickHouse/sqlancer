@@ -12,8 +12,8 @@ public class TestDataFusion {
     public void testDataFusion() {
         assumeTrue(TestConfig.isEnvironmentTrue(TestConfig.DATAFUSION_ENV));
 
-        assertEquals(0, Main.executeMain("--random-seed", "0", "--num-threads", "1", // TODO(datafusion) update when
-                                                                                     // multithread is supported
+        assertEquals(0, Main.executeMain("--random-seed", "0", "--num-threads", "1",
+
                 "--timeout-seconds", TestConfig.SECONDS, "--num-queries", TestConfig.NUM_QUERIES, "datafusion"));
     }
 }

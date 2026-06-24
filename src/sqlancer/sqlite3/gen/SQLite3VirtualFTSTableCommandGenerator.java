@@ -25,7 +25,7 @@ public class SQLite3VirtualFTSTableCommandGenerator {
     }
 
     private enum Action {
-        AUTOMERGE, CRISISMERGE, INTEGRITYCHECK, MERGE, OPTIMIZE, REBUILD, USER_MERGE, PGSZ, RANK; // TODO: delete all
+        AUTOMERGE, CRISISMERGE, INTEGRITYCHECK, MERGE, OPTIMIZE, REBUILD, USER_MERGE, PGSZ, RANK;
     }
 
     private SQLQueryAdapter generate() {
@@ -40,14 +40,14 @@ public class SQLite3VirtualFTSTableCommandGenerator {
             sb.append(vTable.getName());
             if (a == Action.AUTOMERGE) {
                 if (Randomly.getBoolean()) {
-                    // FTS5 syntax
+
                     sb.append(String.format("(%s, rank)", vTable.getName()));
                     sb.append(String.format(" VALUES('automerge', %d)", r.getInteger(0, 16)));
                 } else {
-                    // FTS3/FTS4 syntax
+
                     sb.append(String.format("(%s)", vTable.getName()));
                     sb.append(String.format(" VALUES('automerge=%d')", r.getInteger(0, 16)));
-                    errors.add("SQL logic error"); // when using the FTS3 syntax on an FTS5 table
+                    errors.add("SQL logic error");
                 }
             } else if (a == Action.CRISISMERGE) {
                 sb.append(String.format("(%s, rank)", vTable.getName()));
@@ -63,13 +63,13 @@ public class SQLite3VirtualFTSTableCommandGenerator {
             break;
         case MERGE:
             if (Randomly.getBoolean()) {
-                // FTS5 syntax
+
                 sb.append(String.format("INSERT INTO %s(%s, rank) VALUES('merge', %d);\n", vTable.getName(),
                         vTable.getName(), r.getInteger()));
             } else {
                 sb.append(String.format("INSERT INTO %s(%s) VALUES('merge=%d,%d');\n", vTable.getName(),
                         vTable.getName(), r.getInteger(), r.getInteger(2, 16)));
-                errors.add("SQL logic error"); // when using the FTS3 syntax on an FTS5 table
+                errors.add("SQL logic error");
             }
             break;
         case OPTIMIZE:

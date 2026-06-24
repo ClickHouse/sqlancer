@@ -49,19 +49,19 @@ public class CockroachDBProvider extends SQLProviderAdapter<CockroachDBGlobalSta
     }
 
     public enum Action {
-        CREATE_TABLE(CockroachDBTableGenerator::generate), CREATE_INDEX(CockroachDBIndexGenerator::create), //
-        CREATE_VIEW(CockroachDBViewGenerator::generate), //
-        CREATE_STATISTICS(CockroachDBCreateStatisticsGenerator::create), //
-        INSERT(CockroachDBInsertGenerator::insert), //
-        UPDATE(CockroachDBUpdateGenerator::gen), //
-        SET_SESSION(CockroachDBSetSessionGenerator::create), //
-        SET_CLUSTER_SETTING(CockroachDBSetClusterSettingGenerator::create), //
-        DELETE(CockroachDBDeleteGenerator::delete), //
-        TRUNCATE(CockroachDBTruncateGenerator::truncate), //
-        DROP_TABLE(CockroachDBDropTableGenerator::drop), //
-        DROP_VIEW(CockroachDBDropViewGenerator::drop), //
-        COMMENT_ON(CockroachDBCommentOnGenerator::comment), //
-        SHOW(CockroachDBShowGenerator::show), //
+        CREATE_TABLE(CockroachDBTableGenerator::generate), CREATE_INDEX(CockroachDBIndexGenerator::create),
+        CREATE_VIEW(CockroachDBViewGenerator::generate),
+        CREATE_STATISTICS(CockroachDBCreateStatisticsGenerator::create),
+        INSERT(CockroachDBInsertGenerator::insert),
+        UPDATE(CockroachDBUpdateGenerator::gen),
+        SET_SESSION(CockroachDBSetSessionGenerator::create),
+        SET_CLUSTER_SETTING(CockroachDBSetClusterSettingGenerator::create),
+        DELETE(CockroachDBDeleteGenerator::delete),
+        TRUNCATE(CockroachDBTruncateGenerator::truncate),
+        DROP_TABLE(CockroachDBDropTableGenerator::drop),
+        DROP_VIEW(CockroachDBDropViewGenerator::drop),
+        COMMENT_ON(CockroachDBCommentOnGenerator::comment),
+        SHOW(CockroachDBShowGenerator::show),
         TRANSACTION((g) -> {
             String s = Randomly.fromOptions("BEGIN", "ROLLBACK", "COMMIT");
             return new SQLQueryAdapter(s, ExpectedErrors.from("there is no transaction in progress",
@@ -81,16 +81,14 @@ public class CockroachDBProvider extends SQLProviderAdapter<CockroachDBGlobalSta
             sb.append(CockroachDBRandomQuerySynthesizer.generate(g, Randomly.smallNumber() + 1));
             CockroachDBErrors.addExpressionErrors(errors);
             return new SQLQueryAdapter(sb.toString(), errors);
-        }), //
+        }),
         SCRUB((g) -> new SQLQueryAdapter(
                 "EXPERIMENTAL SCRUB table " + g.getSchema().getRandomTable(t -> !t.isView()).getName(),
-                // https://github.com/cockroachdb/cockroach/issues/46401
+
                 ExpectedErrors.from("scrub-fk: column \"t.rowid\" does not exist",
-                        "check-constraint: cannot access temporary tables of other sessions" /*
-                                                                                              * https:// github. com/
-                                                                                              * cockroachdb / cockroach
-                                                                                              * /issues/ 47031
-                                                                                              */))), //
+                        "check-constraint: cannot access temporary tables of other sessions"
+
+))),
         SPLIT((g) -> {
             StringBuilder sb = new StringBuilder("ALTER INDEX ");
             CockroachDBTable randomTable = g.getSchema().getRandomTable();
@@ -158,7 +156,7 @@ public class CockroachDBProvider extends SQLProviderAdapter<CockroachDBGlobalSta
                     SQLQueryAdapter q = CockroachDBTableGenerator.generate(globalState);
                     success = globalState.executeStatement(q);
                 } catch (IgnoreMeException e) {
-                    // continue trying
+
                 }
             } while (!success);
         }
@@ -198,16 +196,14 @@ public class CockroachDBProvider extends SQLProviderAdapter<CockroachDBGlobalSta
                 break;
             case COMMENT_ON:
             case SCRUB:
-                nrPerformed = 0; /*
-                                  * there are a number of open SCRUB bugs, of which
-                                  * https://github.com/cockroachdb/cockroach/issues/47116 crashes the server
-                                  */
+                nrPerformed = 0;
+
                 break;
             case TRANSACTION:
             case CREATE_TABLE:
             case DROP_TABLE:
             case DROP_VIEW:
-                nrPerformed = 0; // r.getInteger(0, 0);
+                nrPerformed = 0;
                 break;
             default:
                 throw new AssertionError(action);
@@ -253,7 +249,7 @@ public class CockroachDBProvider extends SQLProviderAdapter<CockroachDBGlobalSta
 
         if (globalState.getDbmsSpecificOptions().getTestOracleFactory().stream()
                 .anyMatch((o) -> o == CockroachDBOracleFactory.CERT)) {
-            // Enfore statistic collected for all tables
+
             ExpectedErrors errors = new ExpectedErrors();
             CockroachDBErrors.addExpressionErrors(errors);
             for (CockroachDBTable table : globalState.getSchema().getDatabaseTables()) {
@@ -311,12 +307,12 @@ public class CockroachDBProvider extends SQLProviderAdapter<CockroachDBGlobalSta
             }
         }
         SQLQueryAdapter q = new SQLQueryAdapter(explainQuery);
-        boolean afterProjection = false; // Remove the concrete expression after each Projection operator
+        boolean afterProjection = false;
         try (SQLancerResultSet rs = q.executeAndGet(globalState)) {
             if (rs != null) {
                 while (rs.next()) {
                     String targetQueryPlan = rs.getString(1).replace("└──", "").replace("├──", "").replace("│", "")
-                            .trim() + ";"; // Unify format
+                            .trim() + ";";
                     if (afterProjection) {
                         afterProjection = false;
                         continue;
@@ -324,7 +320,7 @@ public class CockroachDBProvider extends SQLProviderAdapter<CockroachDBGlobalSta
                     if (targetQueryPlan.startsWith("projections")) {
                         afterProjection = true;
                     }
-                    // Remove all concrete expressions by keywords
+
                     if (targetQueryPlan.contains(">") || targetQueryPlan.contains("<") || targetQueryPlan.contains("=")
                             || targetQueryPlan.contains("*") || targetQueryPlan.contains("+")
                             || targetQueryPlan.contains("'")) {

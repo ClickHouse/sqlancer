@@ -18,10 +18,10 @@ public class QuestDBOptions implements DBMSSpecificOptions<QuestDBOracleFactory>
     public List<QuestDBOracleFactory> oracle = Arrays.asList(QuestDBOracleFactory.WHERE);
 
     @Parameter(names = "--username", description = "The user name used to log into QuestDB")
-    private String userName = "admin"; // NOPMD
+    private String userName = "admin";
 
     @Parameter(names = "--password", description = "The password used to log into QuestDB")
-    private String password = "quest"; // NOPMD
+    private String password = "quest";
 
     @Override
     public List<QuestDBOracleFactory> getTestOracleFactory() {

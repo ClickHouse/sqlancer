@@ -19,7 +19,7 @@ public class YSQLGlobalState extends SQLGlobalState<YSQLOptions, YSQLSchema> {
     public static final char IMMUTABLE = 'i';
     public static final char STABLE = 's';
     public static final char VOLATILE = 'v';
-    // store and allow filtering by function volatility classifications
+
     private final Map<String, Character> functionsAndTypes = new HashMap<>();
     private List<String> operators = Collections.emptyList();
     private List<String> collates = Collections.emptyList();

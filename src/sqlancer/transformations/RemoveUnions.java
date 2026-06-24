@@ -8,12 +8,6 @@ import net.sf.jsqlparser.statement.select.SetOperationList;
 import net.sf.jsqlparser.util.deparser.ExpressionDeParser;
 import net.sf.jsqlparser.util.deparser.SelectDeParser;
 
-/**
- * try removing sub selects of a union statement.
- *
- * e.g. select 1 union select 2 -> select 1
- */
-
 public class RemoveUnions extends JSQLParserBasedTransformation {
 
     private final SelectDeParser remover = new SelectDeParser() {

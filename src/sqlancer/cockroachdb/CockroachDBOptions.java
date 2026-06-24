@@ -22,7 +22,7 @@ public class CockroachDBOptions implements DBMSSpecificOptions<CockroachDBOracle
     public boolean testHashIndexes = true;
 
     @Parameter(names = { "--test-temp-tables" }, description = "Test TEMPORARY tables")
-    public boolean testTempTables; // default: false https://github.com/cockroachdb/cockroach/issues/85388
+    public boolean testTempTables;
 
     @Parameter(names = { "--max-num-tables" }, description = "The maximum number of tables that can be created")
     public int maxNumTables = 10;

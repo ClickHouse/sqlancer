@@ -12,7 +12,7 @@ public final class CockroachDBShowGenerator {
     }
 
     private enum Option {
-        EXPERIMENTAL_FINGERPRINTS, // https://github.com/cockroachdb/cockroach/issues/44237
+        EXPERIMENTAL_FINGERPRINTS,
         DATABASES, JOBS, RANGES, LOCALITY, SEQUENCES, TRACE_FOR_SESSION
     }
 

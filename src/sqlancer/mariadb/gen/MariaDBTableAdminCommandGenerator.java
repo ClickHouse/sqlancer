@@ -29,7 +29,7 @@ public final class MariaDBTableAdminCommandGenerator {
     public static SQLQueryAdapter repairTable(MariaDBSchema newSchema) {
         StringBuilder sb = addCommandAndTables(newSchema, "REPAIR TABLE");
         if (Randomly.getBoolean()) {
-            List<String> subset = Randomly.nonEmptySubset("QUICK", "EXTENDED"); // , "USE_FRM"
+            List<String> subset = Randomly.nonEmptySubset("QUICK", "EXTENDED");
             sb.append(" ");
             sb.append(subset.stream().collect(Collectors.joining(" ")));
         }

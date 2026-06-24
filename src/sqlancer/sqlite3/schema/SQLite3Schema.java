@@ -28,9 +28,6 @@ import sqlancer.sqlite3.schema.SQLite3Schema.SQLite3Table.TableKind;
 
 public class SQLite3Schema extends AbstractSchema<SQLite3GlobalState, SQLite3Table> {
 
-    /**
-     * All possible aliases for the rowid column.
-     */
     public static final List<String> ROWID_STRINGS = Collections
             .unmodifiableList(Arrays.asList("rowid", "_rowid_", "oid"));
     private final List<String> indexNames;
@@ -49,7 +46,7 @@ public class SQLite3Schema extends AbstractSchema<SQLite3GlobalState, SQLite3Tab
 
     public static class SQLite3Column extends AbstractTableColumn<SQLite3Table, SQLite3DataType> {
 
-        private final boolean isInteger; // "INTEGER" type, not "INT"
+        private final boolean isInteger;
         private final SQLite3CollateSequence collate;
         boolean generated;
         private final boolean isPrimaryKey;
@@ -87,13 +84,6 @@ public class SQLite3Schema extends AbstractSchema<SQLite3GlobalState, SQLite3Tab
             return isPrimaryKey && getTable().getColumns().stream().filter(c -> c.isPrimaryKey()).count() == 1;
         }
 
-        // see https://www.sqlite.org/lang_createtable.html#rowid
-        /**
-         * If a table has a single column primary key and the declared type of that column is "INTEGER" and the table is
-         * not a WITHOUT ROWID table, then the column is known as an INTEGER PRIMARY KEY.
-         *
-         * @return whether the column is an INTEGER PRIMARY KEY
-         */
         public boolean isIntegerPrimaryKey() {
             return isInteger && isOnlyPrimaryKey() && !getTable().hasWithoutRowid();
         }
@@ -124,7 +114,7 @@ public class SQLite3Schema extends AbstractSchema<SQLite3GlobalState, SQLite3Tab
         case REAL:
             value = randomRowValues.getDouble(columnIndex);
             if (!Double.isFinite((double) value)) {
-                // TODO: the JDBC driver seems to sometimes return infinity for NULL values
+
                 throw new IgnoreMeException();
             }
             constant = SQLite3Constant.createRealConstant((double) value);
@@ -138,7 +128,7 @@ public class SQLite3Schema extends AbstractSchema<SQLite3GlobalState, SQLite3Tab
             value = randomRowValues.getBytes(columnIndex);
             constant = SQLite3Constant.createBinaryConstant((byte[]) value);
             if (((byte[]) value).length == 0) {
-                // TODO: the JDBC driver seems to sometimes return a zero-length array for NULL values
+
                 throw new IgnoreMeException();
             }
             break;
@@ -171,7 +161,7 @@ public class SQLite3Schema extends AbstractSchema<SQLite3GlobalState, SQLite3Tab
                 }
                 if (!randomRowValues.next()) {
                     throw new IgnoreMeException();
-                    // throw new AssertionError("could not find random row! " + randomRow);
+
                 }
                 for (int i = 0; i < getColumns().size(); i++) {
                     SQLite3Column column = getColumns().get(i);
@@ -191,7 +181,6 @@ public class SQLite3Schema extends AbstractSchema<SQLite3GlobalState, SQLite3Tab
     }
 
     public static class SQLite3Table extends AbstractRelationalTable<SQLite3Column, TableIndex, SQLite3GlobalState> {
-        // TODO: why does the SQLite implementation have no table indexes?
 
         public enum TableKind {
             MAIN, TEMP;
@@ -291,7 +280,7 @@ public class SQLite3Schema extends AbstractSchema<SQLite3GlobalState, SQLite3Tab
                             || tableName.endsWith("_config") || tableName.endsWith("_segdir")
                             || tableName.endsWith("_stat") || tableName.endsWith("_segments")
                             || tableName.contains("_")) {
-                        continue; // TODO
+                        continue;
                     } else if (sqlString.contains("using dbstat")) {
                         isReadOnly = true;
                     } else if (sqlString.contains("content=''")) {
@@ -320,7 +309,7 @@ public class SQLite3Schema extends AbstractSchema<SQLite3GlobalState, SQLite3Tab
                     databaseTables.add(t);
                 }
             } catch (SQLException e) {
-                // ignore
+
             }
             try (ResultSet rs = s.executeQuery(
                     "SELECT name FROM SQLite_master WHERE type = 'index' UNION SELECT name FROM sqlite_temp_master WHERE type='index'")) {
@@ -341,7 +330,6 @@ public class SQLite3Schema extends AbstractSchema<SQLite3GlobalState, SQLite3Tab
         return new SQLite3Schema(databaseTables, indexNames);
     }
 
-    // https://www.sqlite.org/rowidtable.html
     private static boolean isRowIdTable(boolean withoutRowid, boolean isView, boolean isVirtual) {
         return !isView && !isVirtual && !withoutRowid;
     }
@@ -358,10 +346,10 @@ public class SQLite3Schema extends AbstractSchema<SQLite3GlobalState, SQLite3Tab
                     String columnName = columnRs.getString("name");
                     if (columnName.contentEquals("docid") || columnName.contentEquals("rank")
                             || columnName.contentEquals(tableName) || columnName.contentEquals("__langid")) {
-                        continue; // internal column names of FTS tables
+                        continue;
                     }
                     if (isDbStatsTable && columnName.contentEquals("aggregate")) {
-                        // see https://www.sqlite.org/src/tktview?name=a3713a5fca
+
                         continue;
                     }
                     String columnTypeString = columnRs.getString("type");
@@ -382,7 +370,7 @@ public class SQLite3Schema extends AbstractSchema<SQLite3GlobalState, SQLite3Tab
 
         }
         if (databaseColumns.isEmpty()) {
-            // only generated columns
+
             throw new IgnoreMeException();
         }
         assert !databaseColumns.isEmpty() : tableName;

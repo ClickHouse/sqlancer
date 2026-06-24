@@ -63,8 +63,7 @@ public class SparkToStringVisitor extends NewToStringVisitor<SparkExpression> {
             sb.append(" LIMIT ");
             visit(select.getLimitClause());
         }
-        // Spark supports OFFSET, though strictly usually with LIMIT or in newer
-        // versions
+
         if (select.getOffsetClause() != null) {
             sb.append(" OFFSET ");
             visit(select.getOffsetClause());
@@ -88,7 +87,7 @@ public class SparkToStringVisitor extends NewToStringVisitor<SparkExpression> {
         case LEFT_SEMI:
             sb.append(" LEFT SEMI JOIN ");
             break;
-        // Spark also supports LEFT ANTI, which Hive might lack in some older versions
+
         case LEFT_ANTI:
             sb.append(" LEFT ANTI JOIN ");
             break;

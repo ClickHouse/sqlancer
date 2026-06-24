@@ -291,7 +291,7 @@ public class OceanBaseExpressionGenerator extends UntypedExpressionGenerator<Oce
     };
 
     private OceanBaseExpression getTrueExpr(OceanBaseExpression randomWhereCondition) {
-        // we can treat "is true" as combinations of "is flase" and "not","is not true" and "not",etc.
+
         OceanBaseUnaryPostfixOperation isTrue = new OceanBaseUnaryPostfixOperation(randomWhereCondition,
                 OceanBaseUnaryPostfixOperation.UnaryPostfixOperator.IS_TRUE, false);
 
@@ -314,26 +314,26 @@ public class OceanBaseExpressionGenerator extends UntypedExpressionGenerator<Oce
             expr = isTrue;
             break;
         case FALSE_NULL:
-            // not((is false) or (is null))
+
             expr = new OceanBaseUnaryPrefixOperation(
                     new OceanBaseBinaryLogicalOperation(isFalse, isNULL,
                             OceanBaseBinaryLogicalOperation.OceanBaseBinaryLogicalOperator.OR),
                     OceanBaseUnaryPrefixOperation.OceanBaseUnaryPrefixOperator.NOT);
             break;
         case NOT_NOT_TRUE:
-            // not(not(is true)))
+
             expr = new OceanBaseUnaryPrefixOperation(
                     new OceanBaseUnaryPrefixOperation(isTrue,
                             OceanBaseUnaryPrefixOperation.OceanBaseUnaryPrefixOperator.NOT),
                     OceanBaseUnaryPrefixOperation.OceanBaseUnaryPrefixOperator.NOT);
             break;
         case NOT_FALSE_NOT_NULL:
-            // (is not false) and (is not null)
+
             expr = new OceanBaseBinaryLogicalOperation(isNotFalse, isNotNULL,
                     OceanBaseBinaryLogicalOperation.OceanBaseBinaryLogicalOperator.AND);
             break;
         case IF:
-            // if(1, xx is true, 0)
+
             OceanBaseExpression[] args = new OceanBaseExpression[3];
             args[0] = OceanBaseConstant.createIntConstant(1);
             args[1] = isTrue;
@@ -341,14 +341,14 @@ public class OceanBaseExpressionGenerator extends UntypedExpressionGenerator<Oce
             expr = new OceanBaseComputableFunction(OceanBaseFunction.IF, args);
             break;
         case IFNULL:
-            // ifnull(null, xx is true)
+
             OceanBaseExpression[] ifArgs = new OceanBaseExpression[2];
             ifArgs[0] = OceanBaseConstant.createNullConstant();
             ifArgs[1] = isTrue;
             expr = new OceanBaseComputableFunction(OceanBaseFunction.IFNULL, ifArgs);
             break;
         case COALESCE:
-            // coalesce(null, xx is true)
+
             OceanBaseExpression[] coalesceArgs = new OceanBaseExpression[2];
             coalesceArgs[0] = OceanBaseConstant.createNullConstant();
             coalesceArgs[1] = isTrue;

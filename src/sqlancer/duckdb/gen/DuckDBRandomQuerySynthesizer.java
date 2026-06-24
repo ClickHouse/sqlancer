@@ -24,17 +24,13 @@ public final class DuckDBRandomQuerySynthesizer {
         DuckDBExpressionGenerator gen = new DuckDBExpressionGenerator(globalState)
                 .setColumns(targetTables.getColumns());
         DuckDBSelect select = new DuckDBSelect();
-        // TODO: distinct
-        // select.setDistinct(Randomly.getBoolean());
-        // boolean allowAggregates = Randomly.getBooleanWithSmallProbability();
+
         List<DuckDBExpression> columns = new ArrayList<>();
         for (int i = 0; i < nrColumns; i++) {
-            // if (allowAggregates && Randomly.getBoolean()) {
+
             DuckDBExpression expression = gen.generateExpression();
             columns.add(expression);
-            // } else {
-            // columns.add(gen());
-            // }
+
         }
         select.setFetchColumns(columns);
         List<DuckDBTable> tables = targetTables.getTables();

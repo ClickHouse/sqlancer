@@ -19,7 +19,7 @@ public class PostgresTableSpaceGenerator {
     }
 
     public static SQLQueryAdapter generate(PostgresGlobalState globalState) {
-        // Skip tablespace generation if the option is disabled
+
         PostgresOptions options = globalState.getDbmsSpecificOptions();
         if (!options.isTestTablespaces()) {
             return null;
@@ -31,20 +31,16 @@ public class PostgresTableSpaceGenerator {
         StringBuilder sb = new StringBuilder();
         int tableSpaceNum = globalState.getRandomly().getInteger(1, Integer.MAX_VALUE);
 
-        // CREATE TABLESPACE syntax
         sb.append("CREATE TABLESPACE ");
         sb.append("tablespace");
         sb.append(tableSpaceNum);
         sb.append(" LOCATION '");
 
-        // Get the validated base path from options and append the tablespace number
         PostgresOptions options = globalState.getDbmsSpecificOptions();
         String path = options.getTablespacePath() + tableSpaceNum;
 
-        // Convert backslashes to forward slashes for PostgreSQL
         path = path.replace('\\', '/');
 
-        // Escape single quotes in the path
         path = path.replace("'", "''");
 
         sb.append(path);

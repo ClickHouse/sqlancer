@@ -17,7 +17,6 @@ public abstract class ClickHouseExpression implements Expression<ClickHouseColum
         NOTHING, UINT8, UINT16, UINT32, UINT64, UINT128, INT8, INT16, INT32, INT64, INT128, FLOAT32, FLOAT64, DATE,
         DATETIME, DATETIME64, STRING, FIXEDSTRING, ENUM8, ENUM16, DECIMAL32, DECIMAL64, DECIMAL128, UUID, ARRAY, TUPLE,
         SET, INTERVAL;
-        // NULLABLE, FUNCTION, AGGREGATEFUNCTION, LOWCARDINALITY;
 
         public boolean isNumeric() {
             return this == UINT8 || this == UINT16 || this == UINT32 || this == UINT64 || this == UINT128
@@ -67,11 +66,16 @@ public abstract class ClickHouseExpression implements Expression<ClickHouseColum
 
     public static class ClickHouseJoin extends ClickHouseExpression
             implements Join<ClickHouseExpression, ClickHouseTable, ClickHouseColumn> {
-        // TODO: support ANY, ALL, ASOF modifiers
-        // LEFT_SEMI, RIGHT_SEMI are not deterministic as ClickHouse allows to read columns from
-        // whitelist table as well
+
         public enum JoinType {
-            INNER, CROSS, LEFT_OUTER, RIGHT_OUTER, FULL_OUTER, LEFT_ANTI, RIGHT_ANTI;
+            INNER, CROSS, LEFT_OUTER, RIGHT_OUTER, FULL_OUTER, LEFT_ANTI, RIGHT_ANTI, LEFT_ANY, RIGHT_ANY, ANY_INNER,
+            LEFT_SEMI, RIGHT_SEMI,
+
+            ASOF_INNER, ASOF_LEFT_OUTER,
+
+            PASTE,
+
+            INNER_ALL, INNER_DISTINCT
         }
 
         private final ClickHouseTableReference leftTable;

@@ -174,7 +174,7 @@ public class DatabendSchema extends AbstractSchema<DatabendGlobalState, Databend
                 ResultSet rs = s.executeQuery(rowValueQuery);
                 if (!rs.next()) {
                     throw new IgnoreMeException();
-                    // throw new AssertionError("could not find random row " + rowValueQuery + "\n");
+
                 }
                 for (int i = 0; i < getColumns().size(); i++) {
                     DatabendColumn column = getColumns().get(i);
@@ -237,10 +237,10 @@ public class DatabendSchema extends AbstractSchema<DatabendGlobalState, Databend
     }
 
     private static DatabendCompositeDataType getColumnType(String typeString) {
-        if (typeString.startsWith("DECIMAL")) { // Ugly hack
+        if (typeString.startsWith("DECIMAL")) {
             return new DatabendCompositeDataType(DatabendDataType.FLOAT, 8);
         }
-        if (typeString.startsWith("Nullable")) { // Ugly hack
+        if (typeString.startsWith("Nullable")) {
             String substring = typeString.substring(typeString.indexOf('(') + 1, typeString.indexOf(')'));
             return getColumnTypeNormalCases(substring);
         }
@@ -301,8 +301,7 @@ public class DatabendSchema extends AbstractSchema<DatabendGlobalState, Databend
             break;
         case "INTERVAL":
             throw new IgnoreMeException();
-        // TODO: caused when a view contains a computation like ((TIMESTAMP '1970-01-05 11:26:57')-(TIMESTAMP
-        // '1969-12-29 06:50:27'))
+
         default:
             throw new AssertionError(typeString);
         }
@@ -357,7 +356,7 @@ public class DatabendSchema extends AbstractSchema<DatabendGlobalState, Databend
             try (ResultSet rs = s.executeQuery(String.format(
                     "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema = '%s' and table_name ='%s'",
                     databaseName, tableName))) {
-                try { // 没有catch的话rs.next()会报SQLException：Not a navigable ResultSet
+                try {
                     while (rs.next()) {
                         String columnName = rs.getString("column_name");
                         String dataType = rs.getString("data_type");
@@ -365,8 +364,8 @@ public class DatabendSchema extends AbstractSchema<DatabendGlobalState, Databend
                             dataType = dataType.substring(0, dataType.indexOf(' '));
                         }
                         boolean isNullable = rs.getBoolean("is_nullable");
-                        // boolean isPrimaryKey = rs.getString("pk").contains("true");
-                        boolean isPrimaryKey = false; // 没找到主键元数据
+
+                        boolean isPrimaryKey = false;
                         DatabendColumn c = new DatabendColumn(columnName, getColumnType(dataType), isPrimaryKey,
                                 isNullable);
                         columns.add(c);

@@ -162,7 +162,7 @@ public class DuckDBSchema extends AbstractSchema<DuckDBGlobalState, DuckDBTable>
     private static DuckDBCompositeDataType getColumnType(String typeString) {
         DuckDBDataType primitiveType;
         int size = -1;
-        if (typeString.startsWith("DECIMAL")) { // Ugly hack
+        if (typeString.startsWith("DECIMAL")) {
             return new DuckDBCompositeDataType(DuckDBDataType.FLOAT, 8);
         }
         switch (typeString) {
@@ -175,7 +175,7 @@ public class DuckDBSchema extends AbstractSchema<DuckDBGlobalState, DuckDBTable>
             size = 2;
             break;
         case "BIGINT":
-        case "HUGEINT": // TODO: 16-bit int
+        case "HUGEINT":
             primitiveType = DuckDBDataType.INT;
             size = 8;
             break;
@@ -208,8 +208,7 @@ public class DuckDBSchema extends AbstractSchema<DuckDBGlobalState, DuckDBTable>
             break;
         case "INTERVAL":
             throw new IgnoreMeException();
-        // TODO: caused when a view contains a computation like ((TIMESTAMP '1970-01-05 11:26:57')-(TIMESTAMP
-        // '1969-12-29 06:50:27'))
+
         default:
             throw new AssertionError(typeString);
         }
@@ -229,7 +228,7 @@ public class DuckDBSchema extends AbstractSchema<DuckDBGlobalState, DuckDBTable>
         List<String> tableNames = getTableNames(con);
         for (String tableName : tableNames) {
             if (DBMSCommon.matchesIndexName(tableName)) {
-                continue; // TODO: unexpected?
+                continue;
             }
             List<DuckDBColumn> databaseColumns = getTableColumns(con, tableName);
             boolean isView = matchesViewName(tableName);
@@ -286,9 +285,7 @@ public class DuckDBSchema extends AbstractSchema<DuckDBGlobalState, DuckDBTable>
             }
         }
         if (columns.stream().noneMatch(c -> c.isPrimaryKey()) && !AbstractSchema.matchesViewName(tableName)) {
-            // https://github.com/cwida/duckdb/issues/589
-            // https://github.com/cwida/duckdb/issues/588
-            // TODO: implement an option to enable/disable rowids
+
             columns.add(new DuckDBColumn("rowid", new DuckDBCompositeDataType(DuckDBDataType.INT, 4), false, false));
         }
         return columns;

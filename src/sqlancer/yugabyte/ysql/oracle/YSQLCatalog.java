@@ -51,8 +51,7 @@ public class YSQLCatalog implements TestOracle<YSQLGlobalState> {
     protected void createTables(YSQLGlobalState globalState, int numTables) throws Exception {
         synchronized (DDL_LOCK) {
             while (globalState.getSchema().getDatabaseTables().size() < numTables) {
-                // TODO concurrent DDLs may produce a lot of noise in test logs so its disabled right now
-                // added timeout to avoid possible catalog collisions
+
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
@@ -66,7 +65,7 @@ public class YSQLCatalog implements TestOracle<YSQLGlobalState> {
                     globalState.getManager().incrementSelectQueryCount();
                     globalState.executeStatement(new SQLQueryAdapter("COMMIT", true));
                 } catch (IgnoreMeException e) {
-                    // do nothing
+
                 }
             }
         }
@@ -74,7 +73,7 @@ public class YSQLCatalog implements TestOracle<YSQLGlobalState> {
 
     @Override
     public void check() throws Exception {
-        // create table or evaluate catalog test
+
         int seed = state.getRandomly().getInteger(1, 100);
         if (seed > 95) {
             createTables(state, 1);

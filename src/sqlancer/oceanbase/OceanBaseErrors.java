@@ -14,7 +14,7 @@ public final class OceanBaseErrors {
     public static List<String> getExpressionErrors() {
         ArrayList<String> errors = new ArrayList<>();
 
-        errors.add("BIGINT value is out of range"); // e.g., CAST(-('-1e500') AS SIGNED)
+        errors.add("BIGINT value is out of range");
         errors.add("value is out of range");
         errors.add("is not valid for CHARACTER SET");
         errors.add("The observer or zone is not the master");
@@ -51,7 +51,7 @@ public final class OceanBaseErrors {
         errors.add("Incorrect tinyint value");
         errors.add("Data truncation");
         errors.add("Bad Number");
-        errors.add("The value specified for generated column"); // TODO: do not insert data into generated columns
+        errors.add("The value specified for generated column");
         errors.add("incorrect utf8 value");
         errors.add("Data truncation: %s value is out of range in '%s'");
         errors.add("Incorrect smallint value");

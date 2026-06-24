@@ -68,9 +68,6 @@ public class MaterializePivotedQuerySynthesisOracle extends
         return new SQLQueryAdapter(MaterializeVisitor.asString(selectStatement));
     }
 
-    /*
-     * Prevent name collisions by aliasing the column.
-     */
     private MaterializeColumn getFetchValueAliasedColumn(MaterializeColumn c) {
         MaterializeColumn aliasedColumn = new MaterializeColumn(
                 c.getName() + " AS " + c.getTable().getName() + c.getName(), c.getType());
@@ -121,7 +118,7 @@ public class MaterializePivotedQuerySynthesisOracle extends
     @Override
     protected Query<SQLConnection> getContainmentCheckQuery(Query<?> query) throws SQLException {
         StringBuilder sb = new StringBuilder();
-        sb.append("SELECT * FROM ("); // ANOTHER SELECT TO USE ORDER BY without restrictions
+        sb.append("SELECT * FROM (");
         sb.append(query.getUnterminatedQueryString());
         sb.append(") as result WHERE ");
         int i = 0;

@@ -20,7 +20,7 @@ public final class SQLite3Common {
     }
 
     public static String getRandomCollate() {
-        return Randomly.fromOptions(" COLLATE BINARY", " COLLATE RTRIM", " COLLATE NOCASE"/* , " COLLATE UINT" */);
+        return Randomly.fromOptions(" COLLATE BINARY", " COLLATE RTRIM", " COLLATE NOCASE");
     }
 
     public static String getCheckConstraint(SQLite3GlobalState globalState, List<SQLite3Column> columns) {
@@ -29,8 +29,6 @@ public final class SQLite3Common {
         return " CHECK ( " + SQLite3Visitor.asString(expression) + ")";
     }
 
-    // TODO: refactor others to use this method
-    // https://www.sqlite.org/syntax/ordering-term.html
     public static String getOrderingTerm(List<SQLite3Column> columns, SQLite3GlobalState globalState) {
         SQLite3Expression randExpr = new SQLite3ExpressionGenerator(globalState).setColumns(columns)
                 .generateExpression();

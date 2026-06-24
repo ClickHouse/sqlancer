@@ -14,7 +14,7 @@ public final class YSQLDiscardGenerator {
     public static SQLQueryAdapter create(YSQLGlobalState globalState) {
         StringBuilder sb = new StringBuilder();
         sb.append("DISCARD ");
-        // prevent that DISCARD discards all tables (if they are TEMP tables)
+
         boolean hasNonTempTables = globalState.getSchema().getDatabaseTables().stream()
                 .anyMatch(t -> t.getTableType() == TableType.STANDARD);
         String what;

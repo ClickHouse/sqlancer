@@ -37,7 +37,7 @@ public class CockroachDBTableGenerator extends CockroachDBGenerator {
 
     @Override
     public void buildStatement() {
-        errors.add("and thus is not indexable"); // array types are not indexable
+        errors.add("and thus is not indexable");
         errors.add("context-dependent operators are not allowed in STORED COMPUTED COLUMN");
         if (globalState.getDbmsSpecificOptions().testTempTables) {
             errors.add("constraints on temporary tables may reference only temporary tables");
@@ -54,7 +54,7 @@ public class CockroachDBTableGenerator extends CockroachDBGenerator {
             String columnName = "c" + i;
             CockroachDBCompositeDataType columnType = CockroachDBCompositeDataType.getRandom();
             while (columnType.getPrimitiveDataType() == CockroachDBDataType.JSONB) {
-                columnType = CockroachDBCompositeDataType.getRandom(); // TODO
+                columnType = CockroachDBCompositeDataType.getRandom();
             }
             columns.add(new CockroachDBColumn(columnName, columnType, false, false));
 
@@ -76,7 +76,7 @@ public class CockroachDBTableGenerator extends CockroachDBGenerator {
                     && cockroachDBColumn.getType().getPrimitiveDataType() != CockroachDBDataType.SERIAL;
             if (generatedColumn) {
                 sb.append(" AS (");
-                // To generate an expression exclude of the current column
+
                 List<CockroachDBColumn> generatedColumns = new ArrayList<>(columns);
                 generatedColumns.remove(i);
                 CockroachDBExpressionGenerator genGeneratedColumn = new CockroachDBExpressionGenerator(globalState)
@@ -104,11 +104,11 @@ public class CockroachDBTableGenerator extends CockroachDBGenerator {
                 sb.append(CockroachDBVisitor.asString(new CockroachDBExpressionGenerator(globalState)
                         .generateExpression(cockroachDBColumn.getType())));
                 sb.append(")");
-                errors.add("has type unknown"); // NULLIF
+                errors.add("has type unknown");
             }
             if (Randomly.getBooleanWithRatherLowProbability()
                     && !globalState.getSchema().getDatabaseTables().isEmpty()) {
-                // TODO: also allow referencing itself
+
                 sb.append(" REFERENCES ");
                 CockroachDBTable otherTable = globalState.getSchema().getRandomTable();
                 List<CockroachDBColumn> applicableColumns = otherTable.getColumns().stream()

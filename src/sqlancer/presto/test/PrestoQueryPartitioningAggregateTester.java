@@ -45,7 +45,7 @@ public class PrestoQueryPartitioningAggregateTester extends PrestoQueryPartition
         super.check();
         PrestoAggregateFunction aggregateFunction = Randomly.fromOptions(PrestoAggregateFunction.MAX,
                 PrestoAggregateFunction.MIN, PrestoAggregateFunction.SUM, PrestoAggregateFunction.COUNT,
-                PrestoAggregateFunction.AVG/* , PrestoAggregateFunction.STDDEV_POP */);
+                PrestoAggregateFunction.AVG);
         List<PrestoExpression> aggregateArgs = gen.generateArgsForAggregate(aggregateFunction);
         PrestoFunctionNode<PrestoAggregateFunction> aggregate = new PrestoFunctionNode<>(aggregateArgs,
                 aggregateFunction);
@@ -67,13 +67,13 @@ public class PrestoQueryPartitioningAggregateTester extends PrestoQueryPartition
         }
         if (firstResult == null && secondResult != null) {
             if (secondResult.contains("Inf")) {
-                throw new IgnoreMeException(); // FIXME: average computation
+                throw new IgnoreMeException();
             }
             throw new AssertionError();
         } else if (firstResult != null && !firstResult.contentEquals(secondResult)
                 && !ComparatorHelper.isEqualDouble(firstResult, secondResult)) {
             if (secondResult.contains("Inf")) {
-                throw new IgnoreMeException(); // FIXME: average computation
+                throw new IgnoreMeException();
             }
             throw new AssertionError();
         }

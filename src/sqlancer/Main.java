@@ -25,6 +25,8 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.JCommander.Builder;
 
 import sqlancer.citus.CitusProvider;
+import sqlancer.clickhouse.ClickHouseOptions;
+import sqlancer.clickhouse.ClickHouseOracleFactory;
 import sqlancer.clickhouse.ClickHouseProvider;
 import sqlancer.cockroachdb.CockroachDBProvider;
 import sqlancer.common.log.Loggable;
@@ -244,7 +246,6 @@ public final class Main {
             try {
                 getCurrentFileWriter().write(loggable.getLogString());
 
-                currentFileWriter.flush();
             } catch (IOException e) {
                 throw new AssertionError();
             }
@@ -276,7 +277,7 @@ public final class Main {
                 try {
                     reduceFileWriter.flush();
                 } catch (IOException e) {
-                    // TODO Auto-generated catch block
+
                     e.printStackTrace();
                 }
             }
@@ -298,7 +299,7 @@ public final class Main {
                 try {
                     reduceFileWriter.flush();
                 } catch (IOException e) {
-                    // TODO Auto-generated catch block
+
                     e.printStackTrace();
                 }
             }
@@ -344,9 +345,9 @@ public final class Main {
 
         private String removeNamesFromQueryPlans(String queryPlan) {
             String result = queryPlan;
-            result = result.replaceAll("t[0-9]+", "t0"); // Avoid duplicate tables
-            result = result.replaceAll("v[0-9]+", "v0"); // Avoid duplicate views
-            result = result.replaceAll("i[0-9]+", "i0"); // Avoid duplicate indexes
+            result = result.replaceAll("t[0-9]+", "t0");
+            result = result.replaceAll("v[0-9]+", "v0");
+            result = result.replaceAll("i[0-9]+", "i0");
             return result + "\n";
         }
 
@@ -452,7 +453,7 @@ public final class Main {
                 try {
                     stateToRepro.databaseVersion = con.getDatabaseVersion();
                 } catch (Exception e) {
-                    // ignore
+
                 }
                 state.setConnection(con);
                 state.setStateLogger(logger);
@@ -596,6 +597,14 @@ public final class Main {
             return options.getErrorExitCode();
         }
 
+        Object parsedCommand = nameToProvider.get(jc.getParsedCommand()).getCommand();
+        if (parsedCommand instanceof ClickHouseOptions chOptions && chOptions.randomSessionSettings
+                && chOptions.oracle.contains(ClickHouseOracleFactory.SEMR)) {
+            System.err.println("--random-session-settings true is incompatible with --oracle SEMR. "
+                    + "Drop --random-session-settings true for SEMR runs, or remove --oracle SEMR.");
+            return options.getErrorExitCode();
+        }
+
         Randomly.initialize(options);
         if (options.printProgressInformation()) {
             startProgressMonitor();
@@ -661,7 +670,7 @@ public final class Main {
                     Randomly r = new Randomly(seed);
                     try {
                         int maxNrDbs = options.getMaxGeneratedDatabases();
-                        // run without a limit if maxNrDbs == -1
+
                         for (int i = 0; i < maxNrDbs || maxNrDbs == -1; i++) {
                             Boolean continueRunning = run(options, execService, executorFactory, r, databaseName);
                             if (!continueRunning) {
@@ -691,7 +700,7 @@ public final class Main {
                         executor.getLogger().logFileWriter = null;
                         executor.getLogger().logException(reduce, executor.getStateToReproduce());
                         if (options.serializeReproduceState()) {
-                            executor.getStateToReproduce().logStatement(reduce.getMessage()); // add the error statement
+                            executor.getStateToReproduce().logStatement(reduce.getMessage());
                             executor.getStateToReproduce().serialize(executor.getLogger().getReproduceFilePath());
                         }
                         return false;
@@ -723,14 +732,6 @@ public final class Main {
         return someOneFails.get() ? options.getErrorExitCode() : 0;
     }
 
-    /**
-     * To register a new provider, it is necessary to implement the DatabaseProvider interface and add an additional
-     * configuration file, see https://docs.oracle.com/javase/9/docs/api/java/util/ServiceLoader.html. Currently, we use
-     * an @AutoService annotation to create the configuration file automatically. This allows SQLancer to pick up
-     * providers in other JARs on the classpath.
-     *
-     * @return The list of service providers on the classpath
-     */
     static List<DatabaseProvider<?, ?, ?>> getDBMSProviders() {
         List<DatabaseProvider<?, ?, ?>> providers = new ArrayList<>();
         @SuppressWarnings("rawtypes")
@@ -742,7 +743,6 @@ public final class Main {
         return providers;
     }
 
-    // see https://github.com/sqlancer/sqlancer/issues/799
     private static void checkForIssue799(List<DatabaseProvider<?, ?, ?>> providers) {
         if (providers.isEmpty()) {
             System.err.println(
@@ -773,10 +773,7 @@ public final class Main {
 
     private static synchronized void startProgressMonitor() {
         if (progressMonitorStarted) {
-            /*
-             * it might be already started if, for example, the main method is called multiple times in a test (see
-             * https://github.com/sqlancer/sqlancer/issues/90).
-             */
+
             return;
         } else {
             progressMonitorStarted = true;

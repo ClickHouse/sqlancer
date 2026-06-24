@@ -10,7 +10,7 @@ public class OceanBaseCastOperation implements OceanBaseExpression {
 
         public static CastType getRandom() {
             return SIGNED;
-            // return Randomly.fromOptions(CastType.values());
+
         }
 
     }

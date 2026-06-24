@@ -19,27 +19,27 @@ public class TiDBHintGenerator {
     private final StringBuilder sb = new StringBuilder();
 
     enum IndexHint {
-        MERGE_JOIN, //
-        INL_JOIN, //
-        INL_HASH_JOIN, //
-        INL_MERGE_JOIN, //
-        HASH_JOIN, //
-        READ_FROM_TIKV, //
-        READ_FROM_TIFLASH, //
-        HASH_AGG, //
-        STREAM_AGG, //
-        USE_INDEX, //
-        IGNORE_INDEX, //
-        AGG_TO_COP, //
-        USE_INDEX_MERGE, //
-        NO_INDEX_MERGE, //
-        USE_TOJA, //
-        HASH_JOIN_BUILD, //
-        HASH_JOIN_PROBE, //
-        MPP_1PHASE_AGG, //
-        MPP_2PHASE_AGG, //
-        LIMIT_TO_COP, //
-        SHUFFLE_JOIN, //
+        MERGE_JOIN,
+        INL_JOIN,
+        INL_HASH_JOIN,
+        INL_MERGE_JOIN,
+        HASH_JOIN,
+        READ_FROM_TIKV,
+        READ_FROM_TIFLASH,
+        HASH_AGG,
+        STREAM_AGG,
+        USE_INDEX,
+        IGNORE_INDEX,
+        AGG_TO_COP,
+        USE_INDEX_MERGE,
+        NO_INDEX_MERGE,
+        USE_TOJA,
+        HASH_JOIN_BUILD,
+        HASH_JOIN_PROBE,
+        MPP_1PHASE_AGG,
+        MPP_2PHASE_AGG,
+        LIMIT_TO_COP,
+        SHUFFLE_JOIN,
         BROADCAST_JOIN
     }
 
@@ -170,7 +170,7 @@ public class TiDBHintGenerator {
     private void indexesHint(String string) {
         sb.append(string);
         sb.append("(");
-        // FIXME: select one table
+
         TiDBTable table = Randomly.fromList(tables);
         List<TableIndex> allIndexes = table.getIndexes();
         if (allIndexes.isEmpty()) {

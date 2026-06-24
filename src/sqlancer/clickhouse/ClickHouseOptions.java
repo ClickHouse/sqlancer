@@ -23,6 +23,193 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = { "--analyzer" }, description = "Enable analyzer in ClickHouse", arity = 1)
     public boolean enableAnalyzer = true;
 
+    @Parameter(names = "--test-nullable-types", description = "Wrap a small fraction of generated column types in Nullable", arity = 1)
+    public boolean enableNullable = true;
+
+    @Parameter(names = "--test-lowcardinality-types", description = "Wrap a small fraction of generated column types in LowCardinality", arity = 1)
+    public boolean enableLowCardinality = true;
+
+    @Parameter(names = "--random-session-settings", description = "Apply a random subset of curated ClickHouse settings via SET on the per-database connection", arity = 1)
+    public boolean randomSessionSettings = false;
+
+    @Parameter(names = "--random-session-settings-budget", description = "Cap on the number of randomized session settings per database (0 = unbounded)")
+    public int randomSessionSettingsBudget = 5;
+
+    @Parameter(names = "--test-set-op-tlp", description = "Enable the set-operation TLP oracle (UNION ALL / UNION DISTINCT / INTERSECT / EXCEPT invariants)", arity = 1)
+    public boolean enableSetOpTLP = false;
+
+    @Parameter(names = "--test-aggregate-combinators", description = "Allow the expression generator to emit aggregate-combinator chains (sumIf, countIfArray, etc.)", arity = 1)
+    public boolean enableCombinators = false;
+
+    @Parameter(names = "--test-combinator-tlp", description = "Enable the combinator-identity oracle (sumIf/countIf/avgOrNull/... algebraic identities)", arity = 1)
+    public boolean enableCombinatorTLP = false;
+
+    @Parameter(names = "--test-array-join", description = "Enable ARRAY JOIN structural emission (no-op until Array column generation lands in type-system v2)", arity = 1)
+    public boolean enableArrayJoin = false;
+
+    @Parameter(names = "--semr-arity", description = "Number of SEMR settings to toggle together per query for the SEMRMulti oracle (>= 2)")
+    public int semrArity = 2;
+
+    @Parameter(names = "--tlp-groupby-strict", description = "Use UNION ALL (no outer canonicalisation) for TLPGroupBy. Surfaces partition-multiplicity false positives by design; default (off) collapses them via UNION DISTINCT.", arity = 1)
+    public boolean tlpGroupByStrict = false;
+
+    @Parameter(names = "--eet-26x-modes", description = "Enable the 26.x EET modes (COMPOUND_INTERVAL, OVERLAY_EQUIV, OVERLAY_SPLICE, NATURAL_SORT_KEY). Default-on since the 2026-06-10 convergence run (3h, 1.09M queries, 0 false positives from these modes); when off, pickMode() never returns them.", arity = 1)
+    public boolean eet26xModes = true;
+
+    @Parameter(names = "--variant-where-emission", description = "Emit Variant-typed predicate fragments in WHERE context (26.1 Variant-in-all-functions surface, PR #90900 + use_variant_as_common_type default-on, PR #90677). WHERE-only by design: the client-v2 RowBinary reader cannot decode a projected Variant column (R4), so the fragments are self-contained Boolean expressions and never reach a fetch column. Default-on since the 2026-06-10 convergence run (0 reader deaths, 0 false positives; the toInt64 constant-fallback wrap is load-bearing).", arity = 1)
+    public boolean variantWhereEmission = true;
+
+    @Parameter(names = "--text-search-predicate-emission", description = "Emit full-text-search predicates (hasToken/hasAllTokens/hasAnyTokens/startsWith/endsWith/multiSearchAny) over plain String columns in general WHERE context, from a fixed token vocabulary. Lets the whole oracle fleet (TLPWhere/NoREC/CODDTest/...) incidentally differential-test text-indexed columns against full scans. Restricted to startsWith/endsWith/multiSearchAny (the functions proven index==scan-equivalent across all tokenizers); hasToken/hasAllTokens/hasAnyTokens are NOT emitted here because they diverge index-vs-scan on array/ngrams/preprocessor (ClickHouse#107186), which the dedicated TextIndexDirectRead oracle targets instead.", arity = 1)
+    public boolean textSearchPredicateEmission = true;
+
+    @Parameter(names = "--join-reorder-allow-dropped-key-ref", description = "Let the JoinReorder oracle build ON clauses that reference a key column dropped by a preceding SEMI/ANTI join. Default false, PERMANENTLY: ClickHouse#107073 was closed by the optimizer team as by-design non-determinism -- columns read from the eliminated side of a SEMI/ANTI join are ANY-like (filled from whichever matching row arrives first), so any plan change or physical row-order change legally flips the result and a differential oracle comparing such queries is unsound. The restriction is therefore a soundness rule, not a temporary known-bug pin. Set true only to demonstrate the documented non-determinism.", arity = 1)
+    public boolean joinReorderAllowDroppedKeyRef = false;
+
+    @Parameter(names = "--prewhere-equivalence-oracle", description = "PrewhereEquivalence oracle: WHERE == PREWHERE == WHERE+optimize_move_to_prewhere=0 over a MergeTree table read (multiset compare).", arity = 1)
+    public boolean prewhereEquivalenceOracle = true;
+
+    @Parameter(names = "--read-in-order-toggle-oracle", description = "ReadInOrderToggle oracle: optimize_read_in_order / optimize_aggregation_in_order / read_in_order_use_buffering all-on vs all-off must not change an ORDER BY LIMIT or non-float GROUP BY result.", arity = 1)
+    public boolean readInOrderToggleOracle = true;
+
+    @Parameter(names = "--count-optimization-oracle", description = "CountOptimization oracle: optimize_trivial_count_query / optimize_use_implicit_projections / optimize_use_projections on vs off (integer-exact count compares + countIf cross-check + GROUP-BY-key count; hardens #106573/#106125).", arity = 1)
+    public boolean countOptimizationOracle = true;
+
+    @Parameter(names = "--lazy-materialization-toggle-oracle", description = "LazyMaterializationToggle oracle: query_plan_optimize_lazy_materialization on vs off must not change an ORDER BY LIMIT read with heavy projections (positional compare).", arity = 1)
+    public boolean lazyMaterializationToggleOracle = true;
+
+    @Parameter(names = "--replacing-dedup-oracle", description = "ReplacingDedup oracle: ReplacingMergeTree(ver) FINAL == argMax(val, ver) GROUP BY key over a private merge-formed fixture with globally-unique versions.", arity = 1)
+    public boolean replacingDedupOracle = true;
+
+    @Parameter(names = "--quantile-consistency-oracle", description = "QuantileConsistency oracle: single-snapshot quantileExact==medianExact, quantilesExact[1]==quantileExact, monotone-in-level and Low<=Exact<=High over an integer column.", arity = 1)
+    public boolean quantileConsistencyOracle = true;
+
+    @Parameter(names = "--uniq-exactness-oracle", description = "UniqExactness oracle: uniqExact(c) == count(DISTINCT c) == length(groupUniqArray(c)) over integer/String columns (single snapshot).", arity = 1)
+    public boolean uniqExactnessOracle = true;
+
+    @Parameter(names = "--arg-extremum-oracle", description = "ArgExtremum oracle: argMax(v,k) / arraySort(groupArray(v)) / groupArraySorted(n)(v) against a Java ground truth over a private unique-key fixture.", arity = 1)
+    public boolean argExtremumOracle = true;
+
+    @Parameter(names = "--materialized-column-oracle", description = "MaterializedColumn oracle: each MATERIALIZED/ALIAS column's stored value == its defining expression recomputed in the same query (single-snapshot two-column compare).", arity = 1)
+    public boolean materializedColumnOracle = true;
+
+    @Parameter(names = "--grouping-decomposition-oracle", description = "GroupingDecomposition oracle: GROUP BY WITH ROLLUP detail rows (GROUPING(k)=0) == plain GROUP BY, super-aggregate row (GROUPING(k)=1) == grand count(), and sum of per-group counts == grand count(); integer aggregates + non-float keys only.", arity = 1)
+    public boolean groupingDecompositionOracle = true;
+
+    @Parameter(names = "--limit-ranking-oracle", description = "LimitRanking oracle: LIMIT a,b == LIMIT b OFFSET a, LIMIT n is a prefix of LIMIT n WITH TIES, and LIMIT n BY k yields <= n rows per distinct k. Deterministic total ORDER BY.", arity = 1)
+    public boolean limitRankingOracle = true;
+
+    @Parameter(names = "--window-frame-oracle", description = "WindowFrame oracle: over a unique-key fixture, default frame == explicit RANGE/ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW, and lagInFrame offsets match a one-preceding frame (single-snapshot column compares).", arity = 1)
+    public boolean windowFrameOracle = true;
+
+    @Parameter(names = "--semi-join-rewrite-oracle", description = "SemiJoinRewrite oracle: LEFT SEMI JOIN (preserved-side projection only, per #107073) == WHERE k IN (subquery), LEFT ANTI JOIN == NOT IN, and LEFT ANY JOIN cardinality == left row count.", arity = 1)
+    public boolean semiJoinRewriteOracle = true;
+
+    @Parameter(names = "--column-transformer-oracle", description = "ColumnTransformer oracle: SELECT * EXCEPT/APPLY/COLUMNS(regex) == the explicit column list, and DISTINCT ON (k) cardinality == count(DISTINCT k).", arity = 1)
+    public boolean columnTransformerOracle = true;
+
+    @Parameter(names = "--engine-equivalence-oracle", description = "EngineEquivalence oracle: an identical inserted multiset stored in MergeTree ORDER BY tuple() and an exact-multiset mirror (Memory/TinyLog/StripeLog/Log) must answer the same read-only query identically (multiset). Engine unavailability no-ops.", arity = 1)
+    public boolean engineEquivalenceOracle = true;
+
+    @Parameter(names = "--coalescing-final-oracle", description = "CoalescingFinal oracle: CoalescingMergeTree FINAL per key == argMaxIf(col, seq, isNotNull(col)) last-non-null ground truth over a merge-formed fixture with globally-unique seq. No-ops if CoalescingMergeTree is absent on head.", arity = 1)
+    public boolean coalescingFinalOracle = true;
+
+    @Parameter(names = "--join-get-set-oracle", description = "JoinGetSet oracle: x IN Set-engine table == x IN (subquery), and joinGet(Join-engine table, col, key) == the ANY LEFT JOIN lookup. No-ops if the Set/Join engines are absent.", arity = 1)
+    public boolean joinGetSetOracle = true;
+
+    @Parameter(names = "--remote-local-equivalence-oracle", description = "RemoteLocalEquivalence oracle: remote('127.0.0.1', db, t) == local table read (multiset, single-node distributed-read path), plus numbers(n) ground-truth checks.", arity = 1)
+    public boolean remoteLocalEquivalenceOracle = true;
+
+    @Parameter(names = "--map-tuple-container-oracle", description = "MapTupleContainer oracle: Map/Tuple/Array scalar extractions (mapKeys/mapValues/length/mapContains/tupleElement) toString-rendered == Java ground truth over a private fixture. All wire values are String/number (reader-safe).", arity = 1)
+    public boolean mapTupleContainerOracle = true;
+
+    @Parameter(names = "--geo-metamorphic-oracle", description = "GeoMetamorphic oracle: geo-function metamorphic identities (greatCircleDistance(p,p)==0, polygonArea>=0 and ==square area, pointInPolygon interior/outside, self-intersection area==self area) over inline integer coordinates, float-tolerance compares.", arity = 1)
+    public boolean geoMetamorphicOracle = true;
+
+    @Parameter(names = "--variant-subcolumn-oracle", description = "VariantSubcolumn oracle: Variant/Dynamic/JSON subcolumn roundtrip (toString-wrapped reads only; raw-column emission stays gated off). CAST/subcolumn-access roundtrip == inserted value. No-ops if the experimental types are unavailable.", arity = 1)
+    public boolean variantSubcolumnOracle = true;
+
+    @Parameter(names = "--aggregate-state-expansion-oracle", description = "AggregateStateExpansion oracle: finalizeAggregation(arrayReduce('<agg>State', groupArray(x))) == direct <agg>(x) for exact aggregates (sum/min/max/uniqExact/quantileExact/groupArray), plus an AggregatingMergeTree cross-part merge arm.", arity = 1)
+    public boolean aggregateStateExpansionOracle = true;
+
+    @Parameter(names = "--sequence-funnel-oracle", description = "SequenceFunnel oracle (DEFAULT OFF pending ground-truth rework): windowFunnel/sequenceCount/sequenceMatch/retention vs a Java model. Its windowFunnel monotonicity arm is inverted (windowFunnel is non-decreasing in step count, not non-increasing) and the exact-value Java models are unvalidated; both must be corrected and re-validated 1h-clean before flipping this default on.", arity = 1)
+    public boolean sequenceFunnelOracle = false;
+
+    @Parameter(names = "--partition-lifecycle-oracle", description = "PartitionLifecycle oracle: DETACH+ATTACH == identity, DROP PARTITION removes exactly that partition's rows, REPLACE PARTITION from identical copy == identity, MOVE PARTITION conserves rows; topology pinned via SYSTEM STOP MERGES.", arity = 1)
+    public boolean partitionLifecycleOracle = true;
+
+    @Parameter(names = "--alter-modify-consistency-oracle", description = "AlterModifyConsistency oracle: a data-preserving ALTER MODIFY COLUMN type-widen/CODEC/TTL/SETTING + MATERIALIZE must not change the visible row multiset (modulo a pre-applied widening cast).", arity = 1)
+    public boolean alterModifyConsistencyOracle = true;
+
+    @Parameter(names = "--ttl-determinism-oracle", description = "TtlDeterminism oracle: TTL DELETE + OPTIMIZE FINAL survivors == the non-expired bucket, using date buckets far from now() so the result is wall-clock-independent.", arity = 1)
+    public boolean ttlDeterminismOracle = true;
+
+    @Parameter(names = "--insert-dedup-oracle", description = "InsertDedup oracle: re-inserting a byte-identical block leaves the row count unchanged (insert_deduplicate default-on), while a distinct block grows the table; optional async-insert arm.", arity = 1)
+    public boolean insertDedupOracle = true;
+
+    @Parameter(names = "--token-bf-oracle", description = "TokenBf oracle: hasToken/=/IN with a tokenbf_v1 skip index == use_skip_indexes=0 scan (a bloom filter must never produce a false negative).", arity = 1)
+    public boolean tokenBfOracle = true;
+
+    @Parameter(names = "--vector-index-recall-oracle", description = "VectorIndexRecall oracle: vector_similarity (HNSW) index top-1 == exact brute-force top-1 (unique NN), and top-k containment (index max distance <= exact k-th distance); never exact set-equality for k>1. No-ops if the vector index is unavailable.", arity = 1)
+    public boolean vectorIndexRecallOracle = true;
+
+    @Parameter(names = "--sample-clause-oracle", description = "SampleClause oracle: query-level SAMPLE invariants on a table with a SAMPLE BY key -- SAMPLE 1 == full read (identity), SAMPLE k rows are a subset of the full read, and SAMPLE 1/k OFFSET i/k tiles are each a subset of the full read. Sound invariants only (SAMPLE is non-deterministic), so it never runs in the general fleet. Self-creates a sampleable fixture when no schema table has a sampling key.", arity = 1)
+    public boolean sampleClauseOracle = true;
+
+    @Parameter(names = "--sample-factor-arm", description = "Enable the SampleClause oracle's statistical _sample_factor reconstruction arm (sum(_sample_factor) over a sample ~= full count() within a tolerance band). Default false: this arm is approximate, not exact, and must be demonstrated 0-FP before being enabled.", arity = 1)
+    public boolean sampleFactorArm;
+
+    @Parameter(names = "--distributed-table-oracle", description = "DistributedTable oracle: a Distributed('default', db, local) wrapper over a local MergeTree must answer reads identically to the underlying table (multiset), route INSERTs through to the local table, and agree on exact-integer aggregates / non-float GROUP BY. Single-node, self-contained fixture.", arity = 1)
+    public boolean distributedTableOracle = true;
+
+
+    @Parameter(names = "--with-fill-oracle", description = "WithFill oracle: ORDER BY x WITH FILL FROM f TO t STEP s over a private Int64 table whose inserted rows are a subset of the step grid must return exactly the full grid [f, t) in ascending order -- present rows are kept, absent grid points are synthesized, no duplicates, no off-grid rows.", arity = 1)
+    public boolean withFillOracle = true;
+
+    @Parameter(names = "--array-function-oracle", description = "ArrayFunction oracle: Array(Int64) scalar functions (has/indexOf/countEqual/length/empty/notEmpty/arraySort/arrayReverseSort/arrayReverse/arrayDistinct/arrayCompact/arrayConcat/arrayPushBack/arrayPushFront/arraySlice/arraySum/arrayMin/arrayMax/hasAll/hasAny) toString-rendered == Java ground truth over a private fixture. All results are exact-integer or deterministic-order arrays; no floats.", arity = 1)
+    public boolean arrayFunctionOracle = true;
+
+    @Parameter(names = "--aggregate-function-column-oracle", description = "AggregateFunctionColumn oracle: SimpleAggregateFunction column round-trip (insert literal, read back via finalizeAggregation or direct read) and AggregatingMergeTree state accumulation == direct aggregate over same data.", arity = 1)
+    public boolean aggregateFunctionColumnOracle = true;
+
+    @Parameter(names = "--array-join-oracle", description = "ArrayJoin oracle: ARRAY JOIN unnest == arrayJoin() scalar function == a lateral-like JOIN expansion, count of output rows == sum of array lengths.", arity = 1)
+    public boolean arrayJoinOracle = true;
+
+    @Parameter(names = "--asof-join-oracle", description = "AsofJoin oracle: ASOF LEFT JOIN nearest-predecessor lookup == Java model lower-bound scan over sorted fixture data (exact integer values).", arity = 1)
+    public boolean asofJoinOracle = true;
+
+    @Parameter(names = "--correlated-subquery-oracle", description = "CorrelatedSubquery oracle: correlated EXISTS/NOT EXISTS == IN/NOT IN rewrite (semijoin/antijoin equivalence) over non-nullable integer keys, reading only the preserved-side key. No-ops if allow_experimental_correlated_subqueries is unsupported.", arity = 1)
+    public boolean correlatedSubqueryOracle = true;
+
+    @Parameter(names = "--cube-grouping-sets-oracle", description = "CubeGroupingSets oracle: GROUP BY CUBE / GROUPING SETS == manual UNION ALL of the individual group-by combinations (exact-integer counts, no floats).", arity = 1)
+    public boolean cubeGroupingSetsOracle = true;
+
+    @Parameter(names = "--join-using-oracle", description = "JoinUsing oracle: JOIN USING(k) == JOIN ON a.k=b.k for INNER, LEFT, and a 3-table INNER chain. Multiset-exact via arraySort(groupArray(tuple)) for INNER/LEFT, exact-integer aggregate for the chain. Private fixtures with overlapping Int32 key domain and Int64 payload columns.", arity = 1)
+    public boolean joinUsingOracle = true;
+
+    @Parameter(names = "--paste-join-oracle", description = "PasteJoin oracle: PASTE JOIN positional row-zip == manually zipped Java model (exact integer values, ORDER BY both sides).", arity = 1)
+    public boolean pasteJoinOracle = true;
+
+    @Parameter(names = "--string-function-oracle", description = "StringFunction oracle: ASCII string function ground-truth (length/lengthUTF8/lower/upper/reverse/substring/position/countSubstrings/startsWith/endsWith/concat/repeat/replaceAll/empty/notEmpty) == Java model over a private fixture. ASCII-only inputs so byte length == char length and all mappings are trivial; replaceAll is literal.", arity = 1)
+    public boolean stringFunctionOracle = true;
+
+    @Parameter(names = "--timezone-datetime-oracle", description = "TimezoneDatetime oracle: datetime metamorphic identities (toStartOfInterval aliases, dateDiff antisymmetry/known deltas, UTC round-trip idempotency, monotone truncation) verified as zero-violation countIf checks over a numbers()-generated DateTime/Date32 set. No DDL; single-snapshot; exact integer result.", arity = 1)
+    public boolean timezoneDatetimeOracle = true;
+
+    @Parameter(names = "--window-frame-ground-truth-oracle", description = "WindowFrameGroundTruth oracle: window function results (row_number/rank/dense_rank/lag/lead/sum OVER) == Java ground truth computed from the sorted model data.", arity = 1)
+    public boolean windowFrameGroundTruthOracle = true;
+
+    @Parameter(names = "--bit-function-oracle", description = "BitFunction oracle: bitAnd/bitOr/bitXor/bitNot/bitShiftLeft/bitShiftRight/bitCount/bitTest vs Java unsigned-64-bit ground truth (SCALAR arm), and bitmapCardinality/bitmapAndCardinality vs Java distinct-count/set-intersection (BITMAP arm). All comparisons are exact integer; no floats.", arity = 1)
+    public boolean bitFunctionOracle = true;
+
+    @Parameter(names = "--setting-flip-oracle", description = "SettingFlip oracle: a single curated result-neutral setting (optimize_read_in_order / query_plan_* / compile_* / max_threads / group_by_two_level_threshold / ... ) flipped between two values must not change a ProjectionToggle-style integer-aggregate read. Data-driven catalog; deliberately excludes join-reorder and optimize_use_implicit_projections (known-unsound/known-buggy surfaces covered elsewhere).", arity = 1)
+    public boolean settingFlipOracle = true;
+
+    @Parameter(names = "--concurrent-mutation-oracle", description = "ConcurrentMutation oracle: while background threads (own connections) hammer multiset-preserving churn (OPTIMIZE FINAL / ALTER DELETE WHERE 0 / concurrent SELECTs) on a private multi-part MergeTree, repeated reads on the main connection must always equal the pre-churn baseline. Targets read-vs-merge/mutation race wrong-results unreachable by single-snapshot oracles.", arity = 1)
+    public boolean concurrentMutationOracle = true;
+
+    @Parameter(names = "--low-cardinality-equivalence-oracle", description = "LowCardinalityEquivalence oracle: over a private fixture with paired plain/LowCardinality columns (Int32, String, Nullable(Int32), FixedString(4)) holding identical values, any read (row projection / GROUP BY / uniqExact / predicate) over the plain columns must equal the same read over the LowCardinality twins.", arity = 1)
+    public boolean lowCardinalityEquivalenceOracle = true;
+
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;

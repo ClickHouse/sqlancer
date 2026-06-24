@@ -29,26 +29,25 @@ public class MySQLAlterTable {
     }
 
     private enum Action {
-        ALGORITHM, //
-        CHECKSUM, //
-        COMPRESSION, //
-        DISABLE_ENABLE_KEYS("Data truncated for functional index"), /* ignore due to http://bugs.mysql.com/?id=96295 */
+        ALGORITHM,
+        CHECKSUM,
+        COMPRESSION,
+        DISABLE_ENABLE_KEYS("Data truncated for functional index"),
         DROP_COLUMN("Cannot drop column", "ALGORITHM=INPLACE is not supported.", "ALGORITHM=INSTANT is not supported.",
                 "Duplicate entry", "has a partitioning function dependency and cannot be dropped or renamed.",
-                "A primary key index cannot be invisible" /*
-                                                           * this error should not occur, see
-                                                           * https://bugs.mysql.com/bug.php?id=95897
-                                                           */,
+                "A primary key index cannot be invisible"
+
+,
                 "Field in list of fields for partition function not found in table", "in 'partition function'",
                 "has a functional index dependency and cannot be dropped or renamed."),
-        FORCE, //
-        // ORDER_BY is supported, see below
-        DELAY_KEY_WRITE, //
-        INSERT_METHOD, //
-        ROW_FORMAT, //
-        STATS_AUTO_RECALC, //
-        STATS_PERSISTENT, //
-        PACK_KEYS, RENAME("doesn't exist", "already exists"), /* WITH_WITHOUT_VALIDATION , */
+        FORCE,
+
+        DELAY_KEY_WRITE,
+        INSERT_METHOD,
+        ROW_FORMAT,
+        STATS_AUTO_RECALC,
+        STATS_PERSISTENT,
+        PACK_KEYS, RENAME("doesn't exist", "already exists"),
         DROP_PRIMARY_KEY(
                 "ALGORITHM=INSTANT is not supported. Reason: Dropping a primary key is not allowed without also adding a new primary key. Try ALGORITHM=COPY/INPLACE.");
 
@@ -140,11 +139,7 @@ public class MySQLAlterTable {
                 sb.append("PACK_KEYS ");
                 sb.append(Randomly.fromOptions("0", "1", "DEFAULT"));
                 break;
-            // not relevant:
-            // case WITH_WITHOUT_VALIDATION:
-            // sb.append(Randomly.fromOptions("WITHOUT", "WITH"));
-            // sb.append(" VALIDATION");
-            // break;
+
             case RENAME:
                 sb.append("RENAME ");
                 if (Randomly.getBoolean()) {
@@ -163,7 +158,7 @@ public class MySQLAlterTable {
             if (i != 0) {
                 sb.append(", ");
             }
-            // should be given as last option
+
             sb.append(" ORDER BY ");
             sb.append(table.getRandomNonEmptyColumnSubset().stream().map(c -> c.getName())
                     .collect(Collectors.joining(", ")));

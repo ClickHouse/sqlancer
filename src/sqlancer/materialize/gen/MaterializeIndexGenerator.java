@@ -26,8 +26,8 @@ public class MaterializeIndexGenerator extends AbstractIndexGenerator<Materializ
     @Override
     public void buildStatement() {
         appendCreateIndex(false);
-        MaterializeTable randomTable = globalState.getSchema().getRandomTable(t -> !t.isView()); // TODO: materialized
-                                                                                                 // views
+        MaterializeTable randomTable = globalState.getSchema().getRandomTable(t -> !t.isView());
+
         sb.append(MaterializeCommon.getFreeIndexName(globalState.getSchema()));
         sb.append(" ON ");
         sb.append(randomTable.getName());
@@ -54,7 +54,7 @@ public class MaterializeIndexGenerator extends AbstractIndexGenerator<Materializ
         }
 
         sb.append(")");
-        errors.add("already contains data"); // CONCURRENT INDEX failed
+        errors.add("already contains data");
         errors.add("You might need to add explicit type casts");
         errors.add(" collations are not supported");
         errors.add("because it has pending trigger events");

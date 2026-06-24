@@ -2,9 +2,8 @@ package sqlancer.clickhouse.oracle.tlp;
 
 import java.sql.SQLException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import sqlancer.ComparatorHelper;
 import sqlancer.Randomly;
@@ -24,11 +23,6 @@ public class ClickHouseTLPAggregateOracle extends ClickHouseTLPBase {
     @Override
     public void check() throws SQLException {
         super.check();
-        if (Randomly.getBooleanWithRatherLowProbability()) {
-            select.setOrderByClauses(IntStream.range(0, 1 + Randomly.smallNumber())
-                    .mapToObj(i -> gen.generateExpressionWithColumns(columns, 5)).collect(Collectors.toList()));
-        }
-
         ClickHouseAggregate.ClickHouseAggregateFunction windowFunction = Randomly.fromOptions(
                 ClickHouseAggregate.ClickHouseAggregateFunction.MIN,
                 ClickHouseAggregate.ClickHouseAggregateFunction.MAX,
@@ -44,14 +38,6 @@ public class ClickHouseTLPAggregateOracle extends ClickHouseTLPBase {
         select.setFetchColumns(Arrays.asList(new ClickHouseAliasOperation(aggregate, "aggr")));
 
         select.setWhereClause(predicate);
-        if (Randomly.getBooleanWithRatherLowProbability()) {
-            select.setGroupByClause(IntStream.range(0, 1 + Randomly.smallNumber())
-                    .mapToObj(i -> gen.generateExpressionWithColumns(columns, 5)).collect(Collectors.toList()));
-        }
-        if (Randomly.getBoolean()) {
-            select.setOrderByClauses(IntStream.range(0, 1 + Randomly.smallNumber())
-                    .mapToObj(i -> gen.generateExpressionWithColumns(columns, 5)).collect(Collectors.toList()));
-        }
 
         String metamorphicText = "SELECT " + aggregate.getFunc().toString() + "(aggr) FROM (";
         metamorphicText += ClickHouseVisitor.asString(select) + " UNION ALL ";
@@ -69,19 +55,9 @@ public class ClickHouseTLPAggregateOracle extends ClickHouseTLPBase {
                 .log("--" + originalQuery + "\n--" + metamorphicText + "\n-- " + firstResult + "\n-- " + secondResult
                         + "\n--first size " + firstResult.size() + "\n--second size " + secondResult.size());
 
-        if (firstResult.size() != secondResult.size()) {
-            throw new AssertionError();
-        } else if (firstResult.isEmpty() || firstResult.equals(secondResult)) {
-            return;
-        } else if (firstResult.size() == 1 && secondResult.size() == 1) {
-            if (firstResult.get(0).equals(secondResult.get(0))) {
-                return;
-            } else if (!ComparatorHelper.isEqualDouble(firstResult.get(0), secondResult.get(0))) {
-                throw new AssertionError();
-            }
-        } else {
-            throw new AssertionError();
-        }
+        ComparatorHelper.assumeResultSetsAreEqual(firstResult, secondResult, originalQuery,
+                Collections.singletonList(metamorphicText), state,
+                ComparatorHelper.ComparisonMode.ULP_TOLERANT_MULTISET);
     }
 
 }

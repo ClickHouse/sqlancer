@@ -115,7 +115,7 @@ public class MaterializeTableGenerator {
                 sb.append(MaterializeVisitor
                         .asString(MaterializeExpressionGenerator.generateExpression(globalState, type)));
                 sb.append(")");
-                // CREATE TEMPORARY TABLE t1(c0 smallint DEFAULT ('566963878'));
+
                 errors.add("out of range");
                 errors.add("is a generated column");
                 break;

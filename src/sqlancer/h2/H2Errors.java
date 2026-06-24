@@ -37,20 +37,18 @@ public final class H2Errors {
         errors.add("Feature not supported");
 
         errors.add("must be in the GROUP BY list");
-        errors.add("must be in the result list in this case"); // ORDER BY
+        errors.add("must be in the result list in this case");
         errors.add("Division by zero");
 
-        // regexp
         errors.add("Unclosed group near index");
         errors.add("Error in LIKE ESCAPE");
 
-        // functions
-        errors.add("Invalid value" /* ... for parameter */);
+        errors.add("Invalid value" );
 
-        errors.add("String format error"); // STRINGDECODE
-        errors.add(/* precision */ "must be between"); // TRUNCATE_VALUE
-        errors.add("Cannot parse \"TIMESTAMP\" constant"); // TRUNCATE
-        errors.add("Invalid parameter count for \"TRUNC\", expected count: \"1\""); // TRUNCATE
+        errors.add("String format error");
+        errors.add( "must be between");
+        errors.add("Cannot parse \"TIMESTAMP\" constant");
+        errors.add("Invalid parameter count for \"TRUNC\", expected count: \"1\"");
         return errors;
     }
 
@@ -60,7 +58,7 @@ public final class H2Errors {
 
     public static List<String> getDeleteErrors() {
         ArrayList<String> errors = new ArrayList<>();
-        errors.add("No default value is set for column"); // referential actions
+        errors.add("No default value is set for column");
         errors.add("Referential integrity constraint violation");
         errors.add("NULL not allowed for column");
         return errors;

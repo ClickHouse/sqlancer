@@ -8,7 +8,6 @@ import sqlancer.yugabyte.ysql.YSQLGlobalState;
 
 public final class YSQLTableGroupGenerator {
 
-    // TODO rework
     public static final AtomicLong UNIQUE_TABLEGROUP_COUNTER = new AtomicLong(1);
 
     private YSQLTableGroupGenerator() {

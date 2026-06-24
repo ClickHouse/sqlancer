@@ -129,7 +129,7 @@ public class OceanBasePivotedQuerySynthesisOracle
     @Override
     protected Query<SQLConnection> getContainmentCheckQuery(Query<?> query) throws SQLException {
         StringBuilder sb = new StringBuilder();
-        sb.append("SELECT * FROM ("); // ANOTHER SELECT TO USE ORDER BY without restrictions
+        sb.append("SELECT * FROM (");
         sb.append(query.getUnterminatedQueryString());
         sb.append(") as result WHERE ");
         int i = 0;

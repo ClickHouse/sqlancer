@@ -82,9 +82,14 @@ public class NoRECOracle<Z extends Select<J, E, T, C>, J extends Join<E, T, C>, 
             state.getLogger().writeCurrent(unoptimizedQueryString);
         }
 
+        String rowCountSnapshotBefore = snapshotRowCounts(targetTables);
         int optimizedCount = shouldUseAggregate ? extractCounts(optimizedQueryString, errors, state)
                 : countRows(optimizedQueryString, errors, state);
         int unoptimizedCount = extractCounts(unoptimizedQueryString, errors, state);
+        String rowCountSnapshotAfter = snapshotRowCounts(targetTables);
+        if (!Objects.equals(rowCountSnapshotBefore, rowCountSnapshotAfter)) {
+            throw new IgnoreMeException();
+        }
 
         if (optimizedCount == -1 || unoptimizedCount == -1) {
             throw new IgnoreMeException();
@@ -167,6 +172,23 @@ public class NoRECOracle<Z extends Select<J, E, T, C>, J extends Join<E, T, C>, 
             throw new AssertionError(q.getQueryString(), e);
         }
         return count;
+    }
+
+    private String snapshotRowCounts(AbstractTables<T, C> targetTables) {
+        StringBuilder sb = new StringBuilder();
+        for (T table : targetTables.getTables()) {
+            if (sb.length() > 0) {
+                sb.append(',');
+            }
+            String countQuery = "SELECT count() FROM " + table.getName();
+            try {
+                int n = extractCounts(countQuery, errors, state);
+                sb.append(n);
+            } catch (Throwable t) {
+                sb.append('?');
+            }
+        }
+        return sb.toString();
     }
 
 }

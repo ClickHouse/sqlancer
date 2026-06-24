@@ -69,8 +69,7 @@ public class PostgresSchema extends AbstractSchema<PostgresGlobalState, Postgres
         public PostgresRowValue getRandomRowValue(SQLConnection con) throws SQLException {
             String randomRow = String.format("SELECT %s FROM %s ORDER BY RANDOM() LIMIT 1", columnNamesAsString(
                     c -> c.getTable().getName() + "." + c.getName() + " AS " + c.getTable().getName() + c.getName()),
-                    // columnNamesAsString(c -> "typeof(" + c.getTable().getName() + "." +
-                    // c.getName() + ")")
+
                     tableNamesAsString());
             Map<PostgresColumn, PostgresConstant> values = new HashMap<>();
             try (Statement s = con.createStatement()) {
@@ -178,7 +177,7 @@ public class PostgresSchema extends AbstractSchema<PostgresGlobalState, Postgres
             this.statistics = statistics;
             this.isInsertable = isInsertable;
             this.tableType = tableType;
-            // TODO: simple adapter for other implementations
+
             this.isPartitioned = false;
         }
 
@@ -254,11 +253,9 @@ public class PostgresSchema extends AbstractSchema<PostgresGlobalState, Postgres
                         String tableTypeSchema = rs.getString("table_schema");
                         boolean isInsertable = rs.getBoolean("is_insertable_into");
                         boolean isPartitioned = "p".equals(rs.getString("relkind"));
-                        // TODO: also check insertable
-                        // TODO: insert into view?
-                        boolean isView = matchesViewName(tableName); // tableTypeStr.contains("VIEW") ||
-                                                                     // tableTypeStr.contains("LOCAL TEMPORARY") &&
-                                                                     // !isInsertable;
+
+                        boolean isView = matchesViewName(tableName);
+
                         PostgresTable.TableType tableType = getTableType(tableTypeSchema);
                         List<PostgresColumn> databaseColumns = getTableColumns(con, tableName);
                         List<PostgresIndex> indexes = getIndexes(con, tableName);

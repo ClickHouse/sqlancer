@@ -36,7 +36,7 @@ public class MySQLDeleteGenerator extends AbstractDeleteGenerator {
         if (Randomly.getBoolean()) {
             sb.append(" IGNORE");
         }
-        // TODO: support partitions
+
         sb.append(" FROM ");
         sb.append(randomTable.getName());
         if (Randomly.getBoolean()) {
@@ -44,11 +44,11 @@ public class MySQLDeleteGenerator extends AbstractDeleteGenerator {
             MySQLErrors.addExpressionErrors(errors);
         }
         errors.addAll(Arrays.asList("doesn't have this option",
-                "Truncated incorrect DOUBLE value" /*
-                                                    * ignore as a workaround for https://bugs.mysql.com/bug.php?id=95997
-                                                    */, "Truncated incorrect INTEGER value",
+                "Truncated incorrect DOUBLE value"
+
+, "Truncated incorrect INTEGER value",
                 "Truncated incorrect DECIMAL value", "Data truncated for functional index"));
-        // TODO: support ORDER BY
+
     }
 
 }

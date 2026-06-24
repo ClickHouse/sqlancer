@@ -9,12 +9,12 @@ public class TiDBBinaryArithmeticOperation extends BinaryOperatorNode<TiDBExpres
         implements TiDBExpression {
 
     public enum TiDBBinaryArithmeticOperator implements Operator {
-        ADD("+"), //
-        MINUS("-"), //
-        MULT("*"), //
-        DIV("/"), //
-        INTEGER_DIV("DIV"), //
-        MOD("%"); //
+        ADD("+"),
+        MINUS("-"),
+        MULT("*"),
+        DIV("/"),
+        INTEGER_DIV("DIV"),
+        MOD("%");
 
         String textRepresentation;
 

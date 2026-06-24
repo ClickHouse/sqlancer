@@ -93,7 +93,7 @@ public class CockroachDBSchema extends AbstractSchema<CockroachDBGlobalState, Co
                 case 4:
                     return "INT4";
                 case 8:
-                    // "INTEGER": can be affected by a session variable
+
                     return Randomly.fromOptions("INT8", "INT64", "BIGINT");
                 default:
                     return "INT";
@@ -151,10 +151,7 @@ public class CockroachDBSchema extends AbstractSchema<CockroachDBGlobalState, Co
             while (true) {
                 CockroachDBDataType type = CockroachDBDataType.getRandom();
                 if (type != CockroachDBDataType.ARRAY && type != CockroachDBDataType.JSONB) {
-                    // nested arrays are not supported:
-                    // https://github.com/cockroachdb/cockroach/issues/32552
-                    // JSONB arrays are not supported as well:
-                    // https://github.com/cockroachdb/cockroach/issues/23468
+
                     return type;
                 }
             }
@@ -298,7 +295,7 @@ public class CockroachDBSchema extends AbstractSchema<CockroachDBGlobalState, Co
             for (CockroachDBColumn c : databaseColumns) {
                 c.setTable(t);
             }
-            // To avoid some situations that columns can not be retrieved.
+
             if (databaseColumns.isEmpty()) {
                 continue;
             }
@@ -341,7 +338,7 @@ public class CockroachDBSchema extends AbstractSchema<CockroachDBGlobalState, Co
                 while (rs.next()) {
                     String columnName = rs.getString("column_name");
                     if (columnName.contains("crdb_internal")) {
-                        continue; // created for CREATE INDEX ON t0(c0) USING HASH WITH BUCKET_COUNT = 1;
+                        continue;
                     }
                     String dataType = rs.getString("data_type");
                     boolean isNullable = rs.getBoolean("is_nullable");

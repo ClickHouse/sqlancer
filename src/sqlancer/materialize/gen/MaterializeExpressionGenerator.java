@@ -123,7 +123,7 @@ public class MaterializeExpressionGenerator implements ExpressionGenerator<Mater
     private MaterializeExpression generateFunctionWithUnknownResult(int depth, MaterializeDataType type) {
         List<MaterializeFunctionWithUnknownResult> supportedFunctions = MaterializeFunctionWithUnknownResult
                 .getSupportedFunctions(type);
-        // filters functions by allowed type (STABLE 's', IMMUTABLE 'i', VOLATILE 'v')
+
         supportedFunctions = supportedFunctions.stream()
                 .filter(f -> allowedFunctionTypes.contains(functionsAndTypes.get(f.getName())))
                 .collect(Collectors.toList());
@@ -138,7 +138,7 @@ public class MaterializeExpressionGenerator implements ExpressionGenerator<Mater
         List<MaterializeFunctionWithResult> functions = Stream
                 .of(MaterializeFunction.MaterializeFunctionWithResult.values()).filter(f -> f.supportsReturnType(type))
                 .collect(Collectors.toList());
-        // filters functions by allowed type (STABLE 's', IMMUTABLE 'i', VOLATILE 'v')
+
         functions = functions.stream().filter(f -> allowedFunctionTypes.contains(functionsAndTypes.get(f.getName())))
                 .collect(Collectors.toList());
         if (functions.isEmpty()) {
@@ -205,8 +205,7 @@ public class MaterializeExpressionGenerator implements ExpressionGenerator<Mater
     }
 
     private MaterializeDataType getMeaningfulType() {
-        // make it more likely that the expression does not only consist of constant
-        // expressions
+
         if (Randomly.getBooleanWithSmallProbability() || columns == null || columns.isEmpty()) {
             return MaterializeDataType.getRandomType();
         } else {
@@ -265,11 +264,11 @@ public class MaterializeExpressionGenerator implements ExpressionGenerator<Mater
     private MaterializeExpression generateExpressionInternal(int depth, MaterializeDataType dataType)
             throws AssertionError {
         if (allowAggregateFunctions && Randomly.getBoolean()) {
-            allowAggregateFunctions = false; // aggregate function calls cannot be nested
+            allowAggregateFunctions = false;
             return getAggregate(dataType);
         }
         if (Randomly.getBooleanWithRatherLowProbability() || depth > maxDepth) {
-            // generic expression
+
             if (Randomly.getBoolean() || depth > maxDepth) {
                 if (Randomly.getBooleanWithRatherLowProbability()) {
                     return generateConstant(r, dataType);
@@ -310,17 +309,16 @@ public class MaterializeExpressionGenerator implements ExpressionGenerator<Mater
     private static MaterializeCompoundDataType getCompoundDataType(MaterializeDataType type) {
         switch (type) {
         case BOOLEAN:
-        case DECIMAL: // TODO
+        case DECIMAL:
         case FLOAT:
         case INT:
         case REAL:
         case BIT:
             return MaterializeCompoundDataType.create(type);
-        case TEXT: // TODO
-            if (Randomly.getBoolean() || MaterializeProvider.generateOnlyKnown /*
-                                                                                * The PQS implementation does not check
-                                                                                * for size specifications
-                                                                                */) {
+        case TEXT:
+            if (Randomly.getBoolean() || MaterializeProvider.generateOnlyKnown
+
+) {
                 return MaterializeCompoundDataType.create(type);
             } else {
                 return MaterializeCompoundDataType.create(type, (int) Randomly.getNotCachedInteger(1, 1000));
@@ -377,7 +375,7 @@ public class MaterializeExpressionGenerator implements ExpressionGenerator<Mater
     }
 
     private enum IntExpression {
-        UNARY_OPERATION, FUNCTION, /* CAST, */BINARY_ARITHMETIC_EXPRESSION
+        UNARY_OPERATION, FUNCTION, BINARY_ARITHMETIC_EXPRESSION
     }
 
     private MaterializeExpression generateIntExpression(int depth) {
@@ -564,7 +562,7 @@ public class MaterializeExpressionGenerator implements ExpressionGenerator<Mater
                     options);
             joinStatements.add(j);
         }
-        // JOIN subqueries
+
         for (int i = 0; i < Randomly.smallNumber(); i++) {
             MaterializeTables subqueryTables = globalState.getSchema().getRandomTableNonEmptyTables();
             MaterializeSubquery subquery = MaterializeTLPBase.createSubquery(globalState, String.format("sub%d", i),

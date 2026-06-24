@@ -29,7 +29,7 @@ public abstract class DorisConstant implements DorisExpression {
     }
 
     public boolean isNum() {
-        // for INT, FLOAT, BOOLEAN
+
         return false;
     }
 
@@ -310,8 +310,7 @@ public abstract class DorisConstant implements DorisExpression {
         public DorisConstant cast(DorisDataType dataType) {
             switch (dataType) {
             case INT:
-                // Currently only supports conversion of int text to int, not float text, see
-                // https://github.com/apache/doris/issues/18227
+
                 if (DorisNumberUtils.isNumber(value)) {
                     long val = (long) Double.parseDouble(value);
                     return new DorisIntConstant(val);
@@ -359,7 +358,7 @@ public abstract class DorisConstant implements DorisExpression {
             if (DorisNumberUtils.isNumber(value) && rightVal.isNum()) {
                 return DorisConstant.createBooleanConstant(Double.parseDouble(value) == rightVal.asFloat());
             }
-            // Doris currently does not support judgment between string types and other types, such date, datetime
+
             return DorisConstant.createBooleanConstant(false);
         }
 
@@ -374,7 +373,7 @@ public abstract class DorisConstant implements DorisExpression {
             if (DorisNumberUtils.isNumber(value) && rightVal.isNum()) {
                 return DorisConstant.createBooleanConstant(Double.parseDouble(value) < rightVal.asFloat());
             }
-            // Doris currently does not support judgment between string types and other types, such date, datetime
+
             return DorisConstant.createBooleanConstant(false);
         }
 
@@ -673,7 +672,7 @@ public abstract class DorisConstant implements DorisExpression {
     }
 
     public static DorisConstant createDatetimeConstant() {
-        // use CURRENT_TIMESTAMP
+
         return new DorisDatetimeConstant();
     }
 

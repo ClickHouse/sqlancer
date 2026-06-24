@@ -49,12 +49,12 @@ public class DatabendTableGenerator extends AbstractTableGenerator<DatabendColum
                 && Randomly.getBooleanWithRatherLowProbability()) {
             sb.append(" NOT NULL");
         } else {
-            sb.append(" NULL"); // Databend 默认字段为非空，这个将它默认设置为允许空
+            sb.append(" NULL");
         }
 
         if (Randomly.getBoolean() && globalState.getDbmsSpecificOptions().testDefaultValues) {
             sb.append(" DEFAULT(");
-            sb.append(DatabendToStringVisitor.asString(// 常量类型于字段类型等同
+            sb.append(DatabendToStringVisitor.asString(
                     gen.generateConstant(column.getType().getPrimitiveDataType())));
             sb.append(")");
         }

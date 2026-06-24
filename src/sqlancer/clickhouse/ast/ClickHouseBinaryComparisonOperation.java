@@ -178,7 +178,9 @@ public class ClickHouseBinaryComparisonOperation extends ClickHouseExpression
                 return ClickHouseCreateConstant.createBoolean(val);
             }
 
-        };
+        },
+
+        IN("IN"), NOT_IN("NOT IN");
 
         private final String[] textRepresentation;
 
@@ -191,7 +193,8 @@ public class ClickHouseBinaryComparisonOperation extends ClickHouseExpression
         }
 
         public static ClickHouseBinaryComparisonOperator getRandomOperator() {
-            return Randomly.fromOptions(values());
+
+            return Randomly.fromOptions(SMALLER, SMALLER_EQUALS, GREATER, GREATER_EQUALS, EQUALS, NOT_EQUALS, LIKE);
         }
 
         public static ClickHouseBinaryComparisonOperator getRandomRowValueOperator() {

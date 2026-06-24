@@ -16,8 +16,7 @@ public final class PrestoAlterTableGenerator {
         ExpectedErrors errors = new ExpectedErrors();
         StringBuilder sb = new StringBuilder("ALTER TABLE ");
         PrestoTable table = globalState.getSchema().getRandomTable(t -> !t.isView());
-        // PrestoTypedExpressionGenerator gen = new
-        // PrestoTypedExpressionGenerator(globalState).setColumns(table.getColumns());
+
         sb.append(table.getName());
         sb.append(" ");
         Action action = Randomly.fromOptions(Action.values());
@@ -34,11 +33,7 @@ public final class PrestoAlterTableGenerator {
             sb.append(table.getRandomColumn().getName());
             sb.append(" SET DATA TYPE ");
             sb.append(PrestoCompositeDataType.getRandomWithoutNull());
-            // if (Randomly.getBoolean()) {
-            // sb.append(" USING ");
-            // PrestoErrors.addExpressionErrors(errors);
-            // sb.append(PrestoToStringVisitor.asString(gen.generateExpression()));
-            // }
+
             errors.add("Cannot change the type of this column: an index depends on it!");
             errors.add("Cannot change the type of a column that has a UNIQUE or PRIMARY KEY constraint specified");
             errors.add("Unimplemented type for cast");
@@ -48,7 +43,7 @@ public final class PrestoAlterTableGenerator {
         case DROP_COLUMN:
             sb.append("DROP COLUMN ");
             sb.append(table.getRandomColumn().getName());
-            errors.add("named in key does not exist"); // TODO
+            errors.add("named in key does not exist");
             errors.add("Cannot drop this column:");
             errors.add("Cannot drop column: table only has one column remaining!");
             errors.add("because there is a CHECK constraint that depends on it");

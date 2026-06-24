@@ -65,16 +65,15 @@ public final class DataFusionExpressionGenerator
     protected DataFusionExpression generateExpression(DataFusionDataType type, int depth) {
         if (depth >= globalState.getOptions().getMaxExpressionDepth() || Randomly.getBoolean()) {
             DataFusionDataType expectedType = type;
-            if (Randomly.getBooleanWithRatherLowProbability()) { // ~10%
+            if (Randomly.getBooleanWithRatherLowProbability()) {
                 expectedType = DataFusionDataType.getRandomWithoutNull();
             }
             return generateLeafNode(expectedType);
         }
 
-        // nested aggregate is not allowed, so occasionally apply it
         Boolean includeAggr = Randomly.getBooleanWithSmallProbability();
         List<DataFusionBaseExpr> possibleBaseExprs = getExprsWithReturnType(Optional.of(type)).stream()
-                // Conditinally apply filter if `includeAggr` set to false
+
                 .filter(expr -> includeAggr || expr.exprType != DataFusionBaseExpr.DataFusionBaseExprCategory.AGGREGATE)
                 .collect(Collectors.toList());
 
@@ -111,8 +110,8 @@ public final class DataFusionExpressionGenerator
         case BINARY:
             dfAssert(randomExpr.argTypes.size() == 2 && randomExpr.nArgs == 2,
                     "Binrary expression should only have 2 argument" + randomExpr.argTypes);
-            List<DataFusionDataType> argTypeList = new ArrayList<>(); // types of current expression's input
-                                                                      // arguments
+            List<DataFusionDataType> argTypeList = new ArrayList<>();
+
             for (ArgumentType argumentType : randomExpr.argTypes) {
                 if (argumentType instanceof ArgumentType.Fixed) {
                     ArgumentType.Fixed possibleArgTypes = (ArgumentType.Fixed) randomExpr.argTypes.get(0);
@@ -124,7 +123,7 @@ public final class DataFusionExpressionGenerator
                     DataFusionDataType firstArgType = argTypeList.get(0);
                     argTypeList.add(firstArgType);
                 } else {
-                    // Same as expression return type
+
                     argTypeList.add(type);
                 }
             }
@@ -132,7 +131,7 @@ public final class DataFusionExpressionGenerator
             return new DataFusionBinaryOperation(generateExpression(argTypeList.get(0), depth + 1),
                     generateExpression(argTypeList.get(1), depth + 1), randomExpr);
         case AGGREGATE:
-            // Fall through
+
         case FUNC:
             return generateFunctionExpression(type, depth, randomExpr);
         default:
@@ -146,14 +145,12 @@ public final class DataFusionExpressionGenerator
     public DataFusionExpression generateFunctionExpression(DataFusionDataType type, int depth,
             DataFusionBaseExpr exprType) {
         if (exprType.isVariadic || Randomly.getBooleanWithSmallProbability()) {
-            // TODO(datafusion) maybe add possible types. e.g. some function have signature
-            // variadic(INT/DOUBLE), then
-            // only randomly pick from INT and DOUBLE
-            int nArgs = Randomly.smallNumber(); // 0, 2, 4, ... smaller one is more likely
+
+            int nArgs = Randomly.smallNumber();
             return new DataFusionFunction<DataFusionBaseExpr>(generateExpressions(nArgs), exprType);
         }
 
-        List<DataFusionDataType> funcArgTypeList = new ArrayList<>(); // types of current expression's input arguments
+        List<DataFusionDataType> funcArgTypeList = new ArrayList<>();
         int i = 0;
         for (ArgumentType argumentType : exprType.argTypes) {
             if (argumentType instanceof ArgumentType.Fixed) {
@@ -166,7 +163,7 @@ public final class DataFusionExpressionGenerator
                 DataFusionDataType firstArgType = funcArgTypeList.get(0);
                 funcArgTypeList.add(firstArgType);
             } else {
-                // Same as expression return type
+
                 funcArgTypeList.add(type);
             }
             i++;
@@ -191,7 +188,7 @@ public final class DataFusionExpressionGenerator
 
     @Override
     protected DataFusionExpression generateColumn(DataFusionDataType type) {
-        // HACK: if no col of such type exist, generate constant value instead
+
         List<DataFusionColumn> colsOfType = filterColumns(type);
         if (colsOfType.isEmpty()) {
             return generateConstant(type);

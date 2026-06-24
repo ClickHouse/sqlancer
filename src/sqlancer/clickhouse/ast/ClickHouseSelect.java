@@ -13,6 +13,8 @@ public class ClickHouseSelect extends ClickHouseExpression implements
 
     private ClickHouseSelect.SelectType fromOptions = ClickHouseSelect.SelectType.ALL;
     private List<ClickHouseExpression> fromClauses;
+
+    private ClickHouseExpression prewhereClause;
     private ClickHouseExpression whereClause;
     private List<ClickHouseExpression> groupByClause = Collections.emptyList();
     private ClickHouseExpression limitClause;
@@ -21,6 +23,13 @@ public class ClickHouseSelect extends ClickHouseExpression implements
     private List<ClickHouseExpression> fetchColumns = Collections.emptyList();
     private List<ClickHouseExpression.ClickHouseJoin> joinStatements = Collections.emptyList();
     private ClickHouseExpression havingClause;
+
+    private List<ClickHouseExpression> arrayJoinExprs = Collections.emptyList();
+    private boolean arrayJoinLeft;
+
+    private List<ClickHouseExpression> withClauses = Collections.emptyList();
+
+    private boolean isFinal;
 
     public enum SelectType {
         DISTINCT, ALL;
@@ -55,6 +64,14 @@ public class ClickHouseSelect extends ClickHouseExpression implements
     @Override
     public void setWhereClause(ClickHouseExpression whereClause) {
         this.whereClause = whereClause;
+    }
+
+    public ClickHouseExpression getPrewhereClause() {
+        return prewhereClause;
+    }
+
+    public void setPrewhereClause(ClickHouseExpression prewhereClause) {
+        this.prewhereClause = prewhereClause;
     }
 
     @Override
@@ -136,5 +153,37 @@ public class ClickHouseSelect extends ClickHouseExpression implements
     @Override
     public void setFromList(List<ClickHouseExpression> fromList) {
         this.fromClauses = fromList;
+    }
+
+    public List<ClickHouseExpression> getArrayJoinExprs() {
+        return arrayJoinExprs;
+    }
+
+    public void setArrayJoinExprs(List<ClickHouseExpression> arrayJoinExprs) {
+        this.arrayJoinExprs = arrayJoinExprs == null ? Collections.emptyList() : arrayJoinExprs;
+    }
+
+    public boolean isArrayJoinLeft() {
+        return arrayJoinLeft;
+    }
+
+    public void setArrayJoinLeft(boolean arrayJoinLeft) {
+        this.arrayJoinLeft = arrayJoinLeft;
+    }
+
+    public boolean isFinal() {
+        return isFinal;
+    }
+
+    public void setFinal(boolean isFinal) {
+        this.isFinal = isFinal;
+    }
+
+    public List<ClickHouseExpression> getWithClauses() {
+        return withClauses;
+    }
+
+    public void setWithClauses(List<ClickHouseExpression> withClauses) {
+        this.withClauses = withClauses == null ? Collections.emptyList() : withClauses;
     }
 }

@@ -4,16 +4,6 @@ import sqlancer.GlobalState;
 import sqlancer.common.gen.ExpressionGenerator;
 import sqlancer.common.query.ExpectedErrors;
 
-/**
- * This is the base class of the Ternary Logic Partitioning (TLP) oracles. The core idea of TLP is to partition a given
- * so-called original query to three so-called partitioning queries, each of which computes a partition of the original
- * query's result.
- *
- * @param <E>
- *            the expression type
- * @param <S>
- *            the global state type
- */
 public abstract class TernaryLogicPartitioningOracleBase<E, S extends GlobalState<?, ?, ?>> implements TestOracle<S> {
 
     protected E predicate;

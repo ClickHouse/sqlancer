@@ -1,0 +1,20 @@
+<clickhouse>
+    <!-- Pin ALTER / mutation execution to fully synchronous in the default profile.
+         alter_sync=2 / mutations_sync=2 make ALTER ... and mutations (ALTER UPDATE/
+         DELETE, materialize, etc.) block until the change is applied on all replicas
+         before the statement returns. Without this, a mutation/ALTER issued by one
+         oracle step can still be in-flight when a later step (or a SELECT-after-ALTER
+         invariant) reads the table, so two reads inside one iteration see different
+         schema/data snapshots and produce false-positive mismatch reproducers.
+         NB: the mutation setting is `mutations_sync` (plural); the singular
+         `mutation_sync` is not a builtin setting and fails with Code 115.
+         Profile settings are loaded from the users config tree, so this file MUST be
+         mounted into users.d/ (config.d/ merges into config.xml, whose <profiles> are
+         ignored by the user-profile loader). -->
+    <profiles>
+        <default>
+            <alter_sync>2</alter_sync>
+            <mutations_sync>2</mutations_sync>
+        </default>
+    </profiles>
+</clickhouse>

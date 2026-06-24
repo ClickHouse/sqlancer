@@ -85,105 +85,101 @@ public class H2ExpressionGenerator extends UntypedExpressionGenerator<H2Expressi
 
     public enum H2Function {
 
-        // numeric functions
-        ABS(1), //
-        ACOS(1), //
-        ASIN(1), //
-        ATAN(1), //
-        COS(1), //
-        COSH(1), //
-        COT(1), //
-        SIN(1), //
-        SINH(1), //
-        TAN(1), //
-        TANH(1), //
-        ATAN2(2), //
-        BITAND(2), //
-        BITGET(2), //
-        BITNOT(1), //
-        BITOR(2), //
-        BITXOR(2), //
-        LSHIFT(2), //
-        RSHIFT(2), //
-        MOD(2), //
-        CEILING(1), //
-        DEGREES(1), //
-        EXP(1), //
-        FLOOR(1), //
-        LN(1), //
-        LOG(2), //
-        LOG10(1), //
-        ORA_HASH(1), //
-        RADIANS(1), //
-        SQRT(1), //
-        PI(0), //
-        POWER(2), //
-        ROUND(2), //
-        ROUNDMAGIC(1), //
-        SIGN(1), //
-        TRUNCATE(2), //
-        COMPRESS(1), //
-        ZERO(0), //
-        // string functions
-        ASCII(1), //
-        BIT_LENGTH(1), //
-        LENGTH(1), //
-        OCTET_LENGTH(1), //
-        CHAR(1), //
-        CONCAT(2, true), //
-        CONCAT_WS(3, true), //
-        DIFFERENCE(2), //
-        HEXTORAW(1), //
-        RAWTOHEX(1), //
-        INSTR(3), //
-        INSERT(4), //
-        LOWER(1), //
-        UPPER(1), //
-        LEFT(2), //
-        RIGHT(2), //
-        LOCATE(3), //
-        POSITION(2), //
-        LTRIM(1), //
-        RTRIM(1), //
-        TRIM(1), //
-        REGEXP_REPLACE(3), //
-        REGEXP_LIKE(2), //
-        REPLACE(3), //
-        SOUNDEX(1), //
-        STRINGDECODE(1), //
-        STRINGENCODE(1), //
-        STRINGTOUTF8(1), //
-        SUBSTRING(2), //
-        UTF8TOSTRING(1), //
-        QUOTE_IDENT(1), //
-        XMLATTR(2), //
-        XMLNODE(1), //
-        XMLCOMMENT(1), //
-        XMLCDATA(1), //
-        XMLSTARTDOC(0), //
-        XMLTEXT(1), //
-        TRANSLATE(3), //
-        // TODO: time and date function
-        // systems functions
-        // TODO: array functions
-        CASEWHEN(3), //
-        COALESCE(1, true), //
-        CURRENT_SCHEMA(0), //
-        CURRENT_CATALOG(0), //
-        DATABASE_PATH(0), //
-        DECODE(3, true), //
-        GREATEST(2, true), //
-        IFNULL(2), //
-        LEAST(2, true), //
-        LOCK_MODE(0), //
-        LOCK_TIMEOUT(0), //
-        NULLIF(2), //
-        NVL2(3), //
-        READONLY(0), //
-        SESSION_ID(0), //
-        TRUNCATE_VALUE(3), //
+        ABS(1),
+        ACOS(1),
+        ASIN(1),
+        ATAN(1),
+        COS(1),
+        COSH(1),
+        COT(1),
+        SIN(1),
+        SINH(1),
+        TAN(1),
+        TANH(1),
+        ATAN2(2),
+        BITAND(2),
+        BITGET(2),
+        BITNOT(1),
+        BITOR(2),
+        BITXOR(2),
+        LSHIFT(2),
+        RSHIFT(2),
+        MOD(2),
+        CEILING(1),
+        DEGREES(1),
+        EXP(1),
+        FLOOR(1),
+        LN(1),
+        LOG(2),
+        LOG10(1),
+        ORA_HASH(1),
+        RADIANS(1),
+        SQRT(1),
+        PI(0),
+        POWER(2),
+        ROUND(2),
+        ROUNDMAGIC(1),
+        SIGN(1),
+        TRUNCATE(2),
+        COMPRESS(1),
+        ZERO(0),
+
+        ASCII(1),
+        BIT_LENGTH(1),
+        LENGTH(1),
+        OCTET_LENGTH(1),
+        CHAR(1),
+        CONCAT(2, true),
+        CONCAT_WS(3, true),
+        DIFFERENCE(2),
+        HEXTORAW(1),
+        RAWTOHEX(1),
+        INSTR(3),
+        INSERT(4),
+        LOWER(1),
+        UPPER(1),
+        LEFT(2),
+        RIGHT(2),
+        LOCATE(3),
+        POSITION(2),
+        LTRIM(1),
+        RTRIM(1),
+        TRIM(1),
+        REGEXP_REPLACE(3),
+        REGEXP_LIKE(2),
+        REPLACE(3),
+        SOUNDEX(1),
+        STRINGDECODE(1),
+        STRINGENCODE(1),
+        STRINGTOUTF8(1),
+        SUBSTRING(2),
+        UTF8TOSTRING(1),
+        QUOTE_IDENT(1),
+        XMLATTR(2),
+        XMLNODE(1),
+        XMLCOMMENT(1),
+        XMLCDATA(1),
+        XMLSTARTDOC(0),
+        XMLTEXT(1),
+        TRANSLATE(3),
+
+        CASEWHEN(3),
+        COALESCE(1, true),
+        CURRENT_SCHEMA(0),
+        CURRENT_CATALOG(0),
+        DATABASE_PATH(0),
+        DECODE(3, true),
+        GREATEST(2, true),
+        IFNULL(2),
+        LEAST(2, true),
+        LOCK_MODE(0),
+        LOCK_TIMEOUT(0),
+        NULLIF(2),
+        NVL2(3),
+        READONLY(0),
+        SESSION_ID(0),
+        TRUNCATE_VALUE(3),
         USER(0);
-        // TODO JSON functions
 
         private int nrArgs;
         private boolean isVariadic;

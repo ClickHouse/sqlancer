@@ -9,7 +9,6 @@ import sqlancer.presto.PrestoSchema.PrestoDataType;
 
 public enum PrestoConditionalFunction implements PrestoFunction {
 
-    // Conditional functions
     IF_TRUE("if", null) {
         @Override
         public boolean isCompatibleWithReturnType(PrestoCompositeDataType returnType) {

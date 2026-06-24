@@ -44,10 +44,6 @@ public class DataFusionProvider extends SQLProviderAdapter<DataFusionGlobalState
             globalState.dfLogger.appendToLog(DML, queryCreateRandomTable.toString() + "\n");
         }
 
-        // Now only `INSERT` DML is supported
-        // If more DMLs are added later, should use`StatementExecutor` instead
-        // (see DuckDB's implementation for reference)
-
         globalState.updateSchema();
         List<DataFusionTable> allTables = globalState.getSchema().getDatabaseTables();
         List<String> allTablesName = allTables.stream().map(t -> t.getName()).collect(Collectors.toList());
@@ -55,7 +51,6 @@ public class DataFusionProvider extends SQLProviderAdapter<DataFusionGlobalState
             dfAssert(false, "Generate Database failed.");
         }
 
-        // Randomly insert some data into existing tables
         for (DataFusionTable table : allTables) {
             int nInsertQuery = globalState.getRandomly().getInteger(0, globalState.getOptions().getMaxNumberInserts());
 
@@ -64,7 +59,7 @@ public class DataFusionProvider extends SQLProviderAdapter<DataFusionGlobalState
                 try {
                     insertQuery = DataFusionInsertGenerator.getQuery(globalState, table);
                 } catch (IgnoreMeException e) {
-                    // Only for special case: table has 0 column
+
                     continue;
                 }
 
@@ -73,7 +68,6 @@ public class DataFusionProvider extends SQLProviderAdapter<DataFusionGlobalState
             }
         }
 
-        // TODO(datafusion) add `DataFUsionLogType.STATE` for this whole db state log
         if (globalState.getDbmsSpecificOptions().showDebugInfo) {
             System.out.println(displayTables(globalState, allTablesName));
         }
@@ -86,11 +80,11 @@ public class DataFusionProvider extends SQLProviderAdapter<DataFusionGlobalState
         }
         Properties props = new Properties();
         props.setProperty("UseEncryption", "false");
-        // must set 'user' and 'password' to trigger server 'do_handshake()'
+
         props.setProperty("user", "foo");
         props.setProperty("password", "bar");
-        props.setProperty("create", globalState.getDatabaseName()); // Hack: use this property to let DataFusion server
-        // clear the current context
+        props.setProperty("create", globalState.getDatabaseName());
+
         String url = "jdbc:arrow-flight-sql://127.0.0.1:50051";
         Connection connection = DriverManager.getConnection(url, props);
 
@@ -102,18 +96,12 @@ public class DataFusionProvider extends SQLProviderAdapter<DataFusionGlobalState
         return "datafusion";
     }
 
-    // If run SQLancer with multiple thread
-    // Each thread's instance will have its own `DataFusionGlobalState`
-    // It will store global states including:
-    // JDBC connection to DataFusion server
-    // Logger for this thread
     public static class DataFusionGlobalState extends SQLGlobalState<DataFusionOptions, DataFusionSchema> {
         public DataFusionLogger dfLogger;
         DataFusionInstanceID id;
 
         public DataFusionGlobalState() {
-            // HACK: test will only run in spawned thread, not main thread
-            // this way redundant logger files won't be created
+
             if (Thread.currentThread().getName().equals("main")) {
                 return;
             }

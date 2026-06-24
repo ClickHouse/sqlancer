@@ -44,9 +44,9 @@ public final class YSQLErrors {
         errors.add("INDEX on column of type 'INET' not yet supported");
         errors.add("INDEX on column of type 'VARBIT' not yet supported");
         errors.add("INDEX on column of type 'INT4RANGE' not yet supported");
-        errors.add("is not commutative"); // exclude
+        errors.add("is not commutative");
         errors.add("cannot be changed");
-        errors.add("operator requires run-time type coercion"); // exclude
+        errors.add("operator requires run-time type coercion");
 
         return errors;
     }
@@ -143,17 +143,17 @@ public final class YSQLErrors {
     public static List<String> getFunctionErrors() {
         ArrayList<String> errors = new ArrayList<>();
 
-        errors.add("out of valid range"); // get_bit/get_byte
+        errors.add("out of valid range");
         errors.add("cannot take logarithm of a negative number");
         errors.add("cannot take logarithm of zero");
-        errors.add("requested character too large for encoding"); // chr
-        errors.add("null character not permitted"); // chr
-        errors.add("requested character not valid for encoding"); // chr
-        errors.add("requested length too large"); // repeat
-        errors.add("invalid memory alloc request size"); // repeat
-        errors.add("encoding conversion from UTF8 to ASCII not supported"); // to_ascii
-        errors.add("negative substring length not allowed"); // substr
-        errors.add("invalid mask length"); // set_masklen
+        errors.add("requested character too large for encoding");
+        errors.add("null character not permitted");
+        errors.add("requested character not valid for encoding");
+        errors.add("requested length too large");
+        errors.add("invalid memory alloc request size");
+        errors.add("encoding conversion from UTF8 to ASCII not supported");
+        errors.add("negative substring length not allowed");
+        errors.add("invalid mask length");
 
         return errors;
     }
@@ -198,7 +198,7 @@ public final class YSQLErrors {
     public static List<String> getGroupingErrors() {
         ArrayList<String> errors = new ArrayList<>();
 
-        errors.add("non-integer constant in GROUP BY"); // TODO
+        errors.add("non-integer constant in GROUP BY");
         errors.add("must appear in the GROUP BY clause or be used in an aggregate function");
         errors.add("is not in select list");
         errors.add("aggregate functions are not allowed in GROUP BY");
@@ -215,10 +215,10 @@ public final class YSQLErrors {
 
         errors.add("already exists");
         errors.add("cannot drop columns from view");
-        errors.add("non-integer constant in ORDER BY"); // TODO
-        errors.add("for SELECT DISTINCT, ORDER BY expressions must appear in select list"); // TODO
+        errors.add("non-integer constant in ORDER BY");
+        errors.add("for SELECT DISTINCT, ORDER BY expressions must appear in select list");
         errors.add("cannot change data type of view column");
-        errors.add("specified more than once"); // TODO
+        errors.add("specified more than once");
         errors.add("materialized views must not use temporary tables or views");
         errors.add("does not have the form non-recursive-term UNION [ALL] recursive-term");
         errors.add("is not a view");

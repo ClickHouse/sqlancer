@@ -61,8 +61,6 @@ public interface SQLite3Visitor {
         return sb.toString();
     }
 
-    // TODO remove these default methods
-
     default void visit(BinaryComparisonOperation op) {
 
     }

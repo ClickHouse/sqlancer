@@ -50,8 +50,8 @@ public final class MaterializeCommon {
     public static List<String> getCommonTableErrors() {
         ArrayList<String> errors = new ArrayList<>();
 
-        errors.add("is not commutative"); // exclude
-        errors.add("operator requires run-time type coercion"); // exclude
+        errors.add("is not commutative");
+        errors.add("operator requires run-time type coercion");
 
         return errors;
     }
@@ -90,12 +90,12 @@ public final class MaterializeCommon {
         errors.add("character number must be positive");
         errors.add("unterminated escape sequence");
         errors.add("cannot be matched");
-        errors.add("clause must have type"); // "not" in having doesn't work
-        errors.add("argument must have type"); // "not" in having doesn't work
+        errors.add("clause must have type");
+        errors.add("argument must have type");
         errors.add("CAST does not support casting from");
         errors.add("aggregate functions are not allowed in");
         errors.add("only defined for finite arguments");
-        errors.add("unable to parse column reference in GROUP BY clause"); // TODO
+        errors.add("unable to parse column reference in GROUP BY clause");
         errors.addAll(getToCharFunctionErrors());
         errors.addAll(getBitStringOperationErrors());
         errors.addAll(getFunctionErrors());
@@ -141,17 +141,17 @@ public final class MaterializeCommon {
     private static List<String> getFunctionErrors() {
         ArrayList<String> errors = new ArrayList<>();
 
-        errors.add("out of valid range"); // get_bit/get_byte
+        errors.add("out of valid range");
         errors.add("cannot take logarithm of a negative number");
         errors.add("cannot take logarithm of zero");
-        errors.add("requested character too large for encoding"); // chr
-        errors.add("null character not permitted"); // chr
-        errors.add("requested character not valid for encoding"); // chr
-        errors.add("requested length too large"); // repeat
-        errors.add("invalid memory alloc request size"); // repeat
-        errors.add("encoding conversion from UTF8 to ASCII not supported"); // to_ascii
-        errors.add("negative substring length not allowed"); // substr
-        errors.add("invalid mask length"); // set_masklen
+        errors.add("requested character too large for encoding");
+        errors.add("null character not permitted");
+        errors.add("requested character not valid for encoding");
+        errors.add("requested length too large");
+        errors.add("invalid memory alloc request size");
+        errors.add("encoding conversion from UTF8 to ASCII not supported");
+        errors.add("negative substring length not allowed");
+        errors.add("invalid mask length");
 
         return errors;
     }
@@ -197,8 +197,8 @@ public final class MaterializeCommon {
     public static List<String> getGroupingErrors() {
         ArrayList<String> errors = new ArrayList<>();
 
-        errors.add("non-integer constant in GROUP BY"); // TODO
-        errors.add("unable to parse column reference in GROUP BY clause"); // TODO
+        errors.add("non-integer constant in GROUP BY");
+        errors.add("unable to parse column reference in GROUP BY clause");
         errors.add("must appear in the GROUP BY clause or be used in an aggregate function");
         errors.add("is not in select list");
         errors.add("aggregate functions are not allowed in");
@@ -257,7 +257,7 @@ public final class MaterializeCommon {
 
     public static void addTableConstraints(boolean excludePrimaryKey, StringBuilder sb, MaterializeTable table,
             MaterializeGlobalState globalState, ExpectedErrors errors) {
-        // TODO constraint name
+
         List<TableConstraints> tableConstraints = Randomly.nonEmptySubset(TableConstraints.values());
         if (excludePrimaryKey) {
             tableConstraints.remove(TableConstraints.PRIMARY_KEY);
@@ -267,7 +267,7 @@ public final class MaterializeCommon {
         }
         for (TableConstraints t : tableConstraints) {
             sb.append(", ");
-            // TODO add index parameters
+
             addTableConstraint(sb, table, globalState, t, errors);
         }
     }
@@ -339,7 +339,7 @@ public final class MaterializeCommon {
         case EXCLUDE:
             sb.append("EXCLUDE ");
             sb.append("(");
-            // TODO [USING index_method ]
+
             for (int i = 0; i < Randomly.smallNumber() + 1; i++) {
                 if (i != 0) {
                     sb.append(", ");
@@ -356,7 +356,7 @@ public final class MaterializeCommon {
             errors.add("exclusion constraints are not supported on partitioned tables");
             errors.add("The exclusion operator must be related to the index operator class for the constraint");
             errors.add("could not create exclusion constraint");
-            // TODO: index parameters
+
             if (Randomly.getBoolean()) {
                 sb.append(" WHERE ");
                 sb.append("(");
@@ -374,14 +374,13 @@ public final class MaterializeCommon {
         sb.append(Randomly.fromList(operators));
     }
 
-    // complete
     private static void appendExcludeElement(StringBuilder sb, MaterializeGlobalState globalState,
             List<MaterializeColumn> columns) {
         if (Randomly.getBoolean()) {
-            // append column name
+
             sb.append(Randomly.fromList(columns).getName());
         } else {
-            // append expression
+
             sb.append("(");
             sb.append(MaterializeVisitor
                     .asString(MaterializeExpressionGenerator.generateExpression(globalState, columns)));

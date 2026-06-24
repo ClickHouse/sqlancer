@@ -8,7 +8,6 @@ import sqlancer.datafusion.DataFusionSchema.DataFusionDataType;
 
 public class DataFusionTableGenerator {
 
-    // Randomly generate a query like 'create table t1 (v1 bigint, v2 boolean)'
     public SQLQueryAdapter getQuery(DataFusionGlobalState globalState) {
         ExpectedErrors errors = new ExpectedErrors();
         StringBuilder sb = new StringBuilder();

@@ -117,7 +117,7 @@ public class TiDBTableGenerator {
             sb.append(
                     Randomly.nonEmptySubset(columns).stream().map(c -> c.getName()).collect(Collectors.joining(", ")));
             sb.append(")");
-            // TODO: do nto include blob/text columns here
+
             errors.add(" used in key specification without a key length");
         }
         sb.append(")");

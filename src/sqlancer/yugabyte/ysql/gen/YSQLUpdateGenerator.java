@@ -41,8 +41,8 @@ public final class YSQLUpdateGenerator extends AbstractUpdateGenerator<YSQLColum
         sb.append("UPDATE ");
         sb.append(randomTable.getName());
         sb.append(" SET ");
-        errors.add("multiple assignments to same column"); // view whose columns refer to a column in the referenced
-        // table multiple times
+        errors.add("multiple assignments to same column");
+
         errors.add("new row violates check option for view");
         YSQLErrors.addCommonInsertUpdateErrors(errors);
 
@@ -72,7 +72,7 @@ public final class YSQLUpdateGenerator extends AbstractUpdateGenerator<YSQLColum
             sb.append("(");
             YSQLExpression expr = YSQLExpressionGenerator.generateExpression(globalState, randomTable.getColumns(),
                     column.getType());
-            // caused by casts
+
             sb.append(YSQLVisitor.asString(expr));
             sb.append(")");
         }

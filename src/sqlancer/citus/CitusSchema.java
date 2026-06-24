@@ -20,7 +20,7 @@ public class CitusSchema extends PostgresSchema {
     public static class CitusTable extends PostgresTable {
 
         private PostgresColumn distributionColumn;
-        // colocationId is null for local tables
+
         private Integer colocationId;
 
         public CitusTable(String tableName, List<PostgresColumn> columns, List<PostgresIndex> indexes,
@@ -63,7 +63,7 @@ public class CitusSchema extends PostgresSchema {
                 "SELECT table_name, column_to_column_name(logicalrelid, partkey) AS dist_col_name, colocationid FROM information_schema.tables LEFT OUTER JOIN pg_dist_partition ON logicalrelid=table_name::regclass WHERE table_schema='public' OR table_schema LIKE 'pg_temp_%';")) {
             while (rs.next()) {
                 String tableName = rs.getString("table_name");
-                /* skip Citus-managed views in the public schema (citus_tables, citus_schemas, etc.) */
+
                 if (tableName.startsWith("citus_")) {
                     continue;
                 }

@@ -63,7 +63,7 @@ public class PostgresTLPBase extends TernaryLogicPartitioningOracleBase<Postgres
             PostgresJoin j = new PostgresJoin(new PostgresFromTable(table, Randomly.getBoolean()), joinClause, options);
             joinStatements.add(j);
         }
-        // JOIN subqueries
+
         for (int i = 0; i < Randomly.smallNumber(); i++) {
             PostgresTables subqueryTables = globalState.getSchema().getRandomTableNonEmptyTables();
             PostgresSubquery subquery = PostgresTLPBase.createSubquery(globalState, String.format("sub%d", i),

@@ -178,7 +178,7 @@ public class MariaDBSchema extends AbstractSchema<MariaDBGlobalState, MariaDBTab
 
     public static MariaDBSchema fromConnection(SQLConnection con, String databaseName) throws SQLException {
         Exception ex = null;
-        /* the loop is a workaround for https://bugs.MariaDB.com/bug.php?id=95929 */
+
         for (int i = 0; i < NR_SCHEMA_READ_TRIES; i++) {
             try {
                 List<MariaDBTable> databaseTables = new ArrayList<>();

@@ -17,7 +17,6 @@ public class DorisAggregateOperation extends DorisFunction<DorisAggregateOperati
         GROUP_BITMAP_XOR(1), GROUP_BIT_ADD(1), GROUP_BIT_OR(1), GROUP_BIT_XOR(1), PERCENTILE_APPROX(2), STDDEV(1),
         STDDEV_POP(1), GROUP_CONCAT(1), COLLECT_LIST(1), MIN_BY(2), MAX(1), ANY_VALUE(1), VAR_SAMP(1), VARIANCE_SAMP(1),
         APPROX_COUNT_DISTINCT(1), VARIANCE(1), VAR_POP(1), VARIANCE_POP(1), GROUPING(1), GROUPING_ID(1);
-        // RETENTION(1), SEQUENCE_MATCH(1), SEQUENCE_COUNT(1), // TODO，not currently considered
 
         private int nrArgs;
 

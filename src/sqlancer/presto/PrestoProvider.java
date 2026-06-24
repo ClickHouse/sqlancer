@@ -31,20 +31,11 @@ public class PrestoProvider extends SQLProviderAdapter<PrestoGlobalState, Presto
         super(PrestoGlobalState.class, PrestoOptions.class);
     }
 
-    // TODO : check actions based on connector
-    // returns number of actions
     private static int mapActions(PrestoGlobalState globalState, Action a) {
         Randomly r = globalState.getRandomly();
         if (Objects.requireNonNull(a) == Action.INSERT) {
             return r.getInteger(0, globalState.getOptions().getMaxNumberInserts());
-            // case UPDATE:
-            // return r.getInteger(0, globalState.getDbmsSpecificOptions().maxNumUpdates + 1);
-            // case EXPLAIN:
-            // return r.getInteger(0, 2);
-            // case DELETE:
-            // return r.getInteger(0, globalState.getDbmsSpecificOptions().maxNumDeletes + 1);
-            // case CREATE_VIEW:
-            // return r.getInteger(0, globalState.getDbmsSpecificOptions().maxNumViews + 1);
+
         }
         throw new AssertionError(a);
     }
@@ -59,7 +50,7 @@ public class PrestoProvider extends SQLProviderAdapter<PrestoGlobalState, Presto
             } while (!success);
         }
         if (globalState.getSchema().getDatabaseTables().isEmpty()) {
-            throw new IgnoreMeException(); // TODO
+            throw new IgnoreMeException();
         }
         StatementExecutor<PrestoGlobalState, Action> se = new StatementExecutor<>(globalState, Action.values(),
                 PrestoProvider::mapActions, (q) -> {
@@ -164,21 +155,8 @@ public class PrestoProvider extends SQLProviderAdapter<PrestoGlobalState, Presto
     }
 
     public enum Action implements AbstractAction<PrestoGlobalState> {
-        // SHOW_TABLES((g) -> new SQLQueryAdapter("SHOW TABLES", new ExpectedErrors(), false, false)), //
+
         INSERT(PrestoInsertGenerator::getQuery);
-        // TODO : check actions based on connector
-        // DELETE(PrestoDeleteGenerator::generate), //
-        // UPDATE(PrestoUpdateGenerator::getQuery), //
-        // CREATE_VIEW(PrestoViewGenerator::generate), //
-        // EXPLAIN((g) -> {
-        // ExpectedErrors errors = new ExpectedErrors();
-        // PrestoErrors.addExpressionErrors(errors);
-        // PrestoErrors.addGroupByErrors(errors);
-        // return new SQLQueryAdapter(
-        // "EXPLAIN " + PrestoToStringVisitor
-        // .asString(PrestoRandomQuerySynthesizer.generateSelect(g, Randomly.smallNumber() + 1)),
-        // errors);
-        // });
 
         private final SQLQueryProvider<PrestoGlobalState> sqlQueryProvider;
 

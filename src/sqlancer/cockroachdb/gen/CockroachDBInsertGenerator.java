@@ -25,11 +25,11 @@ public final class CockroachDBInsertGenerator {
     public static SQLQueryAdapter insert(CockroachDBGlobalState globalState, CockroachDBTable table) {
         ExpectedErrors errors = new ExpectedErrors();
 
-        CockroachDBErrors.addExpressionErrors(errors); // e.g., caused by computed columns
+        CockroachDBErrors.addExpressionErrors(errors);
         errors.add("violates not-null constraint");
         errors.add("violates unique constraint");
         errors.add("primary key column");
-        errors.add("cannot write directly to computed column"); // TODO: do not select generated columns
+        errors.add("cannot write directly to computed column");
 
         errors.add("failed to satisfy CHECK constraint");
 
@@ -75,8 +75,7 @@ public final class CockroachDBInsertGenerator {
             sb.append(table.getRandomNonEmptyColumnSubset().stream().map(c -> c.getName())
                     .collect(Collectors.joining(", ")));
             sb.append(")");
-            // WHERE clause not yet implemented, see
-            // https://github.com/cockroachdb/cockroach/issues/32557
+
             sb.append(" DO ");
             if (Randomly.getBoolean()) {
                 sb.append(" NOTHING ");

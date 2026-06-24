@@ -52,7 +52,7 @@ public class DorisBinaryComparisonOperation extends NewBinaryOperatorNode<DorisE
                 if (valueEquals.isBoolean()) {
                     return DorisConstant.createBooleanConstant(!valueEquals.asBoolean());
                 }
-                // maybe DorisNULLConstant or null object
+
                 return valueEquals;
             }
         },

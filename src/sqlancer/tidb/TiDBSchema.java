@@ -239,7 +239,7 @@ public class TiDBSchema extends AbstractSchema<TiDBGlobalState, TiDBTable> {
                 primitiveType = TiDBDataType.FLOATING;
                 break;
             case "double":
-            case "double(8,6)": // workaround to address https://github.com/sqlancer/sqlancer/issues/669
+            case "double(8,6)":
             case "double(23,16)":
                 size = 8;
                 primitiveType = TiDBDataType.FLOATING;
@@ -279,7 +279,7 @@ public class TiDBSchema extends AbstractSchema<TiDBGlobalState, TiDBTable> {
                 break;
             case "date":
             case "datetime":
-            case "datetime(6)": // workaround to address https://github.com/sqlancer/sqlancer/issues/669
+            case "datetime(6)":
             case "timestamp":
             case "time":
             case "year":
@@ -305,7 +305,7 @@ public class TiDBSchema extends AbstractSchema<TiDBGlobalState, TiDBTable> {
         List<String> tableNames = getTableNames(con);
         for (String tableName : tableNames) {
             List<TiDBColumn> databaseColumns = getTableColumns(con, tableName);
-            // Ignore invalid views
+
             if (databaseColumns.isEmpty()) {
                 continue;
             }
@@ -361,7 +361,7 @@ public class TiDBSchema extends AbstractSchema<TiDBGlobalState, TiDBTable> {
                     columns.add(c);
                 }
             }
-        } catch (SQLException e) { // Happens when
+        } catch (SQLException e) {
         }
         return columns;
     }

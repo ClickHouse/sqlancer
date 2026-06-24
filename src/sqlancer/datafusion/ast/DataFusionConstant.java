@@ -59,7 +59,6 @@ public class DataFusionConstant implements DataFusionExpression {
             }
         }
 
-        // Make it more convenient to construct special value like -0, NaN, etc.
         public DataFusionDoubleConstant(String valueStr) {
             this.valueStr = valueStr;
         }

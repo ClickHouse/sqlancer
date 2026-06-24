@@ -9,9 +9,6 @@ import sqlancer.common.ast.FunctionNode;
 import sqlancer.materialize.MaterializeSchema.MaterializeDataType;
 import sqlancer.materialize.ast.MaterializeAggregate.MaterializeAggregateFunction;
 
-/**
- * @see <a href="https://www.sqlite.org/lang_aggfunc.html">Built-in Aggregate Functions</a>
- */
 public class MaterializeAggregate extends FunctionNode<MaterializeAggregateFunction, MaterializeExpression>
         implements MaterializeExpression {
 

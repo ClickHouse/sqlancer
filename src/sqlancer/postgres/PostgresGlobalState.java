@@ -24,7 +24,7 @@ public class PostgresGlobalState extends SQLGlobalState<PostgresOptions, Postgre
     private List<String> collates = Collections.emptyList();
     private List<String> opClasses = Collections.emptyList();
     private List<String> tableAccessMethods = Collections.emptyList();
-    // store and allow filtering by function volatility classifications
+
     private final Map<String, Character> functionsAndTypes = new HashMap<>();
     private List<Character> allowedFunctionTypes = Arrays.asList(IMMUTABLE, STABLE, VOLATILE);
 
@@ -81,9 +81,7 @@ public class PostgresGlobalState extends SQLGlobalState<PostgresOptions, Postgre
     private List<String> getTableAccessMethods(SQLConnection con) throws SQLException {
         List<String> tableAccessMethods = new ArrayList<>();
         try (Statement s = con.createStatement()) {
-            /*
-             * pg_am includes both index and table access methods so we need to filter with amtype = 't'
-             */
+
             try (ResultSet rs = s.executeQuery("SELECT amname FROM pg_am WHERE amtype = 't';")) {
                 while (rs.next()) {
                     tableAccessMethods.add(rs.getString(1));

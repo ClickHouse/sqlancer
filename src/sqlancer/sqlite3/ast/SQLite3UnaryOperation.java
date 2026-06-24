@@ -18,8 +18,6 @@ public class SQLite3UnaryOperation extends SQLite3Expression implements UnaryOpe
         this.expression = expression;
     }
 
-    // For the purposes of the previous sentence, a column name preceded by one or
-    // more unary "+" operators is still considered a column name.
     @Override
     public SQLite3CollateSequence getImplicitCollateSequence() {
         if (operation == UnaryOperator.PLUS) {
@@ -33,12 +31,6 @@ public class SQLite3UnaryOperation extends SQLite3Expression implements UnaryOpe
         }
     }
 
-    /**
-     * Supported unary prefix operators are these: -, +, ~, and NOT.
-     *
-     * @see <a href="https://www.sqlite.org/lang_expr.html">SQL Language Expressions</a>
-     *
-     */
     public enum UnaryOperator {
         MINUS("-") {
             @Override
@@ -55,7 +47,7 @@ public class SQLite3UnaryOperation extends SQLite3Expression implements UnaryOpe
                 }
                 if (intConstant.getDataType() == SQLite3DataType.INT) {
                     if (intConstant.asInt() == Long.MIN_VALUE) {
-                        // SELECT - -9223372036854775808; -- 9.22337203685478e+18
+
                         return SQLite3Constant.createRealConstant(-(double) Long.MIN_VALUE);
                     } else {
                         return SQLite3Constant.createIntConstant(-intConstant.asInt());

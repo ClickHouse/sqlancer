@@ -27,12 +27,12 @@ public class H2Provider extends SQLProviderAdapter<H2GlobalState, H2Options> {
 
     public enum Action implements AbstractAction<H2GlobalState> {
 
-        INSERT(H2InsertGenerator::getQuery), //
-        INDEX(H2IndexGenerator::getQuery), //
-        ANALYZE((g) -> new SQLQueryAdapter("ANALYZE")), //
-        CREATE_VIEW(H2ViewGenerator::getQuery), //
-        UPDATE(H2UpdateGenerator::getQuery), //
-        DELETE(H2DeleteGenerator::getQuery), //
+        INSERT(H2InsertGenerator::getQuery),
+        INDEX(H2IndexGenerator::getQuery),
+        ANALYZE((g) -> new SQLQueryAdapter("ANALYZE")),
+        CREATE_VIEW(H2ViewGenerator::getQuery),
+        UPDATE(H2UpdateGenerator::getQuery),
+        DELETE(H2DeleteGenerator::getQuery),
         SET(H2SetGenerator::getQuery);
 
         private final SQLQueryProvider<H2GlobalState> sqlQueryProvider;

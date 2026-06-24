@@ -35,11 +35,11 @@ public class SQLite3CreateVirtualFTSTableGenerator {
     }
 
     private enum Fts5Options {
-        PREFIX, // 4.2. Prefix Indexes
-        TOKENIZE, // 4.3. Tokenizers
-        COLUMNSIZE, // 4.5. The Columnsize Option
-        DETAIL, // 4.6. The Detail Option
-        CONTENTLESS, //
+        PREFIX,
+        TOKENIZE,
+        COLUMNSIZE,
+        DETAIL,
+        CONTENTLESS,
     };
 
     private enum Fts4Options {
@@ -94,7 +94,7 @@ public class SQLite3CreateVirtualFTSTableGenerator {
                     sb.append("languageid=\"lid\"");
                     break;
                 case NOT_INDEXED:
-                    // TODO also create for other columns
+
                     sb.append("notindexed=c0");
                     break;
                 default:
@@ -112,7 +112,7 @@ public class SQLite3CreateVirtualFTSTableGenerator {
     private void createFts5Table() throws AssertionError {
         createTable("fts5", () -> {
             if (Randomly.getBoolean()) {
-                // 4.1. The UNINDEXED column option
+
                 sb.append(" UNINDEXED");
             }
         }, () -> {
@@ -154,7 +154,7 @@ public class SQLite3CreateVirtualFTSTableGenerator {
                         }
                     }
                     sb.append("\"");
-                    possibleActions.remove(Fts5Options.TOKENIZE); // no duplicates allowed
+                    possibleActions.remove(Fts5Options.TOKENIZE);
                     break;
                 case CONTENTLESS:
                     sb.append("content=''");

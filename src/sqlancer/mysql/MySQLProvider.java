@@ -48,22 +48,22 @@ public class MySQLProvider extends SQLProviderAdapter<MySQLGlobalState, MySQLOpt
     }
 
     enum Action implements AbstractAction<MySQLGlobalState> {
-        SHOW_TABLES((g) -> new SQLQueryAdapter("SHOW TABLES")), //
-        INSERT(MySQLInsertGenerator::insertRow), //
-        SET_VARIABLE(MySQLSetGenerator::set), //
-        REPAIR(MySQLRepair::repair), //
-        OPTIMIZE(MySQLOptimize::optimize), //
-        CHECKSUM(MySQLChecksum::checksum), //
-        CHECK_TABLE(MySQLCheckTable::check), //
-        ANALYZE_TABLE(MySQLAnalyzeTable::analyze), //
-        FLUSH(MySQLFlush::create), RESET(MySQLReset::create), CREATE_INDEX(MySQLIndexGenerator::create), //
-        ALTER_TABLE(MySQLAlterTable::create), //
-        TRUNCATE_TABLE(MySQLTruncateTableGenerator::generate), //
+        SHOW_TABLES((g) -> new SQLQueryAdapter("SHOW TABLES")),
+        INSERT(MySQLInsertGenerator::insertRow),
+        SET_VARIABLE(MySQLSetGenerator::set),
+        REPAIR(MySQLRepair::repair),
+        OPTIMIZE(MySQLOptimize::optimize),
+        CHECKSUM(MySQLChecksum::checksum),
+        CHECK_TABLE(MySQLCheckTable::check),
+        ANALYZE_TABLE(MySQLAnalyzeTable::analyze),
+        FLUSH(MySQLFlush::create), RESET(MySQLReset::create), CREATE_INDEX(MySQLIndexGenerator::create),
+        ALTER_TABLE(MySQLAlterTable::create),
+        TRUNCATE_TABLE(MySQLTruncateTableGenerator::generate),
         SELECT_INFO((g) -> new SQLQueryAdapter(
                 "select TABLE_NAME, ENGINE from information_schema.TABLES where table_schema = '" + g.getDatabaseName()
-                        + "'")), //
-        UPDATE(MySQLUpdateGenerator::create), //
-        DELETE(MySQLDeleteGenerator::delete), //
+                        + "'")),
+        UPDATE(MySQLUpdateGenerator::create),
+        DELETE(MySQLDeleteGenerator::delete),
         DROP_INDEX(MySQLDropIndex::generate);
 
         private final SQLQueryProvider<MySQLGlobalState> sqlQueryProvider;
@@ -104,11 +104,11 @@ public class MySQLProvider extends SQLProviderAdapter<MySQLGlobalState, MySQLOpt
             nrPerformed = Randomly.getBooleanWithSmallProbability() ? r.getInteger(0, 1) : 0;
             break;
         case OPTIMIZE:
-            // seems to yield low CPU utilization
+
             nrPerformed = Randomly.getBooleanWithSmallProbability() ? r.getInteger(0, 1) : 0;
             break;
         case RESET:
-            // affects the global state, so do not execute
+
             nrPerformed = globalState.getOptions().getNumberConcurrentThreads() == 1 ? r.getInteger(0, 1) : 0;
             break;
         case CHECKSUM:
@@ -155,7 +155,7 @@ public class MySQLProvider extends SQLProviderAdapter<MySQLGlobalState, MySQLOpt
 
         if (globalState.getDbmsSpecificOptions().getTestOracleFactory().stream()
                 .anyMatch((o) -> o == MySQLOracleFactory.CERT)) {
-            // Enfore statistic collected for all tables
+
             ExpectedErrors errors = new ExpectedErrors();
             MySQLErrors.addExpressionErrors(errors);
             for (MySQLTable table : globalState.getSchema().getDatabaseTables()) {

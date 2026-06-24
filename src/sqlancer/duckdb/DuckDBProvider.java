@@ -38,13 +38,13 @@ public class DuckDBProvider extends SQLProviderAdapter<DuckDBGlobalState, DuckDB
 
     public enum Action implements AbstractAction<DuckDBGlobalState> {
 
-        INSERT(DuckDBInsertGenerator::getQuery), //
-        CREATE_INDEX(DuckDBIndexGenerator::getQuery), //
-        VACUUM((g) -> new SQLQueryAdapter("VACUUM;")), //
-        ANALYZE((g) -> new SQLQueryAdapter("ANALYZE;")), //
-        DELETE(DuckDBDeleteGenerator::generate), //
-        UPDATE(DuckDBUpdateGenerator::getQuery), //
-        CREATE_VIEW(DuckDBViewGenerator::generate), //
+        INSERT(DuckDBInsertGenerator::getQuery),
+        CREATE_INDEX(DuckDBIndexGenerator::getQuery),
+        VACUUM((g) -> new SQLQueryAdapter("VACUUM;")),
+        ANALYZE((g) -> new SQLQueryAdapter("ANALYZE;")),
+        DELETE(DuckDBDeleteGenerator::generate),
+        UPDATE(DuckDBUpdateGenerator::getQuery),
+        CREATE_VIEW(DuckDBViewGenerator::generate),
         EXPLAIN((g) -> {
             ExpectedErrors errors = new ExpectedErrors();
             DuckDBErrors.addExpressionErrors(errors);
@@ -76,11 +76,11 @@ public class DuckDBProvider extends SQLProviderAdapter<DuckDBGlobalState, DuckDB
             if (!globalState.getDbmsSpecificOptions().testIndexes) {
                 return 0;
             }
-            // fall through
+
         case UPDATE:
             return r.getInteger(0, globalState.getDbmsSpecificOptions().maxNumUpdates + 1);
-        case VACUUM: // seems to be ignored
-        case ANALYZE: // seems to be ignored
+        case VACUUM:
+        case ANALYZE:
         case EXPLAIN:
             return r.getInteger(0, 2);
         case DELETE:
@@ -111,7 +111,7 @@ public class DuckDBProvider extends SQLProviderAdapter<DuckDBGlobalState, DuckDB
             } while (!success);
         }
         if (globalState.getSchema().getDatabaseTables().isEmpty()) {
-            throw new IgnoreMeException(); // TODO
+            throw new IgnoreMeException();
         }
         StatementExecutor<DuckDBGlobalState, Action> se = new StatementExecutor<>(globalState, Action.values(),
                 DuckDBProvider::mapActions, (q) -> {

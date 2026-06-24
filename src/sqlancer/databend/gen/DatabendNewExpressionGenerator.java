@@ -169,7 +169,7 @@ public class DatabendNewExpressionGenerator
 
     private enum BooleanExpression {
         POSTFIX_OPERATOR, NOT, BINARY_LOGICAL_OPERATOR, BINARY_COMPARISON, LIKE, BETWEEN, IN_OPERATION;
-        // SIMILAR_TO, POSIX_REGEX, BINARY_RANGE_COMPARISON,FUNCTION, CAST,;
+
     }
 
     DatabendExpression generateBooleanExpression(int depth) {
@@ -192,7 +192,7 @@ public class DatabendNewExpressionGenerator
             return getPostfix(depth + 1);
         case NOT:
             return getNOT(depth + 1);
-        case BETWEEN: // TODO (NULL BETWEEN NULL AND NULL) 返回的是 NULL 需要注意
+        case BETWEEN:
             return getBetween(depth + 1);
         case IN_OPERATION:
             return getIn(depth + 1);
@@ -220,7 +220,7 @@ public class DatabendNewExpressionGenerator
     }
 
     DatabendExpression getBetween(int depth) {
-        // 跳过boolean
+
         DatabendDataType dataType = Randomly.fromList(Arrays.asList(DatabendDataType.values()).stream()
                 .filter(t -> t != DatabendDataType.BOOLEAN).collect(Collectors.toList()));
 
@@ -250,7 +250,7 @@ public class DatabendNewExpressionGenerator
     }
 
     DatabendExpression getComparison(int depth) {
-        // 跳过boolean
+
         DatabendDataType dataType = Randomly.fromList(Arrays.asList(DatabendDataType.values()).stream()
                 .filter(t -> t != DatabendDataType.BOOLEAN).collect(Collectors.toList()));
         DatabendExpression leftExpr = generateExpression(dataType, depth);
@@ -265,9 +265,7 @@ public class DatabendNewExpressionGenerator
     }
 
     public DatabendExpression generateExpressionWithExpectedResult(DatabendDataType type) {
-        // DatabendNewExpressionGenerator gen = new
-        // DatabendNewExpressionGenerator(globalState).setColumns(columns);
-        // gen.setRowValue(rowValue);
+
         DatabendExpression expr;
         do {
             expr = this.generateExpression(type);
@@ -309,10 +307,10 @@ public class DatabendNewExpressionGenerator
         Randomly r = globalState.getRandomly();
         switch (type) {
         case INT:
-            // TODO 已支持数值型string转化但仍然不支持运算符计算，待添加
+
             return DatabendConstant.createIntConstant(r.getInteger());
         case BOOLEAN:
-            // TODO 已支持boolean型string转化但仍然不支持运算符计算，待添加
+
             return DatabendConstant.createBooleanConstant(Randomly.getBoolean());
         case FLOAT:
             return DatabendConstant.createFloatConstant((float) r.getDouble());

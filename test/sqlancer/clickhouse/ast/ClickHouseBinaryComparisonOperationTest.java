@@ -3,14 +3,55 @@ package sqlancer.clickhouse.ast;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import com.clickhouse.data.ClickHouseDataType;
+import sqlancer.clickhouse.ClickHouseSchema;
+import sqlancer.clickhouse.ClickHouseVisitor;
+import sqlancer.clickhouse.ast.ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator;
 import sqlancer.clickhouse.ast.constant.ClickHouseCreateConstant;
+import sqlancer.common.schema.TableIndex;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 class ClickHouseBinaryComparisonOperationTest {
+
+    @Test
+    void inOperatorTextRepresentation() {
+        assertEquals("IN", ClickHouseBinaryComparisonOperator.IN.getTextRepresentation());
+        assertEquals("NOT IN", ClickHouseBinaryComparisonOperator.NOT_IN.getTextRepresentation());
+    }
+
+    @Test
+    void getRandomOperatorNeverReturnsInOrNotIn() {
+
+        for (int i = 0; i < 2000; i++) {
+            ClickHouseBinaryComparisonOperator op = ClickHouseBinaryComparisonOperator.getRandomOperator();
+            assertNotEquals(ClickHouseBinaryComparisonOperator.IN, op);
+            assertNotEquals(ClickHouseBinaryComparisonOperator.NOT_IN, op);
+        }
+    }
+
+    @Test
+    void inSubqueryRenders() {
+        List<ClickHouseSchema.ClickHouseColumn> emptyCols = Collections.emptyList();
+        List<TableIndex> indexes = Collections.emptyList();
+        ClickHouseSchema.ClickHouseTable table = new ClickHouseSchema.ClickHouseTable("t", emptyCols, indexes, false);
+        ClickHouseSchema.ClickHouseColumn aCol = new ClickHouseSchema.ClickHouseColumn("a",
+                ClickHouseSchema.ClickHouseLancerDataType.getRandom(), false, false, table);
+        aCol.setTable(table);
+        ClickHouseColumnReference aRef = aCol.asColumnReference(null);
+        ClickHouseRawText subquery = new ClickHouseRawText("(SELECT b FROM t)");
+        ClickHouseBinaryComparisonOperation in = new ClickHouseBinaryComparisonOperation(aRef, subquery,
+                ClickHouseBinaryComparisonOperator.IN);
+        assertEquals("((t.a)IN((SELECT b FROM t)))", ClickHouseVisitor.asString(in));
+        ClickHouseBinaryComparisonOperation notIn = new ClickHouseBinaryComparisonOperation(aRef, subquery,
+                ClickHouseBinaryComparisonOperator.NOT_IN);
+        assertEquals("((t.a)NOT IN((SELECT b FROM t)))", ClickHouseVisitor.asString(notIn));
+    }
 
     @Test
     void getExpectedValueTrueEqualsTrue() {

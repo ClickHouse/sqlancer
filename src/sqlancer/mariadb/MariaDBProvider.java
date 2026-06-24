@@ -38,16 +38,16 @@ public class MariaDBProvider extends SQLProviderAdapter<MariaDBGlobalState, Mari
     }
 
     enum Action {
-        ANALYZE_TABLE, //
-        CHECKSUM, //
-        CHECK_TABLE, //
-        CREATE_INDEX, //
-        INSERT, //
-        OPTIMIZE, //
-        REPAIR_TABLE, //
-        SET, //
-        TRUNCATE, //
-        UPDATE, //
+        ANALYZE_TABLE,
+        CHECKSUM,
+        CHECK_TABLE,
+        CREATE_INDEX,
+        INSERT,
+        OPTIMIZE,
+        REPAIR_TABLE,
+        SET,
+        TRUNCATE,
+        UPDATE,
         DELETE,
     }
 

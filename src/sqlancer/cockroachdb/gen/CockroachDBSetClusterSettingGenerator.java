@@ -13,7 +13,6 @@ public final class CockroachDBSetClusterSettingGenerator {
     private CockroachDBSetClusterSettingGenerator() {
     }
 
-    // https://www.cockroachlabs.com/docs/stable/set-vars.html
     private enum CockroachDBClusterSetting {
         BACKPRESSURE_RANGE_SIZE_MULTIPLIER(" kv.range.backpressure_range_size_multiplier",
                 (g) -> Randomly.getNotCachedInteger(0, Integer.MAX_VALUE)),

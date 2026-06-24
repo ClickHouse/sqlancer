@@ -50,7 +50,7 @@ public final class TiDBViewGenerator {
                 "references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them");
         errors.add("Unknown column ");
         if (sb.toString().contains("\\\\")) {
-            // TODO: CREATE VIEW v0(c0) AS SELECT '\\' FROM t0; causes an unexpected failure
+
             throw new IgnoreMeException();
         }
         return new SQLQueryAdapter(sb.toString(), errors, true);

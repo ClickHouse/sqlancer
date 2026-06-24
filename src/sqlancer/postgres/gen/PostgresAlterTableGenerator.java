@@ -22,35 +22,34 @@ public class PostgresAlterTableGenerator {
     private PostgresGlobalState globalState;
 
     protected enum Action {
-        // ALTER_TABLE_ADD_COLUMN, // [ COLUMN ] column data_type [ COLLATE collation ] [
-        // column_constraint [ ... ] ]
-        ALTER_TABLE_DROP_COLUMN, // DROP [ COLUMN ] [ IF EXISTS ] column [ RESTRICT | CASCADE ]
-        ALTER_COLUMN_TYPE, // ALTER [ COLUMN ] column [ SET DATA ] TYPE data_type [ COLLATE collation ] [
-                           // USING expression ]
-        ALTER_COLUMN_SET_DROP_DEFAULT, // ALTER [ COLUMN ] column SET DEFAULT expression and ALTER [ COLUMN ] column
-                                       // DROP DEFAULT
-        ALTER_COLUMN_SET_DROP_NULL, // ALTER [ COLUMN ] column { SET | DROP } NOT NULL
-        ALTER_COLUMN_SET_STATISTICS, // ALTER [ COLUMN ] column SET STATISTICS integer
-        ALTER_COLUMN_SET_ATTRIBUTE_OPTION, // ALTER [ COLUMN ] column SET ( attribute_option = value [, ... ] )
-        ALTER_COLUMN_RESET_ATTRIBUTE_OPTION, // ALTER [ COLUMN ] column RESET ( attribute_option [, ... ] )
-        ALTER_COLUMN_SET_STORAGE, // ALTER [ COLUMN ] column SET STORAGE { PLAIN | EXTERNAL | EXTENDED | MAIN }
-        ALTER_COLUMN_DROP_EXPRESSION, // ALTER [ COLUMN ] column DROP EXPRESSION [ IF EXISTS ]
-        ADD_TABLE_CONSTRAINT, // ADD table_constraint [ NOT VALID ]
-        ADD_TABLE_CONSTRAINT_USING_INDEX, // ADD table_constraint_using_index
-        VALIDATE_CONSTRAINT, // VALIDATE CONSTRAINT constraint_name
-        DISABLE_ROW_LEVEL_SECURITY, // DISABLE ROW LEVEL SECURITY
-        ENABLE_ROW_LEVEL_SECURITY, // ENABLE ROW LEVEL SECURITY
-        FORCE_ROW_LEVEL_SECURITY, // FORCE ROW LEVEL SECURITY
-        NO_FORCE_ROW_LEVEL_SECURITY, // NO FORCE ROW LEVEL SECURITY
-        CLUSTER_ON, // CLUSTER ON index_name
-        SET_WITHOUT_CLUSTER, //
-        SET_WITH_OIDS, //
-        SET_WITHOUT_OIDS, //
-        SET_LOGGED_UNLOGGED, //
-        NOT_OF, //
-        OWNER_TO, //
-        REPLICA_IDENTITY, // RENAME COLUMN old_name TO new_name (for views)
-        ALTER_VIEW_RENAME_COLUMN // RENAME COLUMN old_name TO new_name (for views)
+
+        ALTER_TABLE_DROP_COLUMN,
+        ALTER_COLUMN_TYPE,
+
+        ALTER_COLUMN_SET_DROP_DEFAULT,
+
+        ALTER_COLUMN_SET_DROP_NULL,
+        ALTER_COLUMN_SET_STATISTICS,
+        ALTER_COLUMN_SET_ATTRIBUTE_OPTION,
+        ALTER_COLUMN_RESET_ATTRIBUTE_OPTION,
+        ALTER_COLUMN_SET_STORAGE,
+        ALTER_COLUMN_DROP_EXPRESSION,
+        ADD_TABLE_CONSTRAINT,
+        ADD_TABLE_CONSTRAINT_USING_INDEX,
+        VALIDATE_CONSTRAINT,
+        DISABLE_ROW_LEVEL_SECURITY,
+        ENABLE_ROW_LEVEL_SECURITY,
+        FORCE_ROW_LEVEL_SECURITY,
+        NO_FORCE_ROW_LEVEL_SECURITY,
+        CLUSTER_ON,
+        SET_WITHOUT_CLUSTER,
+        SET_WITH_OIDS,
+        SET_WITHOUT_OIDS,
+        SET_LOGGED_UNLOGGED,
+        NOT_OF,
+        OWNER_TO,
+        REPLICA_IDENTITY,
+        ALTER_VIEW_RENAME_COLUMN
     }
 
     private static final List<Action> VIEW_ACTIONS = List.of(Action.ALTER_VIEW_RENAME_COLUMN);
@@ -93,26 +92,25 @@ public class PostgresAlterTableGenerator {
         errors.add("does not accept data type");
         errors.add("does not exist for access method");
         errors.add("could not find cast from");
-        errors.add("does not exist"); // TODO: investigate
+        errors.add("does not exist");
         errors.add("constraints on permanent tables may reference only permanent tables");
         List<Action> action;
         if (Randomly.getBoolean()) {
             action = Randomly.nonEmptySubset(Action.values());
         } else {
-            // make it more likely that the ALTER TABLE succeeds
+
             action = Randomly.subset(Randomly.smallNumber(), Action.values());
         }
 
-        // If this is a view, only allow view-compatible operations
         if (randomTable.isView()) {
-            // Remove all non-view operations
+
             action.removeIf(a -> !VIEW_ACTIONS.contains(a));
-            // If no view operations remain, add a random view operation
+
             if (action.isEmpty()) {
                 action.add(VIEW_ACTIONS.get(r.getInteger(0, VIEW_ACTIONS.size() - 1)));
             }
         } else {
-            // Remove view-specific actions if this is a table
+
             action.removeIf(VIEW_ACTIONS::contains);
         }
 
@@ -142,7 +140,6 @@ public class PostgresAlterTableGenerator {
         List<Action> action = getActions(errors);
         StringBuilder sb = new StringBuilder();
 
-        // Check if we're dealing with a view operation
         boolean isViewOperation = action.contains(Action.ALTER_VIEW_RENAME_COLUMN);
 
         if (isViewOperation) {
@@ -187,7 +184,7 @@ public class PostgresAlterTableGenerator {
                 sb.append(" TYPE ");
                 PostgresDataType randomType = PostgresDataType.getRandomType();
                 PostgresCommon.appendDataType(randomType, sb, false, generateOnlyKnown, opClasses);
-                // TODO [ COLLATE collation ] [ USING expression ]
+
                 errors.add("cannot alter type of a column used by a view or rule");
                 errors.add("cannot convert infinity to numeric");
                 errors.add("is duplicated");
@@ -238,7 +235,7 @@ public class PostgresAlterTableGenerator {
                     errors.add("is in a primary key");
                     errors.add("is an identity column");
                     errors.add("is in index used as replica identity");
-                    // PG18 update: otherwise we need to encode contraint inheritance info in PostgreColumn
+
                     errors.add("cannot drop inherited constraint");
                 }
                 break;
@@ -350,7 +347,7 @@ public class PostgresAlterTableGenerator {
             case VALIDATE_CONSTRAINT:
                 sb.append("VALIDATE CONSTRAINT asdf");
                 errors.add("does not exist");
-                // FIXME select constraint
+
                 break;
             case DISABLE_ROW_LEVEL_SECURITY:
                 sb.append("DISABLE ROW LEVEL SECURITY");
@@ -395,7 +392,7 @@ public class PostgresAlterTableGenerator {
                 break;
             case OWNER_TO:
                 sb.append("OWNER TO ");
-                // TODO: new_owner
+
                 sb.append(Randomly.fromOptions("CURRENT_USER", "SESSION_USER"));
                 break;
             case REPLICA_IDENTITY:

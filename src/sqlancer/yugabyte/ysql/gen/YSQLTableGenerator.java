@@ -33,7 +33,7 @@ public class YSQLTableGenerator {
         this.generateOnlyKnown = generateOnlyKnown;
         this.globalState = globalState;
         table = new YSQLTable(tableName, columnsToBeAdded, null, null, null, false, false);
-        // YB catalog specific messages
+
         errors.add("The catalog snapshot used for this transaction has been invalidated");
 
         errors.add("PRIMARY KEY containing column of type");
@@ -111,8 +111,7 @@ public class YSQLTableGenerator {
         YSQLCommon.generateWith(sb, globalState, errors, columnsToBeAdded, isTemporaryTable);
         if (Randomly.getBoolean() && isTemporaryTable) {
             sb.append(" ON COMMIT ");
-            // todo ON COMMIT DROP fails and it's known issue
-            // sb.append(Randomly.fromOptions("PRESERVE ROWS", "DELETE ROWS", "DROP"));
+
             sb.append(Randomly.fromOptions("PRESERVE ROWS", "DELETE ROWS"));
             sb.append(" ");
         }
@@ -137,7 +136,7 @@ public class YSQLTableGenerator {
             return;
         }
         sb.append(" PARTITION BY ");
-        // TODO "RANGE",
+
         String partitionOption = Randomly.fromOptions("RANGE", "LIST", "HASH");
         sb.append(partitionOption);
         sb.append("(");
@@ -169,7 +168,7 @@ public class YSQLTableGenerator {
     private void createColumnConstraint(YSQLDataType type, boolean serial) {
         List<ColumnConstraint> constraintSubset = Randomly.nonEmptySubset(ColumnConstraint.values());
         if (Randomly.getBoolean()) {
-            // make checks constraints less likely
+
             constraintSubset.remove(ColumnConstraint.CHECK);
         }
         if (!columnCanHavePrimaryKey || columnHasPrimaryKey) {
@@ -177,11 +176,11 @@ public class YSQLTableGenerator {
         }
         if (constraintSubset.contains(ColumnConstraint.GENERATED)
                 && constraintSubset.contains(ColumnConstraint.DEFAULT)) {
-            // otherwise: ERROR: both default and identity specified for column
+
             constraintSubset.remove(Randomly.fromOptions(ColumnConstraint.GENERATED, ColumnConstraint.DEFAULT));
         }
         if (constraintSubset.contains(ColumnConstraint.GENERATED) && type != YSQLDataType.INT) {
-            // otherwise: ERROR: identity column type must be smallint, integer, or bigint
+
             constraintSubset.remove(ColumnConstraint.GENERATED);
         }
         if (serial) {

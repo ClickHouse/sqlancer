@@ -19,9 +19,8 @@ public abstract class ProviderAdapter<G extends GlobalState<O, ? extends Abstrac
     private final Class<G> globalClass;
     private final Class<O> optionClass;
 
-    // Variables for QPG
     Map<String, String> queryPlanPool = new HashMap<>();
-    static double[] weightedAverageReward; // static variable for sharing across all threads
+    static double[] weightedAverageReward;
     int currentSelectRewards;
     int currentSelectCounts;
     int currentMutationOperator = -1;
@@ -108,11 +107,10 @@ public abstract class ProviderAdapter<G extends GlobalState<O, ? extends Abstrac
 
     public abstract void generateDatabase(G globalState) throws Exception;
 
-    // QPG: entry function
     @Override
     public void generateAndTestDatabaseWithQueryPlanGuidance(G globalState) throws Exception {
         if (weightedAverageReward == null) {
-            weightedAverageReward = initializeWeightedAverageReward(); // Same length as the list of mutators
+            weightedAverageReward = initializeWeightedAverageReward();
         }
         try {
             generateDatabase(globalState);
@@ -141,7 +139,7 @@ public abstract class ProviderAdapter<G extends GlobalState<O, ? extends Abstrac
                         }
                         localState.executedWithoutError();
                     }
-                    // exit loop to mutate tables if no new query plans have been found after a while
+
                     if (numOfNoNewQueryPlans > globalState.getOptions().getQPGMaxMutationInterval()) {
                         mutateTables(globalState);
                         break;
@@ -153,16 +151,14 @@ public abstract class ProviderAdapter<G extends GlobalState<O, ? extends Abstrac
         }
     }
 
-    // QPG: mutate tables for a new database state
     private synchronized boolean mutateTables(G globalState) throws Exception {
-        // Update rewards based on a set of newly generated queries in last iteration
+
         if (currentMutationOperator != -1) {
             weightedAverageReward[currentMutationOperator] += ((double) currentSelectRewards
                     / (double) currentSelectCounts) * globalState.getOptions().getQPGk();
         }
         currentMutationOperator = -1;
 
-        // Choose mutator based on the rewards
         int selectedActionIndex = 0;
         if (Randomly.getPercentage() < globalState.getOptions().getQPGProbability()) {
             selectedActionIndex = globalState.getRandomly().getInteger(0, weightedAverageReward.length);
@@ -173,22 +169,20 @@ public abstract class ProviderAdapter<G extends GlobalState<O, ? extends Abstrac
 
         try {
             executeMutator(selectedActionIndex, globalState);
-            checkViewsAreValid(globalState); // Remove the invalid views
+            checkViewsAreValid(globalState);
             reward = checkQueryPlan(globalState);
         } catch (IgnoreMeException | AssertionError e) {
         } finally {
-            // Update rewards based on existing queries associated with the query plan pool
+
             updateReward(selectedActionIndex, (double) reward / (double) queryPlanPool.size(), globalState);
             currentMutationOperator = selectedActionIndex;
         }
 
-        // Clear the variables for storing the rewards of the action on a set of newly generated queries
         currentSelectRewards = 0;
         currentSelectCounts = 0;
         return true;
     }
 
-    // QPG: add a query plan to the query plan pool and return true if the query plan is new
     private boolean addQueryPlan(String selectStr, G globalState) throws Exception {
         String queryPlan = getQueryPlan(selectStr, globalState);
 
@@ -206,7 +200,6 @@ public abstract class ProviderAdapter<G extends GlobalState<O, ? extends Abstrac
         }
     }
 
-    // Obtain the reward of the current action based on the queries associated with the query plan pool
     private int checkQueryPlan(G globalState) throws Exception {
         int newQueryPlanFound = 0;
         HashMap<String, String> modifiedQueryPlan = new HashMap<>();
@@ -215,12 +208,12 @@ public abstract class ProviderAdapter<G extends GlobalState<O, ? extends Abstrac
             String queryPlan = item.getKey();
             String selectStr = item.getValue();
             String newQueryPlan = getQueryPlan(selectStr, globalState);
-            if (newQueryPlan.isEmpty()) { // Invalid query
+            if (newQueryPlan.isEmpty()) {
                 it.remove();
-            } else if (!queryPlan.equals(newQueryPlan)) { // A query plan has been changed
+            } else if (!queryPlan.equals(newQueryPlan)) {
                 it.remove();
                 modifiedQueryPlan.put(newQueryPlan, selectStr);
-                if (!queryPlanPool.containsKey(newQueryPlan)) { // A new query plan is found
+                if (!queryPlanPool.containsKey(newQueryPlan)) {
                     newQueryPlanFound++;
                 }
             }
@@ -229,28 +222,23 @@ public abstract class ProviderAdapter<G extends GlobalState<O, ? extends Abstrac
         return newQueryPlanFound;
     }
 
-    // QPG: update the reward of current action
     private void updateReward(int actionIndex, double reward, G globalState) {
         weightedAverageReward[actionIndex] += (reward - weightedAverageReward[actionIndex])
                 * globalState.getOptions().getQPGk();
     }
 
-    // QPG: initialize the weighted average reward of all mutation operators (required implementation in specific DBMS)
     protected double[] initializeWeightedAverageReward() {
         throw new UnsupportedOperationException();
     }
 
-    // QPG: obtain the query plan of a query (required implementation in specific DBMS)
     protected String getQueryPlan(String selectStr, G globalState) throws Exception {
         throw new UnsupportedOperationException();
     }
 
-    // QPG: execute a mutation operator (required implementation in specific DBMS)
     protected void executeMutator(int index, G globalState) throws Exception {
         throw new UnsupportedOperationException();
     }
 
-    // QPG: add rows to all tables (required implementation in specific DBMS when enabling PQS oracle for QPG)
     protected boolean addRowsToAllTables(G globalState) throws Exception {
         throw new UnsupportedOperationException();
     }

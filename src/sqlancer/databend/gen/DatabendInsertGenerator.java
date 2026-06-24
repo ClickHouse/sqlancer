@@ -32,14 +32,9 @@ public class DatabendInsertGenerator extends AbstractInsertGenerator<DatabendCol
 
     @Override
     protected void insertValue(DatabendColumn column) {
-        // TODO: 等Databend实现DEFAULT关键字,暂时注入普通的value
-        // if (Randomly.getBooleanWithRatherLowProbability()) {
-        // sb.append("DEFAULT");
-        // } else {
-        // sb.append(DatabendToStringVisitor.asString(new DatabendExpressionGenerator(globalState).generateConstant()));
-        // }
+
         String value = DatabendToStringVisitor.asString(new DatabendNewExpressionGenerator(globalState)
-                .generateConstant(column.getType().getPrimitiveDataType(), column.isNullable())); // 生成一个与column相同的常量类型
+                .generateConstant(column.getType().getPrimitiveDataType(), column.isNullable()));
         sb.append(value);
 
     }

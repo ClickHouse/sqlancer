@@ -22,11 +22,10 @@ public final class TiDBErrors {
         errors.add("overflows double");
         errors.add("overflows bigint");
         errors.add("strconv.ParseFloat: parsing");
-        errors.add("in 'order clause'"); // int constants in order by clause
+        errors.add("in 'order clause'");
 
-        // functions
         errors.add("BIGINT value is out of range");
-        errors.add("doesn't have a default value"); // default
+        errors.add("doesn't have a default value");
         errors.add("is not valid for CHARACTER SET");
         errors.add("DOUBLE value is out of range");
         errors.add("Result of space() was larger than max_allowed_packet");
@@ -38,16 +37,14 @@ public final class TiDBErrors {
         errors.add("expected integer");
         errors.add("Duplicate entry");
 
-        // regex
         errors.add("error parsing regexp");
         errors.add("from regexp");
         errors.add("Empty pattern is invalid");
         errors.add("Invalid regexp pattern");
 
-        // To avoid bugs
-        errors.add("Unknown column"); // https://github.com/pingcap/tidb/issues/35522
-        errors.add("Can\'t find column"); // https://github.com/pingcap/tidb/issues/35527
-        errors.add("Cannot convert"); // https://github.com/pingcap/tidb/issues/35652
+        errors.add("Unknown column");
+        errors.add("Can\'t find column");
+        errors.add("Cannot convert");
 
         if (TiDBBugs.bug35677) {
             errors.add("for function inet_aton");
@@ -98,7 +95,7 @@ public final class TiDBErrors {
         errors.add("Incorrect tinyint value");
         errors.add("Data truncation");
         errors.add("Bad Number");
-        errors.add("The value specified for generated column"); // TODO: do not insert data into generated columns
+        errors.add("The value specified for generated column");
         errors.add("incorrect utf8 value");
         errors.add("Data truncation: %s value is out of range in '%s'");
         errors.add("Incorrect smallint value");

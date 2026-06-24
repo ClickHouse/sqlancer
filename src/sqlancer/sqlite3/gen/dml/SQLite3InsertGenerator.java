@@ -43,10 +43,10 @@ public class SQLite3InsertGenerator {
     private String insertRow(SQLite3Table table) {
         SQLite3Errors.addInsertUpdateErrors(errors);
         errors.add("[SQLITE_FULL]");
-        // // TODO: also check if the table is really missing (caused by a DROP TABLE)
-        errors.add("ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint"); // trigger
-        errors.add("values were supplied"); // trigger
-        errors.add("Data type mismatch (datatype mismatch)"); // trigger
+
+        errors.add("ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint");
+        errors.add("values were supplied");
+        errors.add("Data type mismatch (datatype mismatch)");
 
         errors.add("load_extension() prohibited in triggers and views");
         SQLite3Errors.addInsertNowErrors(errors);
@@ -54,7 +54,7 @@ public class SQLite3InsertGenerator {
         StringBuilder sb = new StringBuilder();
         sb.append("INSERT ");
         if (Randomly.getBoolean()) {
-            sb.append("OR IGNORE "); // TODO: try to generate REPLACE
+            sb.append("OR IGNORE ");
         } else {
             String fromOptions = Randomly.fromOptions("OR REPLACE ", "OR ABORT ", "OR FAIL ", "OR ROLLBACK ");
             sb.append(fromOptions);
@@ -68,10 +68,8 @@ public class SQLite3InsertGenerator {
             appendColumnNames(cols, sb);
             sb.append(")");
         } else {
-            // If the column-name list after table-name is omitted then the number of values
-            // inserted into each row must be the same as the number of columns in the
-            // table.
-            cols = table.getColumns(); // get them again in sorted order
+
+            cols = table.getColumns();
             assert cols.size() == table.getColumns().size();
         }
         sb.append(" VALUES ");

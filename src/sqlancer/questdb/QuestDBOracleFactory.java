@@ -7,7 +7,7 @@ import sqlancer.common.oracle.TestOracle;
 import sqlancer.questdb.test.QuestDBQueryPartitioningWhereTester;
 
 public enum QuestDBOracleFactory implements OracleFactory<QuestDBProvider.QuestDBGlobalState> {
-    // TODO (anxing): implement test oracles
+
     WHERE {
         @Override
         public TestOracle<QuestDBProvider.QuestDBGlobalState> create(QuestDBProvider.QuestDBGlobalState globalState)

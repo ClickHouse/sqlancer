@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import sqlancer.ComparatorHelper;
+import sqlancer.IgnoreMeException;
 import sqlancer.Randomly;
 import sqlancer.clickhouse.ClickHouseProvider;
 import sqlancer.clickhouse.ClickHouseVisitor;
@@ -24,6 +25,7 @@ public class ClickHouseTLPGroupByOracle extends ClickHouseTLPBase {
         List<ClickHouseExpression> groupByColumns = IntStream.range(0, 1 + Randomly.smallNumber())
                 .mapToObj(i -> gen.generateExpressionWithColumns(columns, 5)).collect(Collectors.toList());
 
+        select.setFetchColumns(groupByColumns);
         select.setGroupByClause(groupByColumns);
         select.setWhereClause(null);
         String originalQueryString = ClickHouseVisitor.asString(select);
@@ -37,9 +39,22 @@ public class ClickHouseTLPGroupByOracle extends ClickHouseTLPBase {
         select.setWhereClause(isNullPredicate);
         String thirdQueryString = ClickHouseVisitor.asString(select);
         List<String> combinedString = new ArrayList<>();
-        List<String> secondResultSet = ComparatorHelper.getCombinedResultSet(firstQueryString, secondQueryString,
-                thirdQueryString, combinedString, true, state, errors);
+
+        boolean strict = state.getClickHouseOptions().tlpGroupByStrict;
+        List<String> secondResultSet;
+        if (strict) {
+            secondResultSet = ComparatorHelper.getCombinedResultSet(firstQueryString, secondQueryString,
+                    thirdQueryString, combinedString, true, state, errors);
+        } else {
+            secondResultSet = ComparatorHelper.getCombinedResultSetNoDuplicates(firstQueryString, secondQueryString,
+                    thirdQueryString, combinedString, false, state, errors);
+        }
+
+        if (projectionMayBeNonFinite(resultSet, secondResultSet, originalQueryString)) {
+            throw new IgnoreMeException();
+        }
+
         ComparatorHelper.assumeResultSetsAreEqual(resultSet, secondResultSet, originalQueryString, combinedString,
-                state);
+                state, strict ? ComparatorHelper.ComparisonMode.MULTISET : ComparatorHelper.ComparisonMode.SET);
     }
 }

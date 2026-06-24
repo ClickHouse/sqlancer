@@ -1,9 +1,10 @@
 package sqlancer.clickhouse;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.google.auto.service.AutoService;
@@ -18,8 +19,10 @@ import sqlancer.SQLGlobalState;
 import sqlancer.SQLProviderAdapter;
 import sqlancer.StatementExecutor;
 import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
+import sqlancer.clickhouse.gen.ClickHouseAlterGenerator;
 import sqlancer.clickhouse.gen.ClickHouseCommon;
 import sqlancer.clickhouse.gen.ClickHouseInsertGenerator;
+import sqlancer.clickhouse.gen.ClickHouseMutationGenerator;
 import sqlancer.clickhouse.gen.ClickHouseTableGenerator;
 import sqlancer.common.query.SQLQueryAdapter;
 import sqlancer.common.query.SQLQueryProvider;
@@ -33,7 +36,11 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
 
     public enum Action implements AbstractAction<ClickHouseGlobalState> {
 
-        INSERT(ClickHouseInsertGenerator::getQuery);
+        INSERT(ClickHouseInsertGenerator::getQuery),
+
+        ALTER(ClickHouseAlterGenerator::getQuery),
+
+        MUTATION(ClickHouseMutationGenerator::getQuery);
 
         private final SQLQueryProvider<ClickHouseGlobalState> sqlQueryProvider;
 
@@ -52,6 +59,12 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         switch (a) {
         case INSERT:
             return r.getInteger(0, globalState.getOptions().getMaxNumberInserts());
+        case ALTER:
+
+            return Randomly.fromOptions(0, 0, 0, 0, 1);
+        case MUTATION:
+
+            return Randomly.fromOptions(0, 0, 0, 0, 1, 1, 1, 2);
         default:
             throw new AssertionError(a);
         }
@@ -76,7 +89,15 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
 
         @Override
         public String getDatabaseName() {
-            return super.getDatabaseName() + this.getOracleName();
+
+            String base = super.getDatabaseName();
+            String suffix = this.getOracleName();
+
+            int maxSuffix = 200 - base.length();
+            if (suffix.length() <= maxSuffix) {
+                return base + suffix;
+            }
+            return base + "o" + Integer.toHexString(suffix.hashCode());
         }
 
         @Override
@@ -96,7 +117,6 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
             } while (!success);
         }
 
-        // TODO: add more Actions to populate table
         StatementExecutor<ClickHouseGlobalState, Action> se = new StatementExecutor<>(globalState, Action.values(),
                 ClickHouseProvider::mapActions, (q) -> {
                     if (globalState.getSchema().getDatabaseTables().isEmpty()) {
@@ -119,34 +139,97 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
 
         ClickHouseOptions clickHouseOptions = globalState.getDbmsSpecificOptions();
         globalState.setClickHouseOptions(clickHouseOptions);
-        String url = String.format("jdbc:clickhouse://%s:%d/%s", host, port, "default");
         String databaseName = globalState.getDatabaseName();
-        Connection con = DriverManager.getConnection(url, globalState.getOptions().getUserName(),
-                globalState.getOptions().getPassword());
-        String dropDatabaseCommand = "DROP DATABASE IF EXISTS " + databaseName;
-        globalState.getState().logStatement(dropDatabaseCommand);
+
+        return createDatabaseClient(globalState, host, port, databaseName, clickHouseOptions);
+    }
+
+    private static void runSetupCommandsWithTolerance(sqlancer.clickhouse.transport.ClickHouseTransport transport,
+            String dropDatabaseCommand, String createDatabaseCommand, String useDatabaseCommand) throws SQLException {
+        try {
+            transport.executeUpdate(dropDatabaseCommand);
+            transport.executeUpdate(createDatabaseCommand);
+            transport.executeUpdate(useDatabaseCommand);
+        } catch (SQLException e) {
+            sqlancer.common.query.ExpectedErrors tolerated = sqlancer.common.query.ExpectedErrors.newErrors()
+                    .with(ClickHouseErrors.getExpectedExpressionErrors()).build();
+            if (tolerated.errorIsExpected(e.getMessage())) {
+                throw new IgnoreMeException();
+            }
+            throw e;
+        }
+    }
+
+    private SQLConnection createDatabaseClient(ClickHouseGlobalState globalState, String host, int port,
+            String databaseName, ClickHouseOptions clickHouseOptions) throws SQLException {
+
+        java.util.LinkedHashMap<String, String> settings = new java.util.LinkedHashMap<>();
+        settings.put("max_execution_time", "30");
+        settings.put("wait_end_of_query", "1");
+        settings.put("http_response_buffer_size", "104857600");
+
+        settings.put("max_result_rows", "1000000");
+        settings.put("result_overflow_mode", "throw");
+
+        settings.put("allow_experimental_analyzer", "1");
+        settings.put("allow_experimental_variant_type", "1");
+        settings.put("allow_experimental_dynamic_type", "1");
+        settings.put("allow_experimental_json_type", "1");
+        settings.put("allow_experimental_vector_similarity_index", "1");
+        if (clickHouseOptions.enableLowCardinality) {
+            settings.put("allow_suspicious_low_cardinality_types", "1");
+        }
+
+        sqlancer.clickhouse.transport.ClickHouseClientV2Transport transport = new sqlancer.clickhouse.transport.ClickHouseClientV2Transport(
+                host, port, globalState.getOptions().getUserName(), globalState.getOptions().getPassword(), "default",
+                settings, 5_000L, 60_000L);
+
+        String dropDatabaseCommand = "DROP DATABASE IF EXISTS " + databaseName + " SYNC";
         String createDatabaseCommand = "CREATE DATABASE IF NOT EXISTS " + databaseName;
+        String useDatabaseCommand = "USE " + databaseName;
+        globalState.getState().logStatement(dropDatabaseCommand);
         globalState.getState().logStatement(createDatabaseCommand);
-        String useDatabaseCommand = "USE " + databaseName; // Noop. To reproduce easier.
         globalState.getState().logStatement(useDatabaseCommand);
-        try (Statement s = con.createStatement()) {
-            s.execute(dropDatabaseCommand);
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        runSetupCommandsWithTolerance(transport, dropDatabaseCommand, createDatabaseCommand, useDatabaseCommand);
+        Connection con = new sqlancer.clickhouse.transport.ClickHouseTransportConnection(transport);
+        if (clickHouseOptions.randomSessionSettings) {
+            applyRandomSessionSettings(globalState, clickHouseOptions, con);
         }
-        try (Statement s = con.createStatement()) {
-            s.execute(createDatabaseCommand);
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        con.close();
-        con = DriverManager.getConnection(
-                String.format("jdbc:clickhouse://%s:%d/%s?socket_timeout=300000%s", host, port, databaseName,
-                        clickHouseOptions.enableAnalyzer ? "&allow_experimental_analyzer=1" : ""),
-                globalState.getOptions().getUserName(), globalState.getOptions().getPassword());
         return new SQLConnection(con);
+    }
+
+    private static void applyRandomSessionSettings(ClickHouseGlobalState globalState,
+            ClickHouseOptions clickHouseOptions, Connection con) throws SQLException {
+        LinkedHashMap<String, String> profile = ClickHouseSessionSettings.pickRandomProfile(globalState.getRandomly(),
+                clickHouseOptions.randomSessionSettingsBudget);
+        int attempted = 0;
+        int accepted = 0;
+        for (Map.Entry<String, String> entry : profile.entrySet()) {
+            String stmt = "SET " + entry.getKey() + " = " + entry.getValue();
+            globalState.getState().logStatement(stmt);
+            attempted++;
+            try (Statement s = con.createStatement()) {
+                s.execute(stmt);
+                accepted++;
+            } catch (SQLException e) {
+
+                String msg = e.getMessage();
+                if (msg == null || !isExpectedSessionSettingError(msg)) {
+                    throw e;
+                }
+            }
+        }
+        globalState.getState()
+                .logStatement(String.format("-- session-settings applied: %d of %d", accepted, attempted));
+    }
+
+    private static boolean isExpectedSessionSettingError(String msg) {
+        for (String pattern : ClickHouseErrors.getSessionSettingsErrors()) {
+            if (msg.contains(pattern)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

@@ -41,15 +41,6 @@ public class DatabendToStringVisitor extends NewToStringVisitor<DatabendExpressi
         sb.append(constant.toString());
     }
 
-    // private void visitFromList(List<Node<DatabendExpression>> fromList) {
-    // for (int i = 0; i < fromList.size(); i++) {
-    // if (i != 0) {
-    // sb.append(" INNER JOIN ");
-    // }
-    // visit(fromList.get(i));
-    // }
-    // }
-
     private void visit(DatabendSelect select) {
         sb.append("SELECT ");
         if (select.isDistinct()) {

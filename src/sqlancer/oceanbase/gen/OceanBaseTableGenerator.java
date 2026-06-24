@@ -187,7 +187,7 @@ public class OceanBaseTableGenerator {
             sb.append(" ");
             switch (o) {
             case NULL_OR_NOT_NULL:
-                // PRIMARY KEYs cannot be NULL
+
                 if (!columnHasPrimaryKey) {
                     if (Randomly.getBoolean()) {
                         sb.append("NULL");
@@ -207,7 +207,7 @@ public class OceanBaseTableGenerator {
                 sb.append(String.format("COMMENT '%s' ", "asdf"));
                 break;
             case PRIMARY_KEY:
-                // PRIMARY KEYs cannot be NULL
+
                 if (allowPrimaryKey && !setPrimaryKey && !isNull) {
                     sb.append("PRIMARY KEY");
                     setPrimaryKey = true;

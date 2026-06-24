@@ -78,7 +78,7 @@ public class YSQLExpressionGenerator implements ExpressionGenerator<YSQLExpressi
     private static YSQLCompoundDataType getCompoundDataType(YSQLDataType type) {
         switch (type) {
         case BOOLEAN:
-        case DECIMAL: // TODO
+        case DECIMAL:
         case FLOAT:
         case INT:
         case MONEY:
@@ -87,12 +87,12 @@ public class YSQLExpressionGenerator implements ExpressionGenerator<YSQLExpressi
         case INET:
         case BYTEA:
             return YSQLCompoundDataType.create(type);
-        case TEXT: // TODO
+        case TEXT:
         case BIT:
             if (Randomly.getBoolean()
-                    || YSQLProvider.generateOnlyKnown /*
-                                                       * The PQS implementation does not check for size specifications
-                                                       */) {
+                    || YSQLProvider.generateOnlyKnown
+
+) {
                 return YSQLCompoundDataType.create(type);
             } else {
                 return YSQLCompoundDataType.create(type, (int) Randomly.getNotCachedInteger(1, 1000));
@@ -107,9 +107,7 @@ public class YSQLExpressionGenerator implements ExpressionGenerator<YSQLExpressi
         if (Randomly.getBooleanWithSmallProbability()) {
             return YSQLConstant.createNullConstant();
         }
-        // if (Randomly.getBooleanWithSmallProbability()) {
-        // return YSQLConstant.createTextConstant(r.getString());
-        // }
+
         switch (type) {
         case INT:
             if (Randomly.getBooleanWithSmallProbability()) {
@@ -197,7 +195,7 @@ public class YSQLExpressionGenerator implements ExpressionGenerator<YSQLExpressi
     private YSQLExpression generateFunctionWithUnknownResult(int depth, YSQLDataType type) {
         List<YSQLFunctionWithUnknownResult> supportedFunctions = YSQLFunctionWithUnknownResult
                 .getSupportedFunctions(type);
-        // filters functions by allowed type (STABLE 's', IMMUTABLE 'i', VOLATILE 'v')
+
         supportedFunctions = supportedFunctions.stream()
                 .filter(f -> allowedFunctionTypes.contains(functionsAndTypes.get(f.getName())))
                 .collect(Collectors.toList());
@@ -211,7 +209,7 @@ public class YSQLExpressionGenerator implements ExpressionGenerator<YSQLExpressi
     private YSQLExpression generateFunctionWithKnownResult(int depth, YSQLDataType type) {
         List<YSQLFunction.YSQLFunctionWithResult> functions = Stream.of(YSQLFunction.YSQLFunctionWithResult.values())
                 .filter(f -> f.supportsReturnType(type)).collect(Collectors.toList());
-        // filters functions by allowed type (STABLE 's', IMMUTABLE 'i', VOLATILE 'v')
+
         functions = functions.stream().filter(f -> allowedFunctionTypes.contains(functionsAndTypes.get(f.getName())))
                 .collect(Collectors.toList());
         if (functions.isEmpty()) {
@@ -271,7 +269,7 @@ public class YSQLExpressionGenerator implements ExpressionGenerator<YSQLExpressi
                     generateExpression(depth + 1, type), Randomly.getBoolean());
         case SIMILAR_TO:
             assert !expectedResult;
-            // TODO also generate the escape character
+
             return new YSQLSimilarTo(generateExpression(depth + 1, YSQLDataType.TEXT),
                     generateExpression(depth + 1, YSQLDataType.TEXT), null);
         case POSIX_REGEX:
@@ -280,7 +278,7 @@ public class YSQLExpressionGenerator implements ExpressionGenerator<YSQLExpressi
                     generateExpression(depth + 1, YSQLDataType.TEXT),
                     YSQLPOSIXRegularExpression.POSIXRegex.getRandom());
         case BINARY_RANGE_COMPARISON:
-            // TODO element check
+
             return new YSQLBinaryRangeOperation(YSQLBinaryRangeOperation.YSQLBinaryRangeComparisonOperator.getRandom(),
                     generateExpression(depth + 1, YSQLDataType.RANGE),
                     generateExpression(depth + 1, YSQLDataType.RANGE));
@@ -290,8 +288,7 @@ public class YSQLExpressionGenerator implements ExpressionGenerator<YSQLExpressi
     }
 
     private YSQLDataType getMeaningfulType() {
-        // make it more likely that the expression does not only consist of constant
-        // expressions
+
         if (Randomly.getBooleanWithSmallProbability() || columns == null || columns.isEmpty()) {
             return YSQLDataType.getRandomType();
         } else {
@@ -341,11 +338,11 @@ public class YSQLExpressionGenerator implements ExpressionGenerator<YSQLExpressi
 
     private YSQLExpression generateExpressionInternal(int depth, YSQLDataType dataType) throws AssertionError {
         if (allowAggregateFunctions && Randomly.getBoolean()) {
-            allowAggregateFunctions = false; // aggregate function calls cannot be nested
+            allowAggregateFunctions = false;
             return getAggregate(dataType);
         }
         if (Randomly.getBooleanWithRatherLowProbability() || depth > maxDepth) {
-            // generic expression
+
             if (Randomly.getBoolean() || depth > maxDepth) {
                 if (Randomly.getBooleanWithRatherLowProbability()) {
                     return generateConstant(r, dataType);
@@ -631,7 +628,7 @@ public class YSQLExpressionGenerator implements ExpressionGenerator<YSQLExpressi
             YSQLJoin j = new YSQLJoin(new YSQLSelect.YSQLFromTable(table, Randomly.getBoolean()), joinClause, options);
             joinStatements.add(j);
         }
-        // JOIN subqueries
+
         for (int i = 0; i < Randomly.smallNumber(); i++) {
             YSQLTables subqueryTables = globalState.getSchema().getRandomTableNonEmptyTables();
             YSQLSelect.YSQLSubquery subquery = createSubquery(globalState, String.format("sub%d", i), subqueryTables);

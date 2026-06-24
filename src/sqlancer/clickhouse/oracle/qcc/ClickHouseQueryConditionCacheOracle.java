@@ -1,0 +1,116 @@
+package sqlancer.clickhouse.oracle.qcc;
+
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+import sqlancer.ComparatorHelper;
+import sqlancer.IgnoreMeException;
+import sqlancer.Randomly;
+import sqlancer.clickhouse.ClickHouseErrors;
+import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
+import sqlancer.clickhouse.ClickHouseSchema;
+import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
+import sqlancer.clickhouse.ClickHouseVisitor;
+import sqlancer.clickhouse.ast.ClickHouseColumnReference;
+import sqlancer.clickhouse.ast.ClickHouseSelect;
+import sqlancer.clickhouse.ast.ClickHouseTableReference;
+import sqlancer.clickhouse.gen.ClickHouseExpressionGenerator;
+import sqlancer.common.oracle.TestOracle;
+import sqlancer.common.query.ExpectedErrors;
+import sqlancer.common.query.SQLQueryAdapter;
+
+public class ClickHouseQueryConditionCacheOracle implements TestOracle<ClickHouseGlobalState> {
+
+    private static final int TRIGGERS_PER_CHECK = 3;
+
+    private final ClickHouseGlobalState state;
+    private final ExpectedErrors errors = new ExpectedErrors();
+
+    public ClickHouseQueryConditionCacheOracle(ClickHouseGlobalState state) {
+        this.state = state;
+        ClickHouseErrors.addExpectedExpressionErrors(errors);
+        ClickHouseErrors.addSessionSettingsErrors(errors);
+    }
+
+    @Override
+    public void check() throws SQLException {
+        ClickHouseSchema schema = state.getSchema();
+        List<ClickHouseTable> tables = schema.getRandomTableNonEmptyTables().getTables();
+        if (tables.isEmpty()) {
+            throw new IgnoreMeException();
+        }
+        ClickHouseTable table = tables.get((int) Randomly.getNotCachedInteger(0, tables.size()));
+        ClickHouseTableReference tableRef = new ClickHouseTableReference(table, null);
+        List<ClickHouseColumnReference> columns = tableRef.getColumnReferences();
+        if (columns.size() < 2) {
+
+            throw new IgnoreMeException();
+        }
+
+        ClickHouseExpressionGenerator gen = new ClickHouseExpressionGenerator(state).allowAggregates(false);
+        gen.addColumns(columns);
+
+        ClickHouseSelect baseline = new ClickHouseSelect();
+        baseline.setFromClause(tableRef);
+        baseline.setFetchColumns(List.of(columns.get(0)));
+        baseline.setWhereClause(gen.generatePredicate());
+        String baselineBody = ClickHouseVisitor.asString(baseline);
+
+        String dropCache = "SYSTEM DROP QUERY CONDITION CACHE";
+
+        try {
+            new SQLQueryAdapter(dropCache, errors, false).execute(state);
+        } catch (Exception e) {
+            throw new IgnoreMeException();
+        }
+
+        String truthQuery = baselineBody + " SETTINGS use_query_condition_cache = 0";
+        List<String> truthResult = ComparatorHelper.getResultSetFirstColumnAsString(truthQuery, errors, state);
+
+        List<String> triggerQueries = buildTriggerQueries(table, columns, gen);
+        for (String trigger : triggerQueries) {
+
+            try {
+                new SQLQueryAdapter(trigger, errors, false).execute(state);
+            } catch (SQLException e) {
+
+            }
+        }
+
+        String cachedQuery = baselineBody + " SETTINGS use_query_condition_cache = 1";
+        List<String> cachedResult = ComparatorHelper.getResultSetFirstColumnAsString(cachedQuery, errors, state);
+
+        ComparatorHelper.assumeResultSetsAreEqual(truthResult, cachedResult, truthQuery, List.of(cachedQuery), state);
+    }
+
+    private List<String> buildTriggerQueries(ClickHouseTable table, List<ClickHouseColumnReference> columns,
+            ClickHouseExpressionGenerator gen) {
+        String tableName = table.getName();
+        ClickHouseColumnReference prewhereCol = columns.get(0);
+        ClickHouseColumnReference whereCol = columns.get(1);
+        String prewhereColName = prewhereCol.getColumn().getName();
+        String whereColName = whereCol.getColumn().getName();
+
+        String prewhereLiteral = ClickHouseVisitor.asString(gen.generateConstant(prewhereCol.getColumn().getType()));
+        String inLiteralA = ClickHouseVisitor.asString(gen.generateConstant(whereCol.getColumn().getType()));
+        String inLiteralB = ClickHouseVisitor.asString(gen.generateConstant(whereCol.getColumn().getType()));
+
+        List<String> triggers = new ArrayList<>();
+
+        triggers.add(String.format("SELECT %s FROM %s PREWHERE %s = %s WHERE %s IN (%s, %s)", prewhereColName,
+                tableName, prewhereColName, prewhereLiteral, whereColName, inLiteralA, inLiteralB));
+
+        triggers.add(String.format("SELECT %s FROM %s PREWHERE %s IN (%s, %s) WHERE %s = %s", whereColName, tableName,
+                whereColName, inLiteralA, inLiteralB, prewhereColName, prewhereLiteral));
+
+        triggers.add(String.format("SELECT %s FROM %s PREWHERE %s = %s AND %s IN (%s, %s)", prewhereColName, tableName,
+                prewhereColName, prewhereLiteral, whereColName, inLiteralA, inLiteralB));
+
+        if (triggers.size() > TRIGGERS_PER_CHECK) {
+            triggers = triggers.subList(0, TRIGGERS_PER_CHECK);
+        }
+        return triggers;
+    }
+
+}

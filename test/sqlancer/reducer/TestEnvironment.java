@@ -13,9 +13,6 @@ import java.util.ServiceLoader;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/**
- * TODO: Make Connection a generic type OR Fake a conn QUERY AND CONNECTION BOTH ARE FAKE. FAKE QUERY sub class
- */
 public class TestEnvironment {
     private final String databaseName = "virtual_db";
     private final MainOptions options = new MainOptions();
@@ -45,12 +42,6 @@ public class TestEnvironment {
         return new TestEnvironment(ReducerType.USING_AST_BASED_REDUCER);
     }
 
-    /**
-     * @param queries:
-     *            List of Query<?>
-     *
-     * @return String of queries that appended together with '\n' separated (no '\n' at the last line)
-     */
     public static String getQueriesString(List<Query<?>> queries) {
         return queries.stream().map(Query::getQueryString).collect(Collectors.joining("\n"));
     }
@@ -89,14 +80,11 @@ public class TestEnvironment {
 
         state.setState(stateToReproduce);
         state.setDatabaseName(databaseName);
-        // A really hacky way to enable reducer...
+
         Field field = options.getClass().getDeclaredField("useReducer");
         field.setAccessible(true);
         field.set(options, true);
         state.setMainOptions(options);
-
-        // Main.StateLogger logger = new Main.StateLogger(databaseName, provider, options);
-        // state.setStateLogger(logger);
 
         try (SQLConnection con = provider.createDatabase(state)) {
             state.setConnection(con);

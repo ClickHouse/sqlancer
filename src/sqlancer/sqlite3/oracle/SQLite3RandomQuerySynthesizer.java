@@ -29,8 +29,6 @@ public final class SQLite3RandomQuerySynthesizer {
     private SQLite3RandomQuerySynthesizer() {
     }
 
-    // TODO join clauses
-    // TODO union, intersect
     public static SQLite3Expression generate(SQLite3GlobalState globalState, int size) {
         Randomly r = globalState.getRandomly();
         SQLite3Schema s = globalState.getSchema();
@@ -43,9 +41,8 @@ public final class SQLite3RandomQuerySynthesizer {
         SQLite3ExpressionGenerator aggregateGen = new SQLite3ExpressionGenerator(globalState)
                 .setColumns(targetTables.getColumns()).allowAggregateFunctions();
 
-        // SELECT
         SQLite3Select select = new SQLite3Select();
-        // DISTINCT or ALL
+
         select.setSelectType(Randomly.fromOptions(SelectType.values()));
         for (int i = 0; i < size; i++) {
             if (Randomly.getBooleanWithRatherLowProbability()) {
@@ -96,40 +93,34 @@ public final class SQLite3RandomQuerySynthesizer {
         select.setFetchColumns(expressions);
         List<SQLite3Table> tables = targetTables.getTables();
         if (Randomly.getBooleanWithRatherLowProbability()) {
-            // JOIN ... (might remove tables)
+
             select.setJoinClauses(gen.getRandomJoinClauses(tables));
         }
-        // FROM ...
-        select.setFromList(SQLite3Common.getTableRefs(tables, s));
-        // TODO: no values are referenced from this sub query yet
-        // if (Randomly.getBooleanWithSmallProbability()) {
-        // select.getFromList().add(SQLite3RandomQuerySynthesizer.generate(globalState,
-        // Randomly.smallNumber() + 1));
-        // }
 
-        // WHERE
+        select.setFromList(SQLite3Common.getTableRefs(tables, s));
+
         if (Randomly.getBoolean()) {
             select.setWhereClause(whereClauseGen.generateExpression());
         }
         boolean groupBy = Randomly.getBooleanWithRatherLowProbability();
         if (groupBy) {
-            // GROUP BY
+
             select.setGroupByClause(gen.getRandomExpressions(Randomly.smallNumber() + 1));
             if (Randomly.getBoolean()) {
-                // HAVING
+
                 select.setHavingClause(aggregateGen.generateExpression());
             }
         }
         boolean orderBy = Randomly.getBooleanWithRatherLowProbability();
         if (orderBy) {
-            // ORDER BY
+
             select.setOrderByClauses(gen.generateOrderBys());
         }
         if (Randomly.getBooleanWithRatherLowProbability()) {
-            // LIMIT
+
             select.setLimitClause(SQLite3Constant.createIntConstant(r.getInteger()));
             if (Randomly.getBoolean()) {
-                // OFFSET
+
                 select.setOffsetClause(SQLite3Constant.createIntConstant(r.getInteger()));
             }
         }

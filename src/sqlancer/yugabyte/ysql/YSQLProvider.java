@@ -44,11 +44,8 @@ import sqlancer.yugabyte.ysql.gen.YSQLViewGenerator;
 @AutoService(DatabaseProvider.class)
 public class YSQLProvider extends SQLProviderAdapter<YSQLGlobalState, YSQLOptions> {
 
-    // TODO Due to yugabyte problems with parallel DDL we need this lock object
     public static final Object DDL_LOCK = new Object();
-    /**
-     * Generate only data types and expressions that are understood by PQS.
-     */
+
     public static boolean generateOnlyKnown;
     protected String entryURL;
     protected String username;
@@ -153,7 +150,7 @@ public class YSQLProvider extends SQLProviderAdapter<YSQLGlobalState, YSQLOption
             String userInfoURI = uri.getUserInfo();
             String pathURI = uri.getPath();
             if (userInfoURI != null) {
-                // username and password specified in URL take precedence
+
                 if (userInfoURI.contains(":")) {
                     String[] userInfo = userInfoURI.split(":", 2);
                     username = userInfo[0];
@@ -197,7 +194,6 @@ public class YSQLProvider extends SQLProviderAdapter<YSQLGlobalState, YSQLOption
         return "ysql";
     }
 
-    // for some reason yugabyte unable to create few databases simultaneously
     private void createDatabaseSync(YSQLGlobalState globalState, String entryDatabaseName) throws SQLException {
         synchronized (DDL_LOCK) {
             exceptionLessSleep(5000);
@@ -249,7 +245,7 @@ public class YSQLProvider extends SQLProviderAdapter<YSQLGlobalState, YSQLOption
 
     protected void createTables(YSQLGlobalState globalState, int numTables) throws Exception {
         synchronized (DDL_LOCK) {
-            boolean prevCreationFailed = false; // small optimization - wait only after failed requests
+            boolean prevCreationFailed = false;
             while (globalState.getSchema().getDatabaseTables().size() < numTables) {
                 if (!prevCreationFailed) {
                     exceptionLessSleep(5000);
@@ -300,9 +296,6 @@ public class YSQLProvider extends SQLProviderAdapter<YSQLGlobalState, YSQLOption
             }
 
             if (Randomly.getBoolean()) {
-                // if (YugabyteBugs.bug11357) {
-                // throw new IgnoreMeException();
-                // }
 
                 sb.append("COLOCATED = true ");
             }
@@ -319,8 +312,8 @@ public class YSQLProvider extends SQLProviderAdapter<YSQLGlobalState, YSQLOption
     }
 
     public enum Action implements AbstractAction<YSQLGlobalState> {
-        ANALYZE(YSQLAnalyzeGenerator::create), //
-        ALTER_TABLE(g -> YSQLAlterTableGenerator.create(g.getSchema().getRandomTable(t -> !t.isView()), g)), //
+        ANALYZE(YSQLAnalyzeGenerator::create),
+        ALTER_TABLE(g -> YSQLAlterTableGenerator.create(g.getSchema().getRandomTable(t -> !t.isView()), g)),
         COMMIT(g -> {
             SQLQueryAdapter query;
             if (Randomly.getBoolean()) {
@@ -331,31 +324,30 @@ public class YSQLProvider extends SQLProviderAdapter<YSQLGlobalState, YSQLOption
                 query = new SQLQueryAdapter("ROLLBACK", true);
             }
             return query;
-        }), //
-        DELETE(YSQLDeleteGenerator::create), //
-        DISCARD(YSQLDiscardGenerator::create), //
-        DROP_INDEX(YSQLDropIndexGenerator::create), //
-        CREATE_INDEX(YSQLIndexGenerator::generate), //
-        INSERT(YSQLInsertGenerator::insert), //
-        UPDATE(YSQLUpdateGenerator::create), //
-        TRUNCATE(YSQLTruncateGenerator::create), //
-        TABLEGROUP(YSQLTableGroupGenerator::create), //
-        VACUUM(YSQLVacuumGenerator::create), //
-        SET(YSQLSetGenerator::create), // TODO insert yugabyte sets
+        }),
+        DELETE(YSQLDeleteGenerator::create),
+        DISCARD(YSQLDiscardGenerator::create),
+        DROP_INDEX(YSQLDropIndexGenerator::create),
+        CREATE_INDEX(YSQLIndexGenerator::generate),
+        INSERT(YSQLInsertGenerator::insert),
+        UPDATE(YSQLUpdateGenerator::create),
+        TRUNCATE(YSQLTruncateGenerator::create),
+        TABLEGROUP(YSQLTableGroupGenerator::create),
+        VACUUM(YSQLVacuumGenerator::create),
+        SET(YSQLSetGenerator::create),
         SET_CONSTRAINTS((g) -> {
             String sb = "SET CONSTRAINTS ALL " + Randomly.fromOptions("DEFERRED", "IMMEDIATE");
             return new SQLQueryAdapter(sb);
-        }), //
-        RESET_ROLE((g) -> new SQLQueryAdapter("RESET ROLE")), //
-        COMMENT_ON(YSQLCommentGenerator::generate), //
-        RESET((g) -> new SQLQueryAdapter("RESET ALL") /*
-                                                       * https://www.postgres.org/docs/devel/sql-reset.html TODO: also
-                                                       * configuration parameter
-                                                       */), //
-        NOTIFY(YSQLNotifyGenerator::createNotify), //
-        LISTEN((g) -> YSQLNotifyGenerator.createListen()), //
-        UNLISTEN((g) -> YSQLNotifyGenerator.createUnlisten()), //
-        CREATE_SEQUENCE(YSQLSequenceGenerator::createSequence), //
+        }),
+        RESET_ROLE((g) -> new SQLQueryAdapter("RESET ROLE")),
+        COMMENT_ON(YSQLCommentGenerator::generate),
+        RESET((g) -> new SQLQueryAdapter("RESET ALL")
+
+),
+        NOTIFY(YSQLNotifyGenerator::createNotify),
+        LISTEN((g) -> YSQLNotifyGenerator.createListen()),
+        UNLISTEN((g) -> YSQLNotifyGenerator.createUnlisten()),
+        CREATE_SEQUENCE(YSQLSequenceGenerator::createSequence),
         CREATE_VIEW(YSQLViewGenerator::create);
 
         private final SQLQueryProvider<YSQLGlobalState> sqlQueryProvider;

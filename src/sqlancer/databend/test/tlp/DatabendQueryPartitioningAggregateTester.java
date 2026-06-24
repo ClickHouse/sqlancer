@@ -47,19 +47,17 @@ public class DatabendQueryPartitioningAggregateTester extends DatabendQueryParti
         List<DatabendAggregateFunction> aggregateFunctions = new ArrayList<>(
                 List.of(DatabendAggregateFunction.MAX, DatabendAggregateFunction.MIN, DatabendAggregateFunction.SUM,
                         DatabendAggregateFunction.COUNT, DatabendAggregateFunction.AVG
-                /* , DatabendAggregateFunction.STDDEV_POP */));
+                ));
         DatabendAggregateFunction aggregateFunction = Randomly.fromList(aggregateFunctions);
         DatabendFunctionOperation<DatabendAggregateFunction> aggregate = (DatabendAggregateOperation) gen
                 .generateArgsForAggregate(aggregateFunction);
         List<DatabendExpression> fetchColumns = new ArrayList<>();
         fetchColumns.add(aggregate);
         while (Randomly.getBooleanWithRatherLowProbability()) {
-            fetchColumns.add((DatabendAggregateOperation) gen.generateAggregate()); // TODO 更换成非聚合函数
+            fetchColumns.add((DatabendAggregateOperation) gen.generateAggregate());
         }
         select.setFetchColumns(Arrays.asList(aggregate));
-        // if (Randomly.getBooleanWithRatherLowProbability()) {
-        // select.setOrderByClauses(gen.generateOrderBys());
-        // }
+
         originalQuery = DatabendToStringVisitor.asString(select);
         firstResult = getAggregateResult(originalQuery);
         metamorphicQuery = createMetamorphicUnionQuery(select, aggregate, select.getFromList());
@@ -71,7 +69,7 @@ public class DatabendQueryPartitioningAggregateTester extends DatabendQueryParti
                 || firstResult != null && (!firstResult.contentEquals(secondResult)
                         && !ComparatorHelper.isEqualDouble(firstResult, secondResult))) {
             if (secondResult.contains("Inf")) {
-                throw new IgnoreMeException(); // FIXME: average computation
+                throw new IgnoreMeException();
             }
             throw new AssertionError();
         }
@@ -111,7 +109,7 @@ public class DatabendQueryPartitioningAggregateTester extends DatabendQueryParti
                 try {
                     resultString = result.getString(1);
                 } catch (Exception e) {
-                    throw new IgnoreMeException(); // TODO 超过integer范围无法格式化异常，还未有解决方案
+                    throw new IgnoreMeException();
                 }
             }
             return resultString;
@@ -185,8 +183,8 @@ public class DatabendQueryPartitioningAggregateTester extends DatabendQueryParti
         select.setWhereClause(whereClause);
         select.setJoinList(joinList);
         if (Randomly.getBooleanWithSmallProbability()) {
-            select.setGroupByExpressions(List.of(gen.generateConstant(DatabendDataType.INT))); // TODO
-                                                                                               // 仍可加强
+            select.setGroupByExpressions(List.of(gen.generateConstant(DatabendDataType.INT)));
+
         }
         return select;
     }

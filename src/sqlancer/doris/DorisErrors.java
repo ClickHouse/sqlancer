@@ -13,24 +13,21 @@ public final class DorisErrors {
     public static List<String> getExpressionErrors() {
         ArrayList<String> errors = new ArrayList<>();
 
-        // SQL syntax error
         errors.add("Syntax error");
         errors.add("Please check your sql, we meet an error when parsing");
         errors.add("but returns type");
         errors.add("is not a number");
 
-        // Not in line with Doris' logic
         errors.add("Unexpected exception: null");
         errors.add("Cross join can't be used with ON clause");
         errors.add("BetweenPredicate needs to be rewritten into a CompoundPredicate");
         errors.add("can't be assigned to some PlanNode");
         errors.add("can not cast from origin type");
         errors.add("not produced by aggregation output");
-        errors.add("cannot combine"); // cannot combine SELECT DISTINCT with aggregate functions or GROUP BY
+        errors.add("cannot combine");
         errors.add("Invalid type");
         errors.add("cannot be cast to");
 
-        // functions
         errors.add("No matching function with signature");
         errors.add("Invalid number format");
         errors.add("group_concat requires");
@@ -45,9 +42,6 @@ public final class DorisErrors {
         errors.add("Invalid");
         errors.add("Incorrect");
 
-        // regex
-
-        // To avoid bugs
         if (DorisBugs.bug19370) {
             errors.add("failed to initialize storage");
         }

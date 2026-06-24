@@ -7,11 +7,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-/**
- * This class represents the errors that executing a statement might result in. For example, an INSERT statement might
- * result in an error "UNIQUE constraint violated" when it attempts to insert a duplicate value in a column declared as
- * UNIQUE.
- */
 public class ExpectedErrors implements Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -83,15 +78,6 @@ public class ExpectedErrors implements Serializable {
         return new ExpectedErrorsBuilder();
     }
 
-    /**
-     * Checks whether the error message (e.g., returned by the DBMS under test) contains any of the added error
-     * messages.
-     *
-     * @param error
-     *            the error message
-     *
-     * @return whether the error message contains any of the substrings specified as expected errors
-     */
     public boolean errorIsExpected(String error) {
         if (error == null) {
             throw new IllegalArgumentException();

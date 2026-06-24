@@ -10,16 +10,38 @@ public class SQLLoggableFactory extends LoggableFactory {
 
     @Override
     protected Loggable createLoggable(String input, String suffix) {
-        String completeString = input;
-        if (!input.endsWith(";")) {
-            completeString += ";";
+
+        boolean endsWithSemicolon = input.endsWith(";");
+        boolean hasNewline = input.indexOf('\n') >= 0 || input.indexOf('\r') >= 0;
+        boolean hasSuffix = suffix != null && !suffix.isEmpty();
+        if (endsWithSemicolon && !hasNewline && !hasSuffix) {
+            return new LoggedString(input);
         }
-        completeString = completeString.replace("\n", "\\n");
-        completeString = completeString.replace("\r", "\\r");
-        if (suffix != null && !suffix.isEmpty()) {
-            completeString += suffix;
+
+        StringBuilder sb = new StringBuilder(input.length() + 4 + (hasSuffix ? suffix.length() : 0));
+        if (hasNewline) {
+
+            int len = input.length();
+            for (int i = 0; i < len; i++) {
+                char c = input.charAt(i);
+                if (c == '\n') {
+                    sb.append("\\n");
+                } else if (c == '\r') {
+                    sb.append("\\r");
+                } else {
+                    sb.append(c);
+                }
+            }
+        } else {
+            sb.append(input);
         }
-        return new LoggedString(completeString);
+        if (!endsWithSemicolon) {
+            sb.append(';');
+        }
+        if (hasSuffix) {
+            sb.append(suffix);
+        }
+        return new LoggedString(sb.toString());
     }
 
     @Override

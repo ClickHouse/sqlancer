@@ -90,7 +90,7 @@ public abstract class SparkConstant implements SparkExpression {
 
         public SparkTimestampConstant(long value) {
             Timestamp timestamp = new Timestamp(value);
-            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); // Spark prefers full timestamp
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
             this.textRepr = dateFormat.format(timestamp);
         }
 

@@ -3,8 +3,11 @@ package sqlancer;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -15,7 +18,31 @@ import sqlancer.common.query.SQLancerResultSet;
 
 public final class ComparatorHelper {
 
+    public enum ComparisonMode {
+
+        SET,
+
+        MULTISET,
+
+        ULP_TOLERANT_MULTISET
+    }
+
     private ComparatorHelper() {
+    }
+
+    private static String trimTrailingDotZeros(String s) {
+        int len = s.length();
+        if (len < 2 || s.charAt(len - 1) != '0') {
+            return s;
+        }
+        int i = len - 1;
+        while (i > 0 && s.charAt(i) == '0') {
+            i--;
+        }
+        if (s.charAt(i) != '.') {
+            return s;
+        }
+        return s.substring(0, i);
     }
 
     public static boolean isEqualDouble(String first, String second) {
@@ -32,19 +59,19 @@ public final class ComparatorHelper {
         if (a == b) {
             return true;
         }
-        // If the difference is less than epsilon, treat as equal.
+
         return Math.abs(a - b) < 0.001 * Math.max(Math.abs(a), Math.abs(b)) + 0.001;
     }
 
     public static List<String> getResultSetFirstColumnAsString(String queryString, ExpectedErrors errors,
             SQLGlobalState<?, ?> state) throws SQLException {
         if (state.getOptions().logEachSelect()) {
-            // TODO: refactor me
+
             state.getLogger().writeCurrent(queryString);
             try {
                 state.getLogger().getCurrentFileWriter().flush();
             } catch (IOException e) {
-                // TODO Auto-generated catch block
+
                 e.printStackTrace();
             }
         }
@@ -60,8 +87,8 @@ public final class ComparatorHelper {
             while (result.next()) {
                 String resultTemp = result.getString(1);
                 if (resultTemp != null) {
-                    resultTemp = resultTemp.replaceAll("[\\.]0+$", ""); // Remove the trailing zeros as many DBMS treat
-                    // it as non-bugs
+
+                    resultTemp = trimTrailingDotZeros(resultTemp);
                 }
                 resultSet.add(resultTemp);
             }
@@ -88,6 +115,12 @@ public final class ComparatorHelper {
 
     public static void assumeResultSetsAreEqual(List<String> resultSet, List<String> secondResultSet,
             String originalQueryString, List<String> combinedString, SQLGlobalState<?, ?> state) {
+        assumeResultSetsAreEqual(resultSet, secondResultSet, originalQueryString, combinedString, state,
+                ComparisonMode.SET);
+    }
+
+    public static void assumeResultSetsAreEqual(List<String> resultSet, List<String> secondResultSet,
+            String originalQueryString, List<String> combinedString, SQLGlobalState<?, ?> state, ComparisonMode mode) {
         if (resultSet.size() != secondResultSet.size()) {
             String queryFormatString = "-- %s;" + System.lineSeparator() + "-- cardinality: %d"
                     + System.lineSeparator();
@@ -105,21 +138,41 @@ public final class ComparatorHelper {
             throw new AssertionError(assertionMessage);
         }
 
-        Set<String> firstHashSet = new HashSet<>(resultSet);
-        Set<String> secondHashSet = new HashSet<>(secondResultSet);
+        if (state.getOptions().validateResultSizeOnly()) {
+            return;
+        }
 
-        boolean validateResultSizeOnly = state.getOptions().validateResultSizeOnly();
-        if (!validateResultSizeOnly && !firstHashSet.equals(secondHashSet)) {
-            Set<String> firstResultSetMisses = new HashSet<>(firstHashSet);
-            firstResultSetMisses.removeAll(secondHashSet);
-            Set<String> secondResultSetMisses = new HashSet<>(secondHashSet);
-            secondResultSetMisses.removeAll(firstHashSet);
+        boolean contentMatches;
+        switch (mode) {
+        case MULTISET:
+            contentMatches = multisetsEqual(resultSet, secondResultSet)
+                    || multisetsEqual(canonicalizeFloatsList(resultSet), canonicalizeFloatsList(secondResultSet))
+                    || floatTolerantMultisetsEqual(resultSet, secondResultSet);
+            break;
+        case ULP_TOLERANT_MULTISET:
+            contentMatches = multisetsEqual(canonicalizeFloatsList(resultSet), canonicalizeFloatsList(secondResultSet))
+                    || floatTolerantMultisetsEqual(resultSet, secondResultSet);
+            break;
+        case SET:
+        default:
+            Set<String> firstHashSet = new HashSet<>(resultSet);
+            Set<String> secondHashSet = new HashSet<>(secondResultSet);
+            contentMatches = firstHashSet.equals(secondHashSet)
+                    || canonicalizeFloats(resultSet).equals(canonicalizeFloats(secondResultSet))
+                    || floatTolerantMultisetsEqual(new ArrayList<>(firstHashSet), new ArrayList<>(secondHashSet));
+            break;
+        }
+
+        if (!contentMatches) {
+            Set<String> firstResultSetMisses = new HashSet<>(resultSet);
+            firstResultSetMisses.removeAll(secondResultSet);
+            Set<String> secondResultSetMisses = new HashSet<>(secondResultSet);
+            secondResultSetMisses.removeAll(resultSet);
 
             String queryFormatString = "-- Query: \"%s\"; It misses: \"%s\"";
             String firstQueryString = String.format(queryFormatString, originalQueryString, firstResultSetMisses);
             String secondQueryString = String.format(queryFormatString, String.join(";", combinedString),
                     secondResultSetMisses);
-            // update the SELECT queries to be logged at the bottom of the error log file
             state.getState().getLocalState()
                     .log(String.format("%s" + System.lineSeparator() + "%s", firstQueryString, secondQueryString));
             String assertionMessage = String.format("The content of the result sets mismatch!" + System.lineSeparator()
@@ -129,11 +182,111 @@ public final class ComparatorHelper {
         }
     }
 
+    private static final double FLOAT_REL_TOLERANCE = 1e-9;
+    private static final double FLOAT_ABS_TOLERANCE = 1e-9;
+
+    private static boolean floatsWithinTolerance(double a, double b) {
+        if (a == b) {
+            return true;
+        }
+        double diff = Math.abs(a - b);
+        return diff <= FLOAT_REL_TOLERANCE * Math.max(Math.abs(a), Math.abs(b)) + FLOAT_ABS_TOLERANCE;
+    }
+
+    static boolean floatTolerantMultisetsEqual(List<String> a, List<String> b) {
+        if (a.size() != b.size()) {
+            return false;
+        }
+        List<Double> numA = new ArrayList<>();
+        List<Double> numB = new ArrayList<>();
+        List<String> otherA = new ArrayList<>();
+        List<String> otherB = new ArrayList<>();
+        partitionFiniteDoubles(a, numA, otherA);
+        partitionFiniteDoubles(b, numB, otherB);
+        if (numA.size() != numB.size() || !multisetsEqual(otherA, otherB)) {
+            return false;
+        }
+        Collections.sort(numA);
+        Collections.sort(numB);
+        for (int i = 0; i < numA.size(); i++) {
+            if (!floatsWithinTolerance(numA.get(i), numB.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void partitionFiniteDoubles(List<String> values, List<Double> numeric, List<String> other) {
+        for (String v : values) {
+            Double d = parseFiniteDouble(v);
+            if (d == null) {
+                other.add(v);
+            } else {
+                numeric.add(d);
+            }
+        }
+    }
+
+    private static Double parseFiniteDouble(String v) {
+        if (v == null) {
+            return null;
+        }
+        boolean hasDigit = false;
+        for (int i = 0; i < v.length(); i++) {
+            char c = v.charAt(i);
+            if (c >= '0' && c <= '9') {
+                hasDigit = true;
+                break;
+            }
+        }
+        if (!hasDigit) {
+            return null;
+        }
+        try {
+            double d = Double.parseDouble(v);
+            if (Double.isNaN(d) || Double.isInfinite(d)) {
+                return null;
+            }
+            return d;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static boolean multisetsEqual(List<String> a, List<String> b) {
+        if (a.size() != b.size()) {
+            return false;
+        }
+        Map<String, Integer> counts = new HashMap<>(a.size() * 2);
+        for (String v : a) {
+            counts.merge(v, 1, Integer::sum);
+        }
+        for (String v : b) {
+            Integer c = counts.get(v);
+            if (c == null) {
+                return false;
+            }
+            if (c == 1) {
+                counts.remove(v);
+            } else {
+                counts.put(v, c - 1);
+            }
+        }
+        return counts.isEmpty();
+    }
+
+    private static List<String> canonicalizeFloatsList(List<String> values) {
+        List<String> out = new ArrayList<>(values.size());
+        for (String v : values) {
+            out.add(normalizeFloatString(v));
+        }
+        return out;
+    }
+
     public static void assumeResultSetsAreEqual(List<String> resultSet, List<String> secondResultSet,
             String originalQueryString, List<String> combinedString, SQLGlobalState<?, ?> state,
             UnaryOperator<String> canonicalizationRule) {
-        // Overloaded version of assumeResultSetsAreEqual that takes a canonicalization function which is applied to
-        // both result sets before their comparison.
+
         List<String> canonicalizedResultSet = resultSet.stream().map(canonicalizationRule).collect(Collectors.toList());
         List<String> canonicalizedSecondResultSet = secondResultSet.stream().map(canonicalizationRule)
                 .collect(Collectors.toList());
@@ -176,6 +329,42 @@ public final class ComparatorHelper {
         combinedString.add(unionString);
         secondResultSet = getResultSetFirstColumnAsString(unionString, errors, state);
         return secondResultSet;
+    }
+
+    private static Set<String> canonicalizeFloats(List<String> values) {
+        Set<String> out = new HashSet<>(values.size() * 2);
+        for (String v : values) {
+            out.add(normalizeFloatString(v));
+        }
+        return out;
+    }
+
+    private static String normalizeFloatString(String v) {
+        if (v == null) {
+            return null;
+        }
+        boolean hasDigit = false;
+        boolean hasFractionMarker = false;
+        for (int i = 0; i < v.length(); i++) {
+            char c = v.charAt(i);
+            if (c >= '0' && c <= '9') {
+                hasDigit = true;
+            } else if (c == '.' || c == 'e' || c == 'E') {
+                hasFractionMarker = true;
+            }
+        }
+        if (!hasDigit || !hasFractionMarker) {
+            return v;
+        }
+        try {
+            double d = Double.parseDouble(v);
+            if (Double.isNaN(d) || Double.isInfinite(d)) {
+                return v;
+            }
+            return Double.toString(d);
+        } catch (NumberFormatException e) {
+            return v;
+        }
     }
 
     public static String canonicalizeResultValue(String value) {

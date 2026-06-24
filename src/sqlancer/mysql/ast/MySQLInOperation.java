@@ -4,10 +4,6 @@ import java.util.List;
 
 import sqlancer.IgnoreMeException;
 
-/**
- * @see <a href="https://dev.mysql.com/doc/refman/8.0/en/comparison-operators.html#operator_in">Comparison Functions and
- *      Operators</a>
- */
 public class MySQLInOperation implements MySQLExpression {
 
     private final MySQLExpression expr;
@@ -34,7 +30,7 @@ public class MySQLInOperation implements MySQLExpression {
         if (leftVal.isNull()) {
             return MySQLConstant.createNullConstant();
         }
-        /* workaround for https://bugs.mysql.com/bug.php?id=95957 */
+
         if (leftVal.isInt() && !leftVal.isSigned()) {
             throw new IgnoreMeException();
         }
@@ -43,7 +39,6 @@ public class MySQLInOperation implements MySQLExpression {
         for (MySQLExpression rightExpr : listElements) {
             MySQLConstant rightVal = rightExpr.getExpectedValue();
 
-            /* workaround for https://bugs.mysql.com/bug.php?id=95957 */
             if (rightVal.isInt() && !rightVal.isSigned()) {
                 throw new IgnoreMeException();
             }

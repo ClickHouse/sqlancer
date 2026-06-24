@@ -55,15 +55,12 @@ public class MariaDBDQPOracle implements TestOracle<MariaDBGlobalState> {
             select.setGroupByClause(fetchColumns);
         }
 
-        // Set the join.
         List<MariaDBJoin> joinExpressions = MariaDBJoin.getRandomJoinClauses(tables.getTables(), state.getRandomly());
         select.setJoinClauses(joinExpressions);
 
-        // Set the from clause from the tables that are not used in the join.
         select.setFromList(
                 tables.getTables().stream().map(t -> new MariaDBTableReference(t)).collect(Collectors.toList()));
 
-        // Get the result of the first query
         String originalQueryString = MariaDBVisitor.asString(select);
         List<String> originalResult = ComparatorHelper.getResultSetFirstColumnAsString(originalQueryString, errors,
                 state);

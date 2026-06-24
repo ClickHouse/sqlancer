@@ -57,9 +57,9 @@ public class SQLite3WindowFunction extends SQLite3Expression {
                 return SQLite3Constant.createRealConstant(1.0);
             }
         },
-        NTILE(1), //
-        LAG(3), //
-        LEAD(3), //
+        NTILE(1),
+        LAG(3),
+        LEAD(3),
         FIRST_VALUE(1) {
 
             @Override

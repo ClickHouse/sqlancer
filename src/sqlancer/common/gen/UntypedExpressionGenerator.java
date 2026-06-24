@@ -20,7 +20,7 @@ public abstract class UntypedExpressionGenerator<E, C> implements ExpressionGene
 
     protected abstract E generateColumn();
 
-    @SuppressWarnings("unchecked") // unsafe
+    @SuppressWarnings("unchecked")
     public <U extends UntypedExpressionGenerator<E, C>> U setColumns(List<C> columns) {
         this.columns = columns;
         return (U) this;
@@ -50,12 +50,10 @@ public abstract class UntypedExpressionGenerator<E, C> implements ExpressionGene
         return expressions;
     }
 
-    // override this class to also generate ASC, DESC
     public List<E> generateOrderBys() {
         return generateExpressions(Randomly.smallNumber() + 1);
     }
 
-    // override this class to generate aggregate functions
     public E generateHavingClause() {
         allowAggregates = true;
         E expr = generateExpression();

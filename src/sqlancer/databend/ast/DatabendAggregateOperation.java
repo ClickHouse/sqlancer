@@ -15,7 +15,6 @@ public class DatabendAggregateOperation extends
         MAX(1), MIN(1), AVG(1, DatabendSchema.DatabendDataType.INT, DatabendSchema.DatabendDataType.FLOAT), COUNT(1),
         SUM(1, DatabendSchema.DatabendDataType.INT, DatabendSchema.DatabendDataType.FLOAT), STDDEV_POP(1), COVAR_POP(1),
         COVAR_SAMP(2);
-        // , *_IF, *_DISTINCT
 
         private int nrArgs;
         private DatabendSchema.DatabendDataType[] dataTypes;

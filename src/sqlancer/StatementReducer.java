@@ -44,11 +44,6 @@ public class StatementReducer<G extends GlobalState<O, ?, C>, O extends DBMSSpec
             knownToReproduceBugStatements.add((Query<C>) stat);
         }
 
-        // System.out.println("Starting query:");
-        // Main.StateLogger logger = newGlobalState.getLogger();
-        // printQueries(knownToReproduceBugStatements);
-        // System.out.println();
-
         if (knownToReproduceBugStatements.size() <= 1) {
             return;
         }
@@ -69,19 +64,17 @@ public class StatementReducer<G extends GlobalState<O, ?, C>, O extends DBMSSpec
                 if (partitionNum == knownToReproduceBugStatements.size()) {
                     break;
                 }
-                // increase the search granularity
+
                 partitionNum = Math.min(partitionNum * 2, knownToReproduceBugStatements.size());
             }
         }
 
-        // System.out.println("Reduced query:");
-        // printQueries(knownToReproduceBugStatements);
         newGlobalState.getState().setStatements(new ArrayList<>(knownToReproduceBugStatements));
         newGlobalState.getLogger().logReduced(newGlobalState.getState());
 
     }
 
-    private List<Query<C>> tryReduction(G state, // NOPMD
+    private List<Query<C>> tryReduction(G state,
             Reproducer<G> reproducer, G newGlobalState, List<Query<C>> knownToReproduceBugStatements) throws Exception {
 
         List<Query<C>> statements = knownToReproduceBugStatements;
@@ -89,8 +82,7 @@ public class StatementReducer<G extends GlobalState<O, ?, C>, O extends DBMSSpec
         int start = 0;
         int subLength = statements.size() / partitionNum;
         while (start < statements.size()) {
-            // newStatements = candidate[:start] + candidate[start+subLength:]
-            // in other word, remove [start, start+subLength) from candidates
+
             try (C con2 = provider.createDatabase(newGlobalState)) {
                 newGlobalState.setConnection(con2);
                 List<Query<C>> candidateStatements = new ArrayList<>(statements);
@@ -102,7 +94,7 @@ public class StatementReducer<G extends GlobalState<O, ?, C>, O extends DBMSSpec
                     try {
                         s.execute(newGlobalState);
                     } catch (Throwable ignoredException) {
-                        // ignore
+
                     }
                 }
                 try {
@@ -110,7 +102,7 @@ public class StatementReducer<G extends GlobalState<O, ?, C>, O extends DBMSSpec
                         observedChange = true;
                         statements = candidateStatements;
                         partitionNum = Math.max(partitionNum - 1, 2);
-                        // reproducer.outputHook((SQLite3GlobalState) newGlobalState);
+
                         newGlobalState.getLogger().logReduced(newGlobalState.getState());
                         break;
 

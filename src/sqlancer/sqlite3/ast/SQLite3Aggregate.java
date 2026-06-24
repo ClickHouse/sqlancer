@@ -10,9 +10,6 @@ import sqlancer.sqlite3.SQLite3Provider;
 import sqlancer.sqlite3.schema.SQLite3DataType;
 import sqlancer.sqlite3.schema.SQLite3Schema.SQLite3Column.SQLite3CollateSequence;
 
-/**
- * @see <a href="https://www.sqlite.org/lang_aggfunc.html">Built-in Aggregate Functions</a>
- */
 public class SQLite3Aggregate extends SQLite3Expression {
 
     private final SQLite3AggregateFunction func;
@@ -119,14 +116,14 @@ public class SQLite3Aggregate extends SQLite3Expression {
     @Override
     public SQLite3CollateSequence getExplicitCollateSequence() {
         return null;
-        // return expr.getExplicitCollateSequence();
+
     }
 
     @Override
     public SQLite3Constant getExpectedValue() {
         assert !SQLite3Provider.mustKnowResult;
         return null;
-        // return func.apply(expr.getExpectedValue());
+
     }
 
 }

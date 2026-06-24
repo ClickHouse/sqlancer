@@ -14,7 +14,7 @@ public final class MySQLErrors {
     public static List<String> getExpressionErrors() {
         ArrayList<String> errors = new ArrayList<>();
 
-        errors.add("BIGINT value is out of range"); // e.g., CAST(-('-1e500') AS SIGNED)
+        errors.add("BIGINT value is out of range");
         errors.add("is not valid for CHARACTER SET");
 
         if (MySQLBugs.bug111471) {
@@ -28,8 +28,8 @@ public final class MySQLErrors {
         ArrayList<Pattern> errors = new ArrayList<>();
 
         if (MySQLBugs.bug114533) {
-            errors.add(Pattern.compile("For input string: \"0+-0\"")); // match: For input string:
-                                                                       // "00000000000000000000-0"
+            errors.add(Pattern.compile("For input string: \"0+-0\""));
+
         }
 
         errors.add(Pattern.compile("Unknown column '.*' in 'order clause'"));

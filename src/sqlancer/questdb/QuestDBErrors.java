@@ -13,13 +13,12 @@ public final class QuestDBErrors {
     public static List<String> getExpressionErrors() {
         ArrayList<String> errors = new ArrayList<>();
 
-        // TODO (anxing)
         errors.add("unexpected argument for function: ");
-        errors.add("unexpected token:"); // SELECT FROM multiple tables without WHERE/ JOIN clause
+        errors.add("unexpected token:");
         errors.add("boolean expression expected");
         errors.add("Column name expected");
         errors.add("too few arguments for 'in'");
-        errors.add("cannot compare TIMESTAMP with type"); // WHERE column IN with nonTIMESTAMP arg
+        errors.add("cannot compare TIMESTAMP with type");
         errors.add("constant expected");
 
         return errors;
@@ -30,7 +29,6 @@ public final class QuestDBErrors {
     }
 
     public static List<String> getGroupByErrors() {
-        // TODO (anxing)
 
         return new ArrayList<>();
     }
@@ -42,7 +40,6 @@ public final class QuestDBErrors {
     public static List<String> getInsertErrors() {
         ArrayList<String> errors = new ArrayList<>();
 
-        // TODO (anxing)
         errors.add("Invalid column");
         errors.add("inconvertible types:");
         errors.add("inconvertible value:");

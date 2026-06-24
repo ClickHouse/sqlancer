@@ -33,14 +33,9 @@ import sqlancer.materialize.gen.MaterializeTableGenerator;
 import sqlancer.materialize.gen.MaterializeUpdateGenerator;
 import sqlancer.materialize.gen.MaterializeViewGenerator;
 
-// EXISTS
-// IN
 @AutoService(DatabaseProvider.class)
 public class MaterializeProvider extends SQLProviderAdapter<MaterializeGlobalState, MaterializeOptions> {
 
-    /**
-     * Generate only data types and expressions that are understood by PQS.
-     */
     public static boolean generateOnlyKnown;
 
     protected String entryURL;
@@ -63,11 +58,11 @@ public class MaterializeProvider extends SQLProviderAdapter<MaterializeGlobalSta
     }
 
     public enum Action implements AbstractAction<MaterializeGlobalState> {
-        DELETE(MaterializeDeleteGenerator::create), //
-        DROP_INDEX(MaterializeDropIndexGenerator::create), //
-        INSERT(MaterializeInsertGenerator::insert), //
-        UPDATE(MaterializeUpdateGenerator::create), //
-        CREATE_INDEX(MaterializeIndexGenerator::generate), //
+        DELETE(MaterializeDeleteGenerator::create),
+        DROP_INDEX(MaterializeDropIndexGenerator::create),
+        INSERT(MaterializeInsertGenerator::insert),
+        UPDATE(MaterializeUpdateGenerator::create),
+        CREATE_INDEX(MaterializeIndexGenerator::generate),
         CREATE_VIEW(MaterializeViewGenerator::create);
 
         private final SQLQueryProvider<MaterializeGlobalState> sqlQueryProvider;
@@ -121,10 +116,6 @@ public class MaterializeProvider extends SQLProviderAdapter<MaterializeGlobalSta
         if (!extensionsList.isEmpty()) {
             String[] extensionNames = extensionsList.split(",");
 
-            /*
-             * To avoid of a test interference with an extension objects, create them in a separate schema. Of course,
-             * they must be truly relocatable.
-             */
             globalState.executeStatement(new SQLQueryAdapter("CREATE SCHEMA extensions;", true));
             for (int i = 0; i < extensionNames.length; i++) {
                 globalState.executeStatement(new SQLQueryAdapter(
@@ -146,7 +137,7 @@ public class MaterializeProvider extends SQLProviderAdapter<MaterializeGlobalSta
         port = globalState.getOptions().getPort();
         entryPath = "/test";
         entryURL = globalState.getDbmsSpecificOptions().connectionURL;
-        // trim URL to exclude "jdbc:"
+
         if (entryURL.startsWith("jdbc:")) {
             entryURL = entryURL.substring(5);
         }
@@ -158,7 +149,7 @@ public class MaterializeProvider extends SQLProviderAdapter<MaterializeGlobalSta
             String userInfoURI = uri.getUserInfo();
             String pathURI = uri.getPath();
             if (userInfoURI != null) {
-                // username and password specified in URL take precedence
+
                 if (userInfoURI.contains(":")) {
                     String[] userInfo = userInfoURI.split(":", 2);
                     username = userInfo[0];
@@ -216,20 +207,16 @@ public class MaterializeProvider extends SQLProviderAdapter<MaterializeGlobalSta
 
         con = DriverManager.getConnection("jdbc:" + testURL, username, password);
         try (Statement s = con.createStatement()) {
-            // Serializable transaction isolation is much faster than Strict
-            // Serializable and should guarantee enough for SQLancer:
-            // https://materialize.com/docs/overview/isolation-level/
+
             s.execute("SET transaction_isolation = 'SERIALIZABLE'");
-            // Make sure tables still are visible immediately by not using an
-            // index for them, see
-            // https://github.com/MaterializeInc/materialize/issues/19431
+
             s.execute("SET auto_route_introspection_queries = false");
         }
         return new SQLConnection(con);
     }
 
     protected void readFunctions(MaterializeGlobalState globalState) throws SQLException {
-        // ERROR: column "provolatile" does not exist
+
         SQLQueryAdapter query = new SQLQueryAdapter("SELECT proname, 1 FROM pg_proc;");
         SQLancerResultSet rs = query.executeAndGet(globalState);
         while (rs.next()) {
@@ -300,14 +287,14 @@ public class MaterializeProvider extends SQLProviderAdapter<MaterializeGlobalSta
             }
         }
         SQLQueryAdapter q = new SQLQueryAdapter(explainQuery);
-        boolean afterProjection = false; // Remove the concrete expression after each Projection operator
+        boolean afterProjection = false;
         SQLancerResultSet rs = q.executeAndGet(globalState);
         if (rs != null) {
             while (rs.next()) {
                 String line;
                 BufferedReader bufReader = new BufferedReader(new StringReader(rs.getString(1)));
                 while ((line = bufReader.readLine()) != null) {
-                    String targetQueryPlan = line.trim() + ";"; // Unify format
+                    String targetQueryPlan = line.trim() + ";";
                     if (targetQueryPlan.startsWith("Explained Query:")) {
                         continue;
                     }
@@ -318,7 +305,7 @@ public class MaterializeProvider extends SQLProviderAdapter<MaterializeGlobalSta
                     if (targetQueryPlan.startsWith("Project")) {
                         afterProjection = true;
                     }
-                    // Remove all concrete expressions by keywords
+
                     if (targetQueryPlan.contains(">") || targetQueryPlan.contains("<") || targetQueryPlan.contains("=")
                             || targetQueryPlan.contains("*") || targetQueryPlan.contains("+")
                             || targetQueryPlan.contains("'")) {

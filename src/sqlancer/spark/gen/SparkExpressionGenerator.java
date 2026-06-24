@@ -67,7 +67,7 @@ public class SparkExpressionGenerator extends UntypedExpressionGenerator<SparkEx
             return generateLeafNode();
         }
         if (allowAggregates && Randomly.getBooleanWithRatherLowProbability()) {
-            allowAggregates = false; // aggregate function calls cannot be nested
+            allowAggregates = false;
             SparkAggregateFunction aggregate = SparkAggregateFunction.getRandom();
             return new SparkFunction<>(generateExpressions(aggregate.getNrArgs(), depth + 1), aggregate);
         }
@@ -267,7 +267,7 @@ public class SparkExpressionGenerator extends UntypedExpressionGenerator<SparkEx
     }
 
     public enum SparkBinaryArithmeticOperator implements Operator {
-        // Spark supports || for concat, and bitwise operators &, |, ^
+
         CONCAT("||"), ADD("+"), SUB("-"), MULT("*"), DIV("/"), MOD("%"), BITWISE_AND("&"), BITWISE_OR("|"),
         BITWISE_XOR("^");
 

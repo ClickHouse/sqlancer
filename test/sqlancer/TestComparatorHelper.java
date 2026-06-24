@@ -12,9 +12,7 @@ import sqlancer.h2.H2Options;
 import sqlancer.h2.H2Schema;
 
 public class TestComparatorHelper {
-    // TODO: Implement tests for the other ComparatorHelper methods
 
-    // TODO: create test state that not depends on specific database
     final SQLGlobalState<H2Options, H2Schema> state = new SQLGlobalState<H2Options, H2Schema>() {
 
         @Override
@@ -40,9 +38,7 @@ public class TestComparatorHelper {
     public void testAssumeResultSetsAreEqualWithUnequalLengthSets() {
         List<String> r1 = Arrays.asList("a", "b", "c");
         List<String> r2 = Arrays.asList("a", "b", "c", "d", "g");
-        // NullPointerException is raised instead of AssertionError because state is null and the state.getState()...
-        // line occurs before AssertionError is thrown, but it's good enough as an indicator that one of the Exceptions
-        // is raised
+
         assertThrowsExactly(NullPointerException.class, () -> {
             ComparatorHelper.assumeResultSetsAreEqual(r1, r2, "", Arrays.asList(""), state);
         });
@@ -52,9 +48,7 @@ public class TestComparatorHelper {
     public void testAssumeResultSetsAreEqualWithUnequalValueSets() {
         List<String> r1 = Arrays.asList("a", "b", "c");
         List<String> r2 = Arrays.asList("a", "b", "d");
-        // NullPointerException is raised instead of AssertionError because state is null and the state.getState()...
-        // line occurs before AssertionError is thrown, but it's good enough as an indicator that one of the Exceptions
-        // is raised
+
         assertThrowsExactly(NullPointerException.class, () -> {
             ComparatorHelper.assumeResultSetsAreEqual(r1, r2, "", Arrays.asList(""), state);
         });
@@ -67,6 +61,86 @@ public class TestComparatorHelper {
         ComparatorHelper.assumeResultSetsAreEqual(r1, r2, "", Arrays.asList(""), state, (String s) -> {
             return s.equals("d") ? "c" : s;
         });
+    }
+
+    @Test
+    public void testIsEqualDoubleHandlesUlpDifferences() {
+
+        org.junit.jupiter.api.Assertions
+                .assertTrue(ComparatorHelper.isEqualDouble("0.123456789012345678", "0.12345678901234568"));
+        org.junit.jupiter.api.Assertions.assertTrue(ComparatorHelper.isEqualDouble("100.0", "100.0"));
+        org.junit.jupiter.api.Assertions.assertTrue(ComparatorHelper.isEqualDouble("100.0001", "100.0002"));
+    }
+
+    @Test
+    public void testIsEqualDoubleScale() {
+        org.junit.jupiter.api.Assertions.assertTrue(ComparatorHelper.isEqualDouble("1e10", "10000000000.0"));
+    }
+
+    @Test
+    public void testIsEqualDoubleRejectsDifferentMagnitudes() {
+        org.junit.jupiter.api.Assertions.assertFalse(ComparatorHelper.isEqualDouble("100.0", "200.0"));
+    }
+
+    @Test
+    public void testIsEqualDoubleRejectsNonNumericStrings() {
+        org.junit.jupiter.api.Assertions.assertFalse(ComparatorHelper.isEqualDouble("abc", "100.0"));
+        org.junit.jupiter.api.Assertions.assertFalse(ComparatorHelper.isEqualDouble("100.0", "abc"));
+    }
+
+    @Test
+    public void testCanonicalizeResultValueCollapsesNegativeZero() {
+        org.junit.jupiter.api.Assertions.assertEquals("0.0", ComparatorHelper.canonicalizeResultValue("-0.0"));
+        org.junit.jupiter.api.Assertions.assertEquals("0", ComparatorHelper.canonicalizeResultValue("-0"));
+    }
+
+    @Test
+    public void testCanonicalizeResultValuePreservesOtherValues() {
+        org.junit.jupiter.api.Assertions.assertEquals("42", ComparatorHelper.canonicalizeResultValue("42"));
+        org.junit.jupiter.api.Assertions.assertEquals("NaN", ComparatorHelper.canonicalizeResultValue("NaN"));
+        org.junit.jupiter.api.Assertions.assertEquals("Infinity", ComparatorHelper.canonicalizeResultValue("Infinity"));
+        org.junit.jupiter.api.Assertions.assertNull(ComparatorHelper.canonicalizeResultValue(null));
+    }
+
+    @Test
+    public void testComparisonModeEnumComplete() {
+        ComparatorHelper.ComparisonMode[] modes = ComparatorHelper.ComparisonMode.values();
+        java.util.Set<ComparatorHelper.ComparisonMode> set = new java.util.HashSet<>(java.util.Arrays.asList(modes));
+        org.junit.jupiter.api.Assertions.assertTrue(set.contains(ComparatorHelper.ComparisonMode.SET));
+        org.junit.jupiter.api.Assertions.assertTrue(set.contains(ComparatorHelper.ComparisonMode.MULTISET));
+        org.junit.jupiter.api.Assertions
+                .assertTrue(set.contains(ComparatorHelper.ComparisonMode.ULP_TOLERANT_MULTISET));
+    }
+
+    @Test
+    public void testAssumeResultSetsAreEqualMultisetCatchesDuplicates() {
+
+        List<String> r1 = Arrays.asList("x", "x", "y");
+        List<String> r2 = Arrays.asList("x", "y", "y");
+
+        assertThrowsExactly(NullPointerException.class, () -> {
+            ComparatorHelper.assumeResultSetsAreEqual(r1, r2, "", Arrays.asList(""), state,
+                    ComparatorHelper.ComparisonMode.MULTISET);
+        });
+    }
+
+    @Test
+    public void testAssumeResultSetsAreEqualUlpTolerantAcceptsFloatVariance() {
+
+        List<String> r1 = Arrays.asList("0.123456789012345678", "1.0");
+        List<String> r2 = Arrays.asList("0.12345678901234568", "1.0");
+
+        ComparatorHelper.assumeResultSetsAreEqual(r1, r2, "", Arrays.asList(""), state,
+                ComparatorHelper.ComparisonMode.ULP_TOLERANT_MULTISET);
+    }
+
+    @Test
+    public void testAssumeResultSetsAreEqualPreservesNaN() {
+
+        List<String> r1 = Arrays.asList("NaN", "NaN");
+        List<String> r2 = Arrays.asList("NaN", "NaN");
+        ComparatorHelper.assumeResultSetsAreEqual(r1, r2, "", Arrays.asList(""), state,
+                ComparatorHelper.ComparisonMode.ULP_TOLERANT_MULTISET);
     }
 
 }

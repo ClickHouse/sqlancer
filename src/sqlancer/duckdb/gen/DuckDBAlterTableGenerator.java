@@ -55,7 +55,7 @@ public final class DuckDBAlterTableGenerator {
         case DROP_COLUMN:
             sb.append("DROP COLUMN ");
             sb.append(table.getRandomColumn().getName());
-            errors.add("named in key does not exist"); // TODO
+            errors.add("named in key does not exist");
             errors.add("Cannot drop this column:");
             errors.add("Cannot drop column: table only has one column remaining!");
             errors.add("because there is a CHECK constraint that depends on it");

@@ -67,7 +67,7 @@ public class MySQLDQEOracle extends DQEBase<MySQLGlobalState> implements TestOra
         }
         if (operateOnSingleTable && Randomly.getBooleanWithSmallProbability()) {
             generateOrderBy = true;
-            // generate order by columns
+
             for (MySQLColumn column : Randomly.nonEmptySubset(mySQLTables.getColumns())) {
                 orderColumns.add(column.getFullQualifiedName());
             }
@@ -130,14 +130,10 @@ public class MySQLDQEOracle extends DQEBase<MySQLGlobalState> implements TestOra
         MySQLTables tables = schema.getRandomTableNonEmptyTables();
         String tableName = tables.getTables().stream().map(AbstractTable::getName).collect(Collectors.joining(","));
 
-        // DQE does not support aggregate functions, windows functions
-        // This method does not generate them, may need some configurations if they can be generated
         MySQLExpressionGenerator expressionGenerator = new MySQLExpressionGenerator(state)
                 .setColumns(tables.getColumns());
         MySQLExpression whereClause = expressionGenerator.generateExpression();
 
-        // MySQLVisitor is not deterministic, we should keep it only once.
-        // Especially, in MySQLUnaryPostfixOperation and MySQLUnaryPrefixOperation
         String whereClauseStr = MySQLVisitor.asString(whereClause);
 
         String selectStmt = generateSelectStatement(tables, tableName, whereClauseStr);
@@ -190,17 +186,16 @@ public class MySQLDQEOracle extends DQEBase<MySQLGlobalState> implements TestOra
             if (!selectResult.hasSameAccessedRows(updateResult)) {
                 return "SELECT accessed different rows from UPDATE.";
             }
-        } else { // update has errors
+        } else {
             if (hasUpdateSpecificErrors(updateResult)) {
                 if (updateResult.hasAccessedRows()) {
                     return "UPDATE accessed non-empty rows when specific errors happen.";
                 } else {
-                    // we do not compare update with select when update has specific errors
+
                     return null;
                 }
             }
 
-            // update errors should all appear in the select errors
             List<SQLQueryError> selectErrors = new ArrayList<>(selectResult.getQueryErrors());
             for (int i = 0; i < updateResult.getQueryErrors().size(); i++) {
                 SQLQueryError updateError = updateResult.getQueryErrors().get(i);
@@ -222,15 +217,6 @@ public class MySQLDQEOracle extends DQEBase<MySQLGlobalState> implements TestOra
         return null;
     }
 
-    /**
-     *
-     * @param selectErrors
-     *            selectQueryErrors
-     * @param targetError
-     *            update or delete queryError
-     *
-     * @return is targetError found in selectQueryErrors
-     */
     private static boolean isFound(List<SQLQueryError> selectErrors, SQLQueryError targetError) {
         boolean found = false;
         for (int i = 0; i < selectErrors.size(); i++) {
@@ -252,17 +238,16 @@ public class MySQLDQEOracle extends DQEBase<MySQLGlobalState> implements TestOra
             if (!selectResult.hasSameAccessedRows(deleteResult)) {
                 return "SELECT accessed different rows from DELETE.";
             }
-        } else { // delete has errors
+        } else {
             if (hasDeleteSpecificErrors(deleteResult)) {
                 if (deleteResult.hasAccessedRows()) {
                     return "DELETE accessed non-empty rows when specific errors happen.";
                 } else {
-                    // we do not compare delete with select when delete has specific errors
+
                     return null;
                 }
             }
 
-            // delete errors should all appear in the select errors
             List<SQLQueryError> selectErrors = new ArrayList<>(selectResult.getQueryErrors());
             for (int i = 0; i < deleteResult.getQueryErrors().size(); i++) {
                 SQLQueryError deleteError = deleteResult.getQueryErrors().get(i);
@@ -291,7 +276,7 @@ public class MySQLDQEOracle extends DQEBase<MySQLGlobalState> implements TestOra
             } else {
                 return "UPDATE accessed different rows from DELETE.";
             }
-        } else { // update or delete has errors
+        } else {
             boolean hasSpecificErrors = false;
 
             if (hasUpdateSpecificErrors(updateResult)) {
@@ -308,7 +293,6 @@ public class MySQLDQEOracle extends DQEBase<MySQLGlobalState> implements TestOra
                 }
             }
 
-            // when one of these statements has specific errors, do not compare them
             if (hasSpecificErrors) {
                 return null;
             }
@@ -331,18 +315,11 @@ public class MySQLDQEOracle extends DQEBase<MySQLGlobalState> implements TestOra
         }
     }
 
-    /*
-     * when update violates column constraints, such as not null, unique, primary key and generated column, we cannot
-     * compare it with other queries.
-     */
     private boolean hasUpdateSpecificErrors(SQLQueryResult updateResult) {
         return updateResult.getQueryErrors().stream().anyMatch(
                 error -> new MySQLErrorCodeStrategy().getUpdateSpecificErrorCodes().contains(error.getCode()));
     }
 
-    /*
-     * when delete violates column constraints, such as foreign key, we cannot compare it with other queries.
-     */
     private boolean hasDeleteSpecificErrors(SQLQueryResult deleteResult) {
         return deleteResult.getQueryErrors().stream().anyMatch(
                 error -> new MySQLErrorCodeStrategy().getDeleteSpecificErrorCodes().contains(error.getCode()));
@@ -361,7 +338,7 @@ public class MySQLDQEOracle extends DQEBase<MySQLGlobalState> implements TestOra
         try {
             resultSet = new SQLQueryAdapter(selectStmt, selectExpectedErrors).executeAndGet(state, false);
         } catch (SQLException ignored) {
-            // we ignore this error, and use get errors to catch it
+
         } finally {
             queryErrors = getErrors();
 
@@ -389,7 +366,7 @@ public class MySQLDQEOracle extends DQEBase<MySQLGlobalState> implements TestOra
             new SQLQueryAdapter("BEGIN").execute(state, false);
             new SQLQueryAdapter(updateStmt, updateExpectedErrors).execute(state, false);
         } catch (SQLException ignored) {
-            // we ignore this error, and we use get errors to catch it
+
         } finally {
             queryErrors = getErrors();
 
@@ -426,7 +403,7 @@ public class MySQLDQEOracle extends DQEBase<MySQLGlobalState> implements TestOra
             new SQLQueryAdapter("BEGIN").execute(state, false);
             new SQLQueryAdapter(deleteStmt, deleteExpectedErrors).execute(state, false);
         } catch (SQLException ignored) {
-            // we ignore this error, and use get errors to catch it
+
         } finally {
             queryErrors = getErrors();
 
@@ -483,15 +460,13 @@ public class MySQLDQEOracle extends DQEBase<MySQLGlobalState> implements TestOra
     public static class MySQLErrorCodeStrategy implements ErrorCodeStrategy {
         @Override
         public Set<Integer> getUpdateSpecificErrorCodes() {
-            // 1048, Column 'c0' cannot be null
-            // 1062, Duplicate entry '2' for key 't1.i0
-            // 3105, The value specified for generated column 'c1' in table 't1' is not allowed
+
             return Set.of(1048, 1062, 3105);
         }
 
         @Override
         public Set<Integer> getDeleteSpecificErrorCodes() {
-            // 1451, Cannot delete or update a parent row: a foreign key constraint fails
+
             return Set.of(1451);
         }
     }

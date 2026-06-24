@@ -32,8 +32,8 @@ public class YSQLIndexGenerator extends AbstractIndexGenerator<YSQLColumn> {
     @Override
     public void buildStatement() {
         appendCreateIndex(Randomly.getBoolean());
-        YSQLTable randomTable = globalState.getSchema().getRandomTable(t -> !t.isView()); // TODO: materialized
-        // views
+        YSQLTable randomTable = globalState.getSchema().getRandomTable(t -> !t.isView());
+
         String indexName = getNewIndexName(randomTable);
         sb.append(indexName);
         sb.append(" ON ");
@@ -97,10 +97,10 @@ public class YSQLIndexGenerator extends AbstractIndexGenerator<YSQLColumn> {
                     .setGlobalState(globalState).generateExpression(YSQLDataType.BOOLEAN);
             appendWhereClause(YSQLVisitor.asString(expr));
         }
-        errors.add("already contains data"); // CONCURRENT INDEX failed
+        errors.add("already contains data");
         errors.add("You might need to add explicit type casts");
         errors.add("INDEX on column of type");
-        errors.add("collations are not supported"); // TODO check
+        errors.add("collations are not supported");
         errors.add("because it has pending trigger events");
         errors.add("duplicate key value violates unique constraint");
         errors.add("could not determine which collation to use for");

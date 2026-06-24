@@ -10,7 +10,6 @@ import sqlancer.cockroachdb.CockroachDBSchema.CockroachDBColumn;
 import sqlancer.cockroachdb.CockroachDBSchema.CockroachDBTable;
 import sqlancer.common.query.SQLQueryAdapter;
 
-// https://www.cockroachlabs.com/docs/stable/create-index.html
 public class CockroachDBIndexGenerator extends CockroachDBGenerator {
 
     public CockroachDBIndexGenerator(CockroachDBGlobalState globalState) {
@@ -26,15 +25,15 @@ public class CockroachDBIndexGenerator extends CockroachDBGenerator {
 
     @Override
     public void buildStatement() {
-        // TODO inverted index
+
         errors.add("is part of the primary index and therefore implicit in all indexes");
         errors.add("already contains column");
         errors.add("violates unique constraint");
         errors.add("schema change statement cannot follow a statement that has written in the same transaction");
-        errors.add("and thus is not indexable"); // array types are not indexable
-        errors.add("the following columns are not indexable due to their type"); // array types are not indexable
+        errors.add("and thus is not indexable");
+        errors.add("the following columns are not indexable due to their type");
         errors.add("cannot determine type of empty array. Consider annotating with the desired type");
-        errors.add("incompatible IF expression"); // TODO: investigate; seems to be a bug
+        errors.add("incompatible IF expression");
         if (CockroachDBBugs.bug84154) {
             errors.add("overflow during Encode");
             errors.add("of type interval");

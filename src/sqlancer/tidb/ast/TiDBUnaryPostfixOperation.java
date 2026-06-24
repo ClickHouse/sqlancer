@@ -9,8 +9,8 @@ public class TiDBUnaryPostfixOperation extends UnaryOperatorNode<TiDBExpression,
         implements TiDBExpression {
 
     public enum TiDBUnaryPostfixOperator implements Operator {
-        IS_NULL("IS NULL"), //
-        IS_NOT_NULL("IS NOT NULL"); //
+        IS_NULL("IS NULL"),
+        IS_NOT_NULL("IS NOT NULL");
 
         private String s;
 

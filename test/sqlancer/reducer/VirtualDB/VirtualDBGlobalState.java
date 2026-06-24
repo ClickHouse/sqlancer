@@ -29,21 +29,14 @@ public class VirtualDBGlobalState extends SQLGlobalState<VirtualDBOptions, Virtu
 
     @Override
     public SQLConnection getConnection() {
-        // It's a fake engine, so the connection would not be available :)
+
         return virtualConn;
     }
 
     @Override
     public void setConnection(SQLConnection con) {
-        // A fake connection could also not be closed.
-        // So nothing would be done here.
-        // And reset the query String (Seems needless)
-        // queriesStringBuilder = new StringBuilder();
-    }
 
-    // public String getCurrentQueriesString() {
-    // return queriesStringBuilder.toString();
-    // }
+    }
 
     @Override
     public boolean executeStatement(Query<SQLConnection> q, String... fills) throws Exception {

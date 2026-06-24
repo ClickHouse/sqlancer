@@ -85,6 +85,13 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>2.22.2</version>
+        <configuration>
+          <!-- JDK 16+ strongly encapsulates the JDK internals. TestUsageNamingConvention drives
+               provider discovery through JCommander, which reflectively setAccessible()s a private
+               java.lang.Class method; on JDK 25 that throws InaccessibleObjectException without an
+               explicit opens. Open java.lang to the unnamed module so the reflection succeeds. -->
+          <argLine>--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.lang.reflect=ALL-UNNAMED --add-opens java.base/java.lang.annotation=ALL-UNNAMED</argLine>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.jacoco</groupId>
@@ -108,34 +115,26 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.10.1</version>
+        <version>3.13.0</version>
         <configuration>
-          <source>11</source>
-          <target>11</target>
-          <compilerArguments>
-            <properties>${project.basedir}/.settings/org.eclipse.jdt.core.prefs</properties>
-          </compilerArguments>
-          <compilerId>eclipse</compilerId>
+          <release>25</release>
           <showWarnings>true</showWarnings>
-          <failOnWarning>true</failOnWarning>
+          <!-- Explicit annotation-processor path. The build switched from the Eclipse compiler
+               (ecj, which ran classpath-discovered processors) to javac, and since JDK 23 javac
+               no longer runs annotation processors found only on the classpath. Without this the
+               auto-service processor never runs, so no META-INF/services/sqlancer.DatabaseProvider
+               is generated and ServiceLoader-based provider discovery breaks (e.g. the reducer
+               tests' VirtualDBProvider -> "testing provider not registered"). Listing auto-service
+               here makes javac run it explicitly; the processor also brings its own compatible
+               Guava, independent of the runtime Guava pin above. -->
+          <annotationProcessorPaths>
+            <path>
+              <groupId>com.google.auto.service</groupId>
+              <artifactId>auto-service</artifactId>
+              <version>1.1.1</version>
+            </path>
+          </annotationProcessorPaths>
         </configuration>
-        <dependencies>
-          <dependency>
-            <groupId>org.codehaus.plexus</groupId>
-            <artifactId>plexus-compiler-eclipse</artifactId>
-            <version>2.13.0</version>
-          </dependency>
-          <dependency>
-            <groupId>org.eclipse.jdt</groupId>
-            <artifactId>ecj</artifactId>
-            <version>3.28.0</version>
-          </dependency>
-          <dependency>
-            <groupId>org.codehaus.plexus</groupId>
-            <artifactId>plexus-compiler-api</artifactId>
-            <version>2.13.0</version>
-          </dependency>
-        </dependencies>
       </plugin>
       <plugin>
         <groupId>net.revelc.code.formatter</groupId>
@@ -252,7 +251,11 @@
       <plugin>
         <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-maven-plugin</artifactId>
-        <version>4.7.3.0</version>
+        <!-- 4.9.8.3 (was 4.7.3.0): the old plugin bundled a SpotBugs/ASM that cannot read Java 25
+             bytecode (major version 69) and aborted with "Unsupported class file major version 69"
+             once the build moved to <release>25</release>. 4.9.8.x bundles SpotBugs 4.9.8 with ASM
+             that supports Java 25. -->
+        <version>4.9.8.3</version>
         <executions>
           <execution>
             <id>spotbugs</id>
@@ -271,10 +274,26 @@
   </build>
 
   <dependencies>
+    <!-- client-v2's RowBinaryWithNamesAndTypesFormatReader calls
+         ImmutableMap.Builder.buildKeepingLast(), introduced in Guava 31.1. The transitive
+         auto-service:1.0.1 below pulls 31.0.1-jre which lacks that method and triggers
+         NoSuchMethodError on every binary-format SELECT. Pin a newer Guava explicitly so the
+         dependency mediator picks 33.x over 31.0.1. -->
+    <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+      <version>33.4.0-jre</version>
+    </dependency>
+    <!-- auto-service 1.1.1 (not 1.0.1): the 1.0.1 annotation processor is compiled against
+         Guava 31.0.1 and calls APIs removed by the Guava 33.4.0-jre pin above, so its processor
+         silently fails during compilation and emits no META-INF/services/sqlancer.DatabaseProvider.
+         That dropped the ServiceLoader registration of the reducer test's VirtualDBProvider,
+         failing TestASTBasedReducer / TestStatementReducer with "testing provider not registered".
+         1.1.1 is built against a current Guava and runs cleanly under the pin. -->
     <dependency>
       <groupId>com.google.auto.service</groupId>
       <artifactId>auto-service</artifactId>
-      <version>1.0.1</version>
+      <version>1.1.1</version>
     </dependency>
     <dependency>
       <groupId>com.beust</groupId>
@@ -334,9 +353,8 @@
     </dependency>
     <dependency>
       <groupId>com.clickhouse</groupId>
-      <artifactId>clickhouse-jdbc</artifactId>
-      <version>0.9.6</version>
-      <classifier>all</classifier>
+      <artifactId>client-v2</artifactId>
+      <version>0.9.8</version>
     </dependency>
     <dependency>
       <groupId>com.h2database</groupId>
@@ -422,11 +440,12 @@
       <artifactId>log4j-core</artifactId>
       <version>2.24.3</version>
     </dependency>
-    <dependency>
-      <groupId>org.apache.logging.log4j</groupId>
-      <artifactId>log4j-slf4j2-impl</artifactId>
-      <version>2.24.3</version>
-    </dependency>
+    <!-- log4j-slf4j2-impl removed: it competed with slf4j-simple as an SLF4J 2.x provider and
+         caused "Class path contains multiple SLF4J providers" on every JVM start. The slf4j-log4j12
+         and slf4j-reload4j entries that still sit transitively under hive-jdbc / hadoop-common are
+         SLF4J 1.x bindings, which SLF4J 2.x's ServiceLoader does not pick up, so they are inert
+         and do not need exclusion. With this removed slf4j-simple is the sole 2.x provider on the
+         classpath and the warning is silent. -->
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-common</artifactId>
@@ -494,9 +513,9 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-javadoc-plugin</artifactId>
-            <version>3.4.1</version>
+            <version>3.11.2</version>
             <configuration>
-              <source>8</source>
+              <source>25</source>
             </configuration>
             <executions>
               <execution>

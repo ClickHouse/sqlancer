@@ -46,7 +46,7 @@ public class DorisInOperation extends NewInOperatorNode<DorisExpression> impleme
         if (containNull) {
             return DorisConstant.createNullConstant();
         }
-        // should return false when not considering isNegated op
+
         return DorisConstant.createBooleanConstant(isNegated());
     }
 }

@@ -49,9 +49,7 @@ public class TiDBIndexGenerator extends AbstractIndexGenerator<TiDBColumn> {
             }
             sb.append(subset.get(i).getName());
             if (!randomTable.isView()) {
-                // TODO: otherwise: Incorrect prefix key; the used key part isn't a string, the
-                // used length is longer than the key part, or the storage engine doesn't
-                // support unique prefix keys
+
                 TiDBTableGenerator.appendSpecifiers(sb, subset.get(i).getType().getPrimitiveDataType());
             }
             if (Randomly.getBoolean()) {
@@ -64,7 +62,7 @@ public class TiDBIndexGenerator extends AbstractIndexGenerator<TiDBColumn> {
             sb.append(" KEY_BLOCK_SIZE ");
             sb.append(Randomly.getPositiveOrZeroNonCachedInteger());
         }
-        errors.add("Cannot decode index value, because"); // invalid value for generated column
+        errors.add("Cannot decode index value, because");
         errors.add("index already exist");
         errors.add("Data truncation");
         errors.add("key was too long");

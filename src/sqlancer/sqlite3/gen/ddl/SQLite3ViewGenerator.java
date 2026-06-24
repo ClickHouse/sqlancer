@@ -62,17 +62,6 @@ public final class SQLite3ViewGenerator {
 
     }
 
-    /**
-     * The affinity of columns in a view cannot be determined using features of the DBMS - this would need to be parsed
-     * from the CREATE TABLE and CREATE VIEW statements. This is non-trivial, and currently not implemented. Rather, we
-     * avoid generating expressions with an affinity or view.
-     *
-     * @see http://sqlite.1065341.n5.nabble.com/Determining-column-collating-functions-td108157.html#a108159
-     *
-     * @param randomQuery
-     *
-     * @return true if the query can be used for PQS
-     */
     private static boolean checkAffinity(SQLite3Expression randomQuery) {
         if (randomQuery instanceof SQLite3Select) {
             for (SQLite3Expression expr : ((SQLite3Select) randomQuery).getFetchColumns()) {
@@ -83,7 +72,7 @@ public final class SQLite3ViewGenerator {
             }
             return true;
         } else {
-            return false; // the columns in UNION clauses can also have affinities
+            return false;
         }
     }
 

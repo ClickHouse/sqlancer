@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import sqlancer.ComparatorHelper;
+import sqlancer.IgnoreMeException;
 import sqlancer.clickhouse.ClickHouseProvider;
 import sqlancer.clickhouse.ClickHouseVisitor;
 import sqlancer.clickhouse.ast.ClickHouseSelect;
@@ -17,6 +18,7 @@ public class ClickHouseTLPDistinctOracle extends ClickHouseTLPBase {
 
     @Override
     public void check() throws SQLException {
+
         super.check();
         select.setSelectType(ClickHouseSelect.SelectType.DISTINCT);
         select.setWhereClause(null);
@@ -33,6 +35,11 @@ public class ClickHouseTLPDistinctOracle extends ClickHouseTLPBase {
         List<String> combinedString = new ArrayList<>();
         List<String> secondResultSet = ComparatorHelper.getCombinedResultSetNoDuplicates(firstQueryString,
                 secondQueryString, thirdQueryString, combinedString, false, state, errors);
+
+        if (projectionMayBeNonFinite(resultSet, secondResultSet, originalQueryString)) {
+            throw new IgnoreMeException();
+        }
+
         ComparatorHelper.assumeResultSetsAreEqual(resultSet, secondResultSet, originalQueryString, combinedString,
                 state);
     }

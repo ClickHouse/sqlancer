@@ -10,9 +10,6 @@ import sqlancer.common.ast.FunctionNode;
 import sqlancer.yugabyte.ysql.YSQLSchema.YSQLDataType;
 import sqlancer.yugabyte.ysql.ast.YSQLAggregate.YSQLAggregateFunction;
 
-/**
- * @see <a href="https://www.sqlite.org/lang_aggfunc.html">Built-in Aggregate Functions</a>
- */
 public class YSQLAggregate extends FunctionNode<YSQLAggregateFunction, YSQLExpression> implements YSQLExpression {
 
     public YSQLAggregate(List<YSQLExpression> args, YSQLAggregateFunction func) {
@@ -23,7 +20,7 @@ public class YSQLAggregate extends FunctionNode<YSQLAggregateFunction, YSQLExpre
         AVG(YSQLDataType.INT, YSQLDataType.FLOAT, YSQLDataType.REAL, YSQLDataType.DECIMAL), BIT_AND(YSQLDataType.INT),
         BIT_OR(YSQLDataType.INT), BOOL_AND(YSQLDataType.BOOLEAN), BOOL_OR(YSQLDataType.BOOLEAN),
         COUNT(YSQLDataType.INT), EVERY(YSQLDataType.BOOLEAN), MAX, MIN,
-        // STRING_AGG
+
         SUM(YSQLDataType.INT, YSQLDataType.FLOAT, YSQLDataType.REAL, YSQLDataType.DECIMAL);
 
         private final YSQLDataType[] supportedReturnTypes;

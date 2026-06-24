@@ -36,7 +36,6 @@ public enum CockroachDBFunction {
         }
     },
 
-    // bool functions
     ILIKE_ESCAPE(CockroachDBDataType.BOOL, CockroachDBDataType.STRING, CockroachDBDataType.STRING,
             CockroachDBDataType.STRING) {
 
@@ -54,22 +53,17 @@ public enum CockroachDBFunction {
         }
     },
 
-    // MATH and numeric functions
     ABS_INT("ABS", CockroachDBDataType.INT, CockroachDBDataType.INT),
-    // ABS_FLOAT("ABS", CockroachDBDataType.INT, CockroachDBDataType.FLOAT),
+
     ACOS(CockroachDBDataType.FLOAT, CockroachDBDataType.FLOAT),
 
-    // string and byte functions
-    ASCII(CockroachDBDataType.INT, CockroachDBDataType.STRING), // ascii(val: string) → int
-    BIT_LENGTH1("BIT_LENGTH", CockroachDBDataType.INT, CockroachDBDataType.BYTES), // bit_length(val: bytes) → int
-    BIT_LENGTH2("BIT_LENGTH", CockroachDBDataType.INT, CockroachDBDataType.STRING), // bit_length(val: string) → int
-    BTRIM1("BTRIM", CockroachDBDataType.STRING, CockroachDBDataType.STRING, CockroachDBDataType.STRING), // btrim(input:
-                                                                                                         // string,
-                                                                                                         // trim_chars:
-                                                                                                         // string) →
-                                                                                                         // string
-    BTRIM2("BTRIM", CockroachDBDataType.STRING, CockroachDBDataType.STRING), // btrim(val: string) → string
-    CHAR_LENGTH1("CHAR_LENGTH", CockroachDBDataType.INT, CockroachDBDataType.BYTES), // char_length(val: bytes) → int
+    ASCII(CockroachDBDataType.INT, CockroachDBDataType.STRING),
+    BIT_LENGTH1("BIT_LENGTH", CockroachDBDataType.INT, CockroachDBDataType.BYTES),
+    BIT_LENGTH2("BIT_LENGTH", CockroachDBDataType.INT, CockroachDBDataType.STRING),
+    BTRIM1("BTRIM", CockroachDBDataType.STRING, CockroachDBDataType.STRING, CockroachDBDataType.STRING),
+
+    BTRIM2("BTRIM", CockroachDBDataType.STRING, CockroachDBDataType.STRING),
+    CHAR_LENGTH1("CHAR_LENGTH", CockroachDBDataType.INT, CockroachDBDataType.BYTES),
     CHAR_LENGTH2("CHAR_LENGTH", CockroachDBDataType.INT, CockroachDBDataType.STRING),
     CHARACTER_LENGTH1("CHARACTER_LENGTH", CockroachDBDataType.INT, CockroachDBDataType.STRING),
     CHARACTER_LENGTH2("CHARACTER_LENGTH", CockroachDBDataType.INT, CockroachDBDataType.BYTES),
@@ -80,8 +74,7 @@ public enum CockroachDBFunction {
     LENGTH1("LENGTH", CockroachDBDataType.INT, CockroachDBDataType.BYTES),
     LENGTH2("LENGTH", CockroachDBDataType.INT, CockroachDBDataType.STRING),
     LOWER(CockroachDBDataType.STRING, CockroachDBDataType.STRING),
-    // LPAD(CockroachDBDataType.STRING, CockroachDBDataType.STRING, CockroachDBDataType.INT), // TODO: can cause out of
-    // memory errors
+
     LTRIM(CockroachDBDataType.STRING, CockroachDBDataType.STRING, CockroachDBDataType.STRING),
     OVERLAY(CockroachDBDataType.STRING, CockroachDBDataType.STRING, CockroachDBDataType.STRING,
             CockroachDBDataType.INT),
@@ -98,7 +91,7 @@ public enum CockroachDBFunction {
     SUBSTRING3("SUBSTRING", CockroachDBDataType.STRING, CockroachDBDataType.STRING, CockroachDBDataType.INT),
     SUBSTRING4("SUBSTRING", CockroachDBDataType.STRING, CockroachDBDataType.STRING, CockroachDBDataType.INT,
             CockroachDBDataType.INT),
-    /* https://github.com/cockroachdb/cockroach/issues/44152 */
+
     TO_ENGLISH(CockroachDBDataType.STRING, CockroachDBDataType.INT),
     TO_HEX1("TO_HEX", CockroachDBDataType.STRING, CockroachDBDataType.INT),
     TO_HEX("TO_HEX", CockroachDBDataType.STRING, CockroachDBDataType.BYTES),
@@ -121,8 +114,7 @@ public enum CockroachDBFunction {
             return argTypes;
         }
     },
-    // System info function
-    /* see https://github.com/cockroachdb/cockroach/issues/44203 */
+
     CURRENT_DATABASE(CockroachDBDataType.STRING), CURRENT_SCHEMA(CockroachDBDataType.STRING),
     CURRENT_USER(CockroachDBDataType.STRING), VERSION(CockroachDBDataType.STRING);
 
@@ -170,9 +162,7 @@ public enum CockroachDBFunction {
     List<CockroachDBExpression> getArgumentsForReturnType(CockroachDBExpressionGenerator gen, int depth,
             CockroachDBDataType[] argumentTypes2, CockroachDBCompositeDataType returnType2) {
         List<CockroachDBExpression> arguments = new ArrayList<>();
-        /*
-         * This is a workaround based on the assumption that array types should refer to the same element type.
-         */
+
         CockroachDBCompositeDataType savedArrayType = null;
         if (returnType2.getPrimitiveDataType() == CockroachDBDataType.ARRAY) {
             savedArrayType = returnType2;

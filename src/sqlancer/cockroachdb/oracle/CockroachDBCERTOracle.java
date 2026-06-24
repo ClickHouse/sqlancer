@@ -47,7 +47,6 @@ public class CockroachDBCERTOracle extends CERTOracleBase<CockroachDBGlobalState
         queryPlan1Sequences = new ArrayList<>();
         queryPlan2Sequences = new ArrayList<>();
 
-        // Randomly generate a query
         CockroachDBTables tables = state.getSchema().getRandomTableNonEmptyTables(2);
         List<CockroachDBExpression> tableList = CockroachDBCommon.getTableReferences(
                 tables.getTables().stream().map(t -> new CockroachDBTableReference(t)).collect(Collectors.toList()));
@@ -69,16 +68,14 @@ public class CockroachDBCERTOracle extends CERTOracleBase<CockroachDBGlobalState
             }
         }
 
-        // Set the join.
         List<CockroachDBExpression> joinExpressions = getJoins(tableList, state);
         select.setJoinList(joinExpressions);
 
-        // Get the result of the first query
         String queryString1 = CockroachDBVisitor.asString(select);
         int rowCount1 = getRow(state, queryString1, queryPlan1Sequences);
 
         List<Mutator> excludes = new ArrayList<>();
-        // Disable limit due to its false positive
+
         excludes.add(Mutator.LIMIT);
         if (CockroachDBBugs.bug131640) {
             excludes.add(Mutator.OR);
@@ -86,19 +83,16 @@ public class CockroachDBCERTOracle extends CERTOracleBase<CockroachDBGlobalState
         if (CockroachDBBugs.bug131647) {
             excludes.add(Mutator.JOIN);
         }
-        // Mutate the query
+
         boolean increase = mutate(excludes.toArray(new Mutator[0]));
 
-        // Get the result of the second query
         String queryString2 = CockroachDBVisitor.asString(select);
         int rowCount2 = getRow(state, queryString2, queryPlan2Sequences);
 
-        // Check structural equivalence
         if (DBMSCommon.editDistance(queryPlan1Sequences, queryPlan2Sequences) > 1) {
             return;
         }
 
-        // Check the results
         if (increase && rowCount1 > rowCount2 || !increase && rowCount1 < rowCount2) {
             throw new AssertionError("Inconsistent result for query: EXPLAIN " + queryString1 + "; --" + rowCount1
                     + "\nEXPLAIN " + queryString2 + "; --" + rowCount2);
@@ -130,8 +124,6 @@ public class CockroachDBCERTOracle extends CERTOracleBase<CockroachDBGlobalState
 
         CockroachDBJoin join = (CockroachDBJoin) Randomly.fromList(select.getJoinList());
 
-        // CROSS does not need ON Condition, while other joins do
-        // To avoid Null pointer, generating a new new condition when mutating CROSS to other joins
         if (join.getJoinType() == JoinType.CROSS) {
             List<CockroachDBColumn> columns = new ArrayList<>();
             columns.addAll(((CockroachDBTableReference) join.getLeftTable()).getTable().getColumns());
@@ -141,9 +133,8 @@ public class CockroachDBCERTOracle extends CERTOracleBase<CockroachDBGlobalState
         }
 
         JoinType newJoinType = CockroachDBJoin.JoinType.INNER;
-        if (join.getJoinType() == JoinType.LEFT || join.getJoinType() == JoinType.RIGHT) { // No invariant relation
-                                                                                           // between LEFT and RIGHT
-                                                                                           // join
+        if (join.getJoinType() == JoinType.LEFT || join.getJoinType() == JoinType.RIGHT) {
+
             newJoinType = CockroachDBJoin.JoinType.getRandomExcept(JoinType.NATURAL, JoinType.CROSS, JoinType.LEFT,
                     JoinType.RIGHT);
         } else if (join.getJoinType() == JoinType.FULL) {
@@ -151,7 +142,7 @@ public class CockroachDBCERTOracle extends CERTOracleBase<CockroachDBGlobalState
         } else if (join.getJoinType() != JoinType.CROSS) {
             newJoinType = CockroachDBJoin.JoinType.getRandomExcept(JoinType.NATURAL, join.getJoinType());
         }
-        assert newJoinType != JoinType.NATURAL; // Natural Join is not supported for CERT
+        assert newJoinType != JoinType.NATURAL;
         boolean increase = join.getJoinType().ordinal() < newJoinType.ordinal();
         join.setJoinType(newJoinType);
         return increase;
@@ -244,7 +235,6 @@ public class CockroachDBCERTOracle extends CERTOracleBase<CockroachDBGlobalState
         int row = -1;
         String explainQuery = "EXPLAIN " + selectStr;
 
-        // Log the query
         if (globalState.getOptions().logEachSelect()) {
             globalState.getLogger().writeCurrent(explainQuery);
             try {
@@ -254,7 +244,6 @@ public class CockroachDBCERTOracle extends CERTOracleBase<CockroachDBGlobalState
             }
         }
 
-        // Get the row count
         SQLQueryAdapter q = new SQLQueryAdapter(explainQuery, errors);
         try (SQLancerResultSet rs = q.executeAndGet(globalState)) {
             if (rs != null) {
@@ -266,7 +255,7 @@ public class CockroachDBCERTOracle extends CERTOracleBase<CockroachDBGlobalState
                             if (row == -1) {
                                 row = number;
                             }
-                        } catch (Exception e) { // To avoid the situation that no number is found
+                        } catch (Exception e) {
                         }
                     }
                     if (content.contains("• ")) {

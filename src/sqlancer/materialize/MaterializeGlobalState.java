@@ -24,7 +24,7 @@ public class MaterializeGlobalState extends SQLGlobalState<MaterializeOptions, M
     private List<String> collates = Collections.emptyList();
     private List<String> opClasses = Collections.emptyList();
     private List<String> tableAccessMethods = Collections.emptyList();
-    // store and allow filtering by function volatility classifications
+
     private final Map<String, Character> functionsAndTypes = new HashMap<>();
     private List<Character> allowedFunctionTypes = Arrays.asList(IMMUTABLE, STABLE, VOLATILE);
     private int lastKnownTableCount;
@@ -58,8 +58,7 @@ public class MaterializeGlobalState extends SQLGlobalState<MaterializeOptions, M
 
     private List<String> getOpclasses() throws SQLException {
         List<String> opClasses = new ArrayList<>();
-        // select opcname FROM pg_opclass;
-        // ERROR: unknown catalog item 'pg_opclass'
+
         opClasses.add("array_ops");
         opClasses.add("array_ops");
         opClasses.add("bit_ops");
@@ -222,9 +221,7 @@ public class MaterializeGlobalState extends SQLGlobalState<MaterializeOptions, M
     private List<String> getTableAccessMethods(SQLConnection con) throws SQLException {
         List<String> tableAccessMethods = new ArrayList<>();
         try (Statement s = con.createStatement()) {
-            /*
-             * pg_am includes both index and table access methods so we need to filter with amtype = 't'
-             */
+
             try (ResultSet rs = s.executeQuery("SELECT amname FROM pg_am WHERE amtype = 't';")) {
                 while (rs.next()) {
                     tableAccessMethods.add(rs.getString(1));
@@ -269,8 +266,7 @@ public class MaterializeGlobalState extends SQLGlobalState<MaterializeOptions, M
     @Override
     public MaterializeSchema readSchema() throws SQLException {
         if (MaterializeBugs.bugSchemaReadIncomplete) {
-            // Workaround for a suspected Materialize bug where tables or columns may be
-            // missing when reading the schema; retry until stable.
+
             readSchemaCallCount++;
             for (int tries = 0; tries < 30; tries++) {
                 MaterializeSchema schema = MaterializeSchema.fromConnection(getConnection(), getDatabaseName());

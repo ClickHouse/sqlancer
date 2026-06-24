@@ -47,7 +47,7 @@ public class SQLite3SetClause extends SQLite3Expression {
 
     @Override
     public SQLite3CollateSequence getExplicitCollateSequence() {
-        // TODO Auto-generated method stub
+
         return null;
     }
 

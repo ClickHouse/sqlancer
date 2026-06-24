@@ -9,9 +9,6 @@ import sqlancer.mysql.MySQLGlobalState;
 import sqlancer.mysql.MySQLSchema.MySQLColumn;
 import sqlancer.mysql.MySQLSchema.MySQLTable;
 
-/**
- * @see <a href="https://dev.mysql.com/doc/refman/8.0/en/analyze-table.html">ANALYZE TABLE Statement</a>
- */
 public class MySQLAnalyzeTable {
 
     private final List<MySQLTable> tables;
@@ -46,16 +43,10 @@ public class MySQLAnalyzeTable {
         return new SQLQueryAdapter(sb.toString());
     }
 
-    // ANALYZE [NO_WRITE_TO_BINLOG | LOCAL]
-    // TABLE tbl_name [, tbl_name] ...
     private void analyzeWithoutHistogram() {
         sb.append(tables.stream().map(t -> t.getName()).collect(Collectors.joining(", ")));
     }
 
-    // ANALYZE [NO_WRITE_TO_BINLOG | LOCAL]
-    // TABLE tbl_name
-    // UPDATE HISTOGRAM ON col_name [, col_name] ...
-    // [WITH N BUCKETS]
     private void updateHistogram() {
         MySQLTable table = Randomly.fromList(tables);
         sb.append(table.getName());
@@ -69,9 +60,6 @@ public class MySQLAnalyzeTable {
         }
     }
 
-    // ANALYZE [NO_WRITE_TO_BINLOG | LOCAL]
-    // TABLE tbl_name
-    // DROP HISTOGRAM ON col_name [, col_name] ...
     private void dropHistogram() {
         MySQLTable table = Randomly.fromList(tables);
         sb.append(table.getName());

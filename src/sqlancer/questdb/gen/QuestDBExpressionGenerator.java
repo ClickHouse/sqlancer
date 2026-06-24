@@ -57,10 +57,7 @@ public class QuestDBExpressionGenerator extends UntypedExpressionGenerator<Quest
         case SYMBOL:
             StringGenerationStrategy strategy = Randomly.StringGenerationStrategy.ALPHANUMERIC;
             return QuestDBConstant.createSymbolConstant(strategy.getString(globalState.getRandomly()));
-        // case CHAR:
-        // case DATE:
-        // case TIMESTAMP:
-        // throw new IgnoreMeException();
+
         default:
             throw new AssertionError("Unknown type: " + type);
         }
@@ -182,8 +179,7 @@ public class QuestDBExpressionGenerator extends UntypedExpressionGenerator<Quest
     }
 
     public enum QuestDBBinaryArithmeticOperator implements Operator {
-        CONCAT("||"), ADD("+"), SUB("-"), MULT("*"), DIV("/"), MOD("%"), AND("&"), OR("|"); // , LSHIFT("<<"),
-                                                                                            // RSHIFT(">>");
+        CONCAT("||"), ADD("+"), SUB("-"), MULT("*"), DIV("/"), MOD("%"), AND("&"), OR("|");
 
         private String textRepr;
 

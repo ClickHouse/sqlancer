@@ -52,8 +52,7 @@ public class HSQLDBProvider extends SQLProviderAdapter<HSQLDBProvider.HSQLDBGlob
         String url = "jdbc:hsqldb:file:" + databaseName;
         MainOptions options = globalState.getOptions();
         Connection connection = DriverManager.getConnection(url, options.getUserName(), options.getPassword());
-        // When a server instance is started, or when a connection is made to an in-process database,
-        // a new, empty database is created if no database exists at the given path.
+
         try (Statement s = connection.createStatement()) {
             s.execute("DROP SCHEMA PUBLIC CASCADE");
             s.execute("SET DATABASE SQL DOUBLE NAN FALSE");

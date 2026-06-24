@@ -6,9 +6,6 @@ import sqlancer.common.query.SQLQueryAdapter;
 import sqlancer.yugabyte.ysql.YSQLGlobalState;
 import sqlancer.yugabyte.ysql.YSQLSchema.YSQLTable;
 
-/**
- * @see <a href="https://www.postgresql.org/docs/devel/sql-comment.html">COMMENT</a>
- */
 public final class YSQLCommentGenerator {
 
     private YSQLCommentGenerator() {

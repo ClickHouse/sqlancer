@@ -6,9 +6,6 @@ import sqlancer.common.query.SQLQueryAdapter;
 import sqlancer.postgres.PostgresGlobalState;
 import sqlancer.postgres.PostgresSchema.PostgresTable;
 
-/**
- * @see <a href="https://www.postgresql.org/docs/devel/sql-comment.html">COMMENT</a>
- */
 public final class PostgresCommentGenerator {
 
     private PostgresCommentGenerator() {

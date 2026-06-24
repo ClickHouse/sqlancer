@@ -78,10 +78,10 @@ public class DorisOptions implements DBMSSpecificOptions<DorisOracleFactory> {
     public int maxNumTableAlters;
 
     @Parameter(names = "--test-engine-type", description = "The engine type in Doris, only consider OLAP now", arity = 1)
-    public String testEngineType = "OLAP"; // skip now
+    public String testEngineType = "OLAP";
 
     @Parameter(names = "--test-indexes", description = "Allow explicit indexes, Doris only supports creating indexes on single-column BITMAP", arity = 1)
-    public boolean testIndexes = true; // skip now
+    public boolean testIndexes = true;
 
     @Parameter(names = "--test-column-aggr", description = "Allow test column aggregation (sum, min, max, replace, replace_if_not_null, hll_union, bitmap_untion)", arity = 1)
     public boolean testColumnAggr = true;
@@ -90,10 +90,10 @@ public class DorisOptions implements DBMSSpecificOptions<DorisOracleFactory> {
     public boolean testDataModel = true;
 
     @Parameter(names = "--test-distribution", description = "Allow generating data distribution in tables.", arity = 1)
-    public boolean testDistribution = true; // must have it, skip now
+    public boolean testDistribution = true;
 
     @Parameter(names = "--test-rollup", description = "Allow generating rollups in tables.", arity = 1)
-    public boolean testRollup = true; // skip now
+    public boolean testRollup = true;
 
     @Parameter(names = "--oracle")
     public List<DorisOracleFactory> oracles = Arrays.asList(DorisOracleFactory.NOREC);

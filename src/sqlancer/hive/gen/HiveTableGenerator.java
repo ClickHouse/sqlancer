@@ -17,11 +17,9 @@ import sqlancer.hive.HiveToStringVisitor;
 
 public class HiveTableGenerator {
 
-    // TODO: support various file formats? e.g. JSONFILE, SEQUENCEFILE, TEXTFILE, RCFILE, ORC, PARQUET, AVRO.
-
     private enum ColumnConstraints {
         PRIMARY_KEY_DISABLE, UNIQUE_DISABLE, NOT_NULL, DEFAULT, CHECK
-        // ENABLE_OR_DISABLE, NOVALIDATE, RELY_OR_NORELY
+
     }
 
     private final HiveGlobalState globalState;
@@ -61,12 +59,6 @@ public class HiveTableGenerator {
         }
         sb.append(")");
 
-        // TODO: implement PARTITION BY clause
-        // TODO: implement CLUSTERED BY, SKEWED BY clauses
-        // TODO: implement ROW FORMAT and STORED AS clauses
-        // TODO: randomly add some predefined TABLEPROPERTIES
-        // TODO: implement CTAS (AS clause)
-
         HiveErrors.addExpressionErrors(errors);
         return new SQLQueryAdapter(sb.toString(), errors, true, false);
     }
@@ -82,12 +74,9 @@ public class HiveTableGenerator {
     }
 
     private void appendColumnConstraint() {
-        /*
-         * column_constraint_specification: : [ PRIMARY KEY|UNIQUE|NOT NULL|DEFAULT [default_value]|CHECK
-         * [check_expression] ENABLE|DISABLE NOVALIDATE RELY/NORELY ]
-         */
+
         if (Randomly.getBoolean()) {
-            // no column constraint
+
             return;
         }
 

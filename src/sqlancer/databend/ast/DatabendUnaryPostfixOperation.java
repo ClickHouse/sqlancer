@@ -57,7 +57,6 @@ public class DatabendUnaryPostfixOperation extends NewUnaryPostfixOperatorNode<D
                 return DatabendConstant.createBooleanConstant(!value.isNull());
             }
         };
-        // IS
 
         private final String textRepresentations;
 

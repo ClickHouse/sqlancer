@@ -25,11 +25,10 @@ public class QuestDBSchema extends AbstractSchema<QuestDBGlobalState, QuestDBTab
 
     public enum QuestDBDataType {
 
-        BOOLEAN, // CHAR,
-        /* STRING, */
+        BOOLEAN,
+
         INT, FLOAT, SYMBOL,
-        // DATE, TIMESTAMP,
-        /* GEOHASH, */
+
         NULL;
 
         public static QuestDBDataType getRandomWithoutNull() {
@@ -103,9 +102,7 @@ public class QuestDBSchema extends AbstractSchema<QuestDBGlobalState, QuestDBTab
                 size = Randomly.fromOptions(4, 8, 32);
                 break;
             case BOOLEAN:
-                // case CHAR:
-                // case DATE:
-                // case TIMESTAMP:
+
                 size = 0;
                 break;
             case SYMBOL:
@@ -132,14 +129,13 @@ public class QuestDBSchema extends AbstractSchema<QuestDBGlobalState, QuestDBTab
                 default:
                     throw new AssertionError(size);
                 }
-                // case CHAR:
-                // return "CHAR";
+
             case FLOAT:
                 switch (size) {
                 case 4:
                     return Randomly.fromOptions("FLOAT");
                 case 8:
-                    return Randomly.fromOptions(/* "DOUBLE", */"LONG");
+                    return Randomly.fromOptions("LONG");
                 case 32:
                     return Randomly.fromOptions("LONG256");
                 default:
@@ -149,10 +145,7 @@ public class QuestDBSchema extends AbstractSchema<QuestDBGlobalState, QuestDBTab
                 return Randomly.fromOptions("BOOLEAN");
             case SYMBOL:
                 return "SYMBOL";
-            // case TIMESTAMP:
-            // return Randomly.fromOptions("TIMESTAMP");
-            // case DATE:
-            // return Randomly.fromOptions("DATE");
+
             case NULL:
                 return Randomly.fromOptions("NULL");
             default:
@@ -208,9 +201,7 @@ public class QuestDBSchema extends AbstractSchema<QuestDBGlobalState, QuestDBTab
             primitiveType = QuestDBDataType.INT;
             size = 4;
             break;
-        // case "CHAR":
-        // primitiveType = QuestDBDataType.CHAR;
-        // break;
+
         case "FLOAT":
             primitiveType = QuestDBDataType.FLOAT;
             size = 4;
@@ -226,12 +217,7 @@ public class QuestDBSchema extends AbstractSchema<QuestDBGlobalState, QuestDBTab
         case "BOOLEAN":
             primitiveType = QuestDBDataType.BOOLEAN;
             break;
-        // case "DATE":
-        // primitiveType = QuestDBDataType.DATE;
-        // break;
-        // case "TIMESTAMP":
-        // primitiveType = QuestDBDataType.TIMESTAMP;
-        // break;
+
         case "BYTE":
             primitiveType = QuestDBDataType.INT;
             size = 1;
@@ -265,7 +251,7 @@ public class QuestDBSchema extends AbstractSchema<QuestDBGlobalState, QuestDBTab
         List<String> tableNames = getTableNames(con);
         for (String tableName : tableNames) {
             if (DBMSCommon.matchesIndexName(tableName)) {
-                continue; // TODO: unexpected?
+                continue;
             }
             List<QuestDBColumn> databaseColumns = getTableColumns(con, tableName);
             boolean isView = matchesViewName(tableName);
@@ -285,7 +271,7 @@ public class QuestDBSchema extends AbstractSchema<QuestDBGlobalState, QuestDBTab
             try (ResultSet rs = s.executeQuery("SHOW TABLES;")) {
                 while (rs.next()) {
                     String tName = rs.getString("table");
-                    // exclude reserved tables for testing
+
                     if (!QuestDBTables.RESERVED_TABLES.contains(tName)) {
                         tableNames.add(tName);
                     }

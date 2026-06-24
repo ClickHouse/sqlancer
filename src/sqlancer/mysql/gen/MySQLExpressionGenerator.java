@@ -113,7 +113,7 @@ public class MySQLExpressionGenerator extends UntypedExpressionGenerator<MySQLEx
             return getExists();
         case BETWEEN_OPERATOR:
             if (MySQLBugs.bug99181) {
-                // TODO: there are a number of bugs that are triggered by the BETWEEN operator
+
                 throw new IgnoreMeException();
             }
             return new MySQLBetweenOperation(generateExpression(depth + 1), generateExpression(depth + 1),
@@ -170,7 +170,7 @@ public class MySQLExpressionGenerator extends UntypedExpressionGenerator<MySQLEx
         case NULL:
             return MySQLConstant.createNullConstant();
         case STRING:
-            /* Replace characters that still trigger open bugs in MySQL */
+
             String string = state.getRandomly().getString().replace("\\", "").replace("\n", "");
             return MySQLConstant.createStringConstant(string);
         case DOUBLE:

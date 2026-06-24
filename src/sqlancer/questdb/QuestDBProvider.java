@@ -31,12 +31,9 @@ public class QuestDBProvider extends SQLProviderAdapter<QuestDBGlobalState, Ques
     }
 
     public enum Action implements AbstractAction<QuestDBGlobalState> {
-        INSERT(QuestDBInsertGenerator::getQuery), //
-        ALTER_INDEX(QuestDBAlterIndexGenerator::getQuery), //
-        TRUNCATE(QuestDBTruncateGenerator::generate); //
-        // TODO (anxing): maybe implement these later
-        // UPDATE(QuestDBUpdateGenerator::getQuery), //
-        // CREATE_VIEW(QuestDBViewGenerator::generate), //
+        INSERT(QuestDBInsertGenerator::getQuery),
+        ALTER_INDEX(QuestDBAlterIndexGenerator::getQuery),
+        TRUNCATE(QuestDBTruncateGenerator::generate);
 
         private final SQLQueryProvider<QuestDBGlobalState> sqlQueryProvider;
 
@@ -104,18 +101,18 @@ public class QuestDBProvider extends SQLProviderAdapter<QuestDBGlobalState, Ques
         if (port == sqlancer.MainOptions.NO_SET_PORT) {
             port = QuestDBOptions.DEFAULT_PORT;
         }
-        // TODO(anxing): maybe not hardcode here...
+
         String databaseName = "qdb";
         String tableName = "sqlancer_test";
         String url = String.format("jdbc:postgresql://%s:%d/%s", host, port, databaseName);
-        // use QuestDB default username & password for Postgres JDBC
+
         Properties properties = new Properties();
         properties.setProperty("user", globalState.getDbmsSpecificOptions().getUserName());
         properties.setProperty("password", globalState.getDbmsSpecificOptions().getPassword());
         properties.setProperty("sslmode", "disable");
 
         Connection con = DriverManager.getConnection(url, properties);
-        // QuestDB cannot create or drop `DATABASE`, can only create or drop `TABLE`
+
         globalState.getState().logStatement("DROP TABLE IF EXISTS " + tableName + " CASCADE");
         SQLQueryAdapter createTableCommand = new QuestDBTableGenerator().getQuery(globalState, tableName);
         globalState.getState().logStatement(createTableCommand);
@@ -124,20 +121,11 @@ public class QuestDBProvider extends SQLProviderAdapter<QuestDBGlobalState, Ques
         try (Statement s = con.createStatement()) {
             s.execute("DROP TABLE IF EXISTS " + tableName);
         }
-        // TODO(anxing): Drop all previous tables in db
-        // List<String> tableNames =
-        // globalState.getSchema().getDatabaseTables().stream().map(AbstractTable::getName).collect(Collectors.toList());
-        // for (String tName : tableNames) {
-        // try (Statement s = con.createStatement()) {
-        // String query = "DROP TABLE IF EXISTS " + tName;
-        // globalState.getState().logStatement(query);
-        // s.execute(query);
-        // }
-        // }
+
         try (Statement s = con.createStatement()) {
             s.execute(createTableCommand.getQueryString());
         }
-        // drop test table
+
         try (Statement s = con.createStatement()) {
             s.execute("DROP TABLE IF EXISTS " + tableName);
         }

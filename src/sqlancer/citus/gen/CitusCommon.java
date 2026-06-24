@@ -12,7 +12,7 @@ public final class CitusCommon {
     }
 
     public static List<String> getCitusErrors() {
-        // not supported by Citus
+
         ArrayList<String> errors = new ArrayList<>();
         errors.add("failed to evaluate partition key in insert");
         errors.add("cannot perform an INSERT without a partition column value");
@@ -39,19 +39,17 @@ public final class CitusCommon {
         errors.add("cannot drop multiple distributed objects in a single command");
         errors.add("is not distributed");
         errors.add("cannot create constraint on");
-        errors.add("cannot create foreign key constraint"); // SET NULL or SET DEFAULT is not supported in ON DELETE
-                                                            // operation when distribution key is included in the
-                                                            // foreign key constraint
+        errors.add("cannot create foreign key constraint");
+
         errors.add("cannot modify views over distributed tables");
 
-        // not supported by Citus (restrictions on SELECT queries)
         errors.add(
                 "complex joins are only supported when all distributed tables are co-located and joined on their distribution columns");
         errors.add(
                 "complex joins are only supported when all distributed tables are joined on their distribution columns with equal operator");
         errors.add("cannot perform distributed planning on this query");
         errors.add("cannot pushdown the subquery");
-        // see https://github.com/sqlancer/sqlancer/issues/215
+
         errors.add("direct joins between distributed and local tables are not supported");
         errors.add("unlogged columnar tables are not supported");
         errors.add("UPDATE and CTID scans not supported for ColumnarScan");
@@ -65,7 +63,6 @@ public final class CitusCommon {
         errors.add("Foreign keys and AFTER ROW triggers are not supported for columnar tables");
         errors.addAll(getColumnarOidErrors());
 
-        // current errors in Citus (to be removed once fixed)
         if (CitusBugs.bug3957) {
             errors.add("unrecognized node type: 127");
         }
@@ -91,13 +88,6 @@ public final class CitusCommon {
         return errors;
     }
 
-    /**
-     * Citus can fail with "could not open relation with OID 0" when operating on columnar temporary tables (e.g., USING
-     * columnar ON COMMIT DROP), during VACUUM, DISCARD TEMPORARY, or INSERT operations where Citus cannot resolve the
-     * relation OID.
-     *
-     * @return the list of expected error substrings for columnar OID resolution failures.
-     */
     public static List<String> getColumnarOidErrors() {
         List<String> errors = new ArrayList<>();
         errors.add("could not open relation with OID 0");

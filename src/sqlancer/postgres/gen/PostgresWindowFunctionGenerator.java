@@ -61,7 +61,7 @@ public final class PostgresWindowFunctionGenerator {
             arguments.add(Randomly.fromList(availableExpr));
             break;
         default:
-            // No arguments needed for other window functions
+
             break;
         }
 

@@ -39,9 +39,7 @@ public class DorisBinaryLogicalOperation extends NewBinaryOperatorNode<DorisExpr
     }
 
     public enum DorisBinaryLogicalOperator implements BinaryOperatorNode.Operator {
-        /*
-         * null and false -> false null and true -> null null or false -> null null or true -> true
-         */
+
         AND("AND", "and") {
             @Override
             public DorisConstant apply(DorisConstant left, DorisConstant right) {

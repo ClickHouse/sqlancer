@@ -54,7 +54,7 @@ public enum TiDBOracleFactory implements OracleFactory<TiDBProvider.TiDBGlobalSt
                 return Optional.of((long) Double.parseDouble(content));
             };
             CERTOracle.CheckedFunction<SQLancerResultSet, Optional<String>> queryPlanParser = (rs) -> {
-                String operation = rs.getString(1).split("_")[0]; // Extract operation names for query plans
+                String operation = rs.getString(1).split("_")[0];
                 return Optional.of(operation);
             };
 

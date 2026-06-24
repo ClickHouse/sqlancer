@@ -68,7 +68,6 @@ public class PostgresSelect extends SelectBase<PostgresExpression>
         }
     }
 
-    // Getters setters for windowfunctions
     public List<PostgresExpression> getWindowFunctions() {
         return windowFunctions;
     }
@@ -77,7 +76,6 @@ public class PostgresSelect extends SelectBase<PostgresExpression>
         this.windowFunctions = windowFunctions;
     }
 
-    // Add methods for window definitions
     public void addWindowDefinition(String name, WindowDefinition definition) {
         windowDefinitions.put(name, definition);
     }
