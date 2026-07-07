@@ -154,6 +154,7 @@ public class ClickHouseTextIndexLikeOracle implements TestOracle<ClickHouseGloba
             }
 
             java.util.Set<Integer> deletedKeys = new java.util.HashSet<>();
+            boolean groundTruthReliable = true;
             String topology = emptyTable ? "empty" : "multi-insert";
             if (!emptyTable && !corpus.isEmpty()) {
                 if (Randomly.getBoolean()) {
@@ -169,6 +170,7 @@ public class ClickHouseTextIndexLikeOracle implements TestOracle<ClickHouseGloba
                         topology += "+lwdelete(" + deletedKeys.size() + ")";
                     } else {
                         deletedKeys.clear();
+                        groundTruthReliable = false;
                     }
                 }
                 if (Randomly.getBoolean()) {
@@ -215,7 +217,7 @@ public class ClickHouseTextIndexLikeOracle implements TestOracle<ClickHouseGloba
                 }
             }
 
-            if (pattern.isGroundTruthComputable()) {
+            if (groundTruthReliable && pattern.isGroundTruthComputable()) {
                 long expected = computeExpectedMatches(liveCorpus, pattern.getPattern(), pattern.isIlike());
                 if (!String.valueOf(expected).equals(counts[0])) {
                     throw new AssertionError(String.format(

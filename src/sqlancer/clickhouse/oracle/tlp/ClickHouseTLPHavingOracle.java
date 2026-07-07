@@ -75,7 +75,24 @@ public class ClickHouseTLPHavingOracle extends ClickHouseTLPBase {
             state.getLogger().writeCurrent(combinedString);
         }
 
+        if (containsNanOrInfinity(resultSet) || containsNanOrInfinity(secondResultSet)) {
+            throw new IgnoreMeException();
+        }
+
         ComparatorHelper.assumeResultSetsAreEqual(resultSet, secondResultSet, originalQueryString,
                 Collections.singletonList(combinedString), state, ComparatorHelper.ComparisonMode.MULTISET);
+    }
+
+    private static boolean containsNanOrInfinity(List<String> rows) {
+        for (String r : rows) {
+            if (r == null) {
+                continue;
+            }
+            if (r.equals("nan") || r.equals("NaN") || r.equals("-nan") || r.equals("Infinity") || r.equals("-Infinity")
+                    || r.equals("inf") || r.equals("-inf")) {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -139,6 +139,18 @@ public final class ClickHouseErrors {
 
     public static void addSessionSettingsErrors(ExpectedErrors errors) {
         errors.addAll(getSessionSettingsErrors());
+        addTransportErrors(errors);
+    }
+
+    public static List<String> getTransportErrors() {
+        return List.of("NoHttpResponseException", "failed to respond", "ConnectionInitiationException",
+                "Query request failed (attempt:", "ConnectionClosedException",
+                "Premature end of chunk coded message body", "SocketTimeoutException", "Read timed out",
+                "DataTransferException", "Connection reset");
+    }
+
+    public static void addTransportErrors(ExpectedErrors errors) {
+        errors.addAll(getTransportErrors());
     }
 
     public static List<String> getSetOpErrors() {

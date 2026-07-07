@@ -45,7 +45,7 @@ for ORACLE in "${ORACLES[@]}"; do
   ./.claude/run-sqlancer.sh \
     --oracles "$ORACLE" \
     --duration "$DURATION" \
-    --threads 8 --heap 16g --ch-cpus 8 --ch-mem 6g \
+    --threads 8 --heap 12g --ch-cpus 8 --ch-mem 16g \
     > "$ORACLE_DIR/runner.out" 2>&1
   RC=$?
   set -e
