@@ -41,6 +41,10 @@ public class ClickHouseQueryConditionCacheOracle implements TestOracle<ClickHous
             throw new IgnoreMeException();
         }
         ClickHouseTable table = tables.get((int) Randomly.getNotCachedInteger(0, tables.size()));
+        if (table.isView()) {
+
+            throw new IgnoreMeException();
+        }
         ClickHouseTableReference tableRef = new ClickHouseTableReference(table, null);
         List<ClickHouseColumnReference> columns = tableRef.getColumnReferences();
         if (columns.size() < 2) {

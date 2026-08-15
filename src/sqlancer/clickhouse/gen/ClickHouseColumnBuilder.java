@@ -198,6 +198,7 @@ public class ClickHouseColumnBuilder {
             if (isFloat) {
                 options.add("Gorilla, LZ4");
                 options.add("FPC, LZ4");
+                options.add("ALP, LZ4");
             }
 
             if ((isNumericIntegral || isDateLike) && Randomly.getBooleanWithSmallProbability()) {

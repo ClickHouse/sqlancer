@@ -217,6 +217,11 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
     @Override
     public void visit(ClickHouseExpression.ClickHouseJoin join) {
         ClickHouseExpression.ClickHouseJoin.JoinType type = join.getType();
+        if (type == ClickHouseExpression.ClickHouseJoin.JoinType.CROSS && join.getOnClause() == null) {
+            sb.append(", ");
+            visit(join.getRightTable());
+            return;
+        }
         if (type == ClickHouseExpression.ClickHouseJoin.JoinType.CROSS) {
             sb.append(" JOIN ");
             visit(join.getRightTable());
@@ -300,6 +305,13 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
     @Override
     public void visit(sqlancer.clickhouse.ast.ClickHouseRawText raw) {
         sb.append(raw.getSql());
+    }
+
+    @Override
+    public void visit(sqlancer.clickhouse.ast.ClickHouseWrappedExpression wrapped) {
+        sb.append(wrapped.getPrefix());
+        visit(wrapped.getExpression());
+        sb.append(wrapped.getSuffix());
     }
 
     @Override

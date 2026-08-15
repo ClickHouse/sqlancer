@@ -37,7 +37,8 @@ public class ClickHouseRowPolicyOracle implements TestOracle<ClickHouseGlobalSta
     @Override
     public void check() throws SQLException {
         ClickHouseSchema schema = state.getSchema();
-        List<ClickHouseTable> tables = schema.getRandomTableNonEmptyTables().getTables();
+        List<ClickHouseTable> tables = schema.getRandomTableNonEmptyTables().getTables().stream()
+                .filter(t -> !t.isView()).collect(java.util.stream.Collectors.toList());
         if (tables.isEmpty()) {
             throw new IgnoreMeException();
         }

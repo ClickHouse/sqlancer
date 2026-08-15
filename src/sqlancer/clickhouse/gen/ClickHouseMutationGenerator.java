@@ -73,7 +73,7 @@ public final class ClickHouseMutationGenerator {
     }
 
     public static SQLQueryAdapter getQuery(ClickHouseGlobalState state) {
-        List<ClickHouseTable> tables = state.getSchema().getDatabaseTables();
+        List<ClickHouseTable> tables = state.getSchema().getDatabaseTablesWithoutViews();
         if (tables.isEmpty()) {
             throw new IgnoreMeException();
         }

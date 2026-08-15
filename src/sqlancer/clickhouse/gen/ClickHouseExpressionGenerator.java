@@ -455,6 +455,123 @@ public class ClickHouseExpressionGenerator
         return new sqlancer.clickhouse.ast.ClickHouseRawText(sql);
     }
 
+    private enum TruthValueWrapper {
+        NOT_NOT, NOT, IS_TRUE, IS_NOT_TRUE, IS_FALSE, IS_NOT_FALSE, IS_UNKNOWN, IS_NOT_UNKNOWN, IS_NOT_DISTINCT_FROM,
+        NULL_IF, IF_NULL, COALESCE
+    }
+
+    private static final List<String> BOOLEAN_POSITION_CONSTANTS = List.of("3.14", "0.5", "-0.5", "1.5", "0", "1", "2",
+            "-1");
+
+    private static boolean isNullableTerm(ClickHouseType term) {
+        if (term instanceof Nullable) {
+            return true;
+        }
+        if (term instanceof LowCardinality lc) {
+            return isNullableTerm(lc.inner());
+        }
+        return false;
+    }
+
+    public ClickHouseExpression generateTruthValuePredicate(List<ClickHouseColumnReference> columns) {
+        List<ClickHouseColumnReference> numeric = numericColumns(columns);
+        if (numeric.isEmpty()) {
+            return null;
+        }
+        TruthValueWrapper wrapper = Randomly.fromOptions(TruthValueWrapper.values());
+        List<ClickHouseColumnReference> pool = numeric;
+        if (wrapper == TruthValueWrapper.IS_UNKNOWN || wrapper == TruthValueWrapper.IS_NOT_UNKNOWN) {
+            pool = numeric.stream().filter(c -> isNullableTerm(c.getColumn().getType().getTypeTerm()))
+                    .collect(Collectors.toList());
+            if (pool.isEmpty()) {
+                return null;
+            }
+        }
+        ClickHouseColumnReference col = Randomly.fromList(pool);
+        boolean booleanValued = wrapper != TruthValueWrapper.NULL_IF && wrapper != TruthValueWrapper.IF_NULL
+                && wrapper != TruthValueWrapper.COALESCE;
+        ClickHouseExpression wrapped = renderTruthValueWrapper(wrapper, col);
+        if (wrapped == null) {
+            return null;
+        }
+        if (!booleanValued && !Randomly.getBoolean()) {
+            return new sqlancer.clickhouse.ast.ClickHouseWrappedExpression("(", wrapped, ") != 0");
+        }
+        if (Randomly.getBoolean()) {
+            return wrapped;
+        }
+        ClickHouseExpression literal = new sqlancer.clickhouse.ast.ClickHouseRawText(
+                Randomly.fromList(BOOLEAN_POSITION_CONSTANTS));
+        return new ClickHouseBinaryComparisonOperation(wrapped, literal,
+                Randomly.fromOptions(ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.SMALLER,
+                        ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.SMALLER_EQUALS,
+                        ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.GREATER,
+                        ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.GREATER_EQUALS,
+                        ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.EQUALS,
+                        ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.NOT_EQUALS));
+    }
+
+    private ClickHouseExpression renderTruthValueWrapper(TruthValueWrapper wrapper, ClickHouseColumnReference col) {
+        switch (wrapper) {
+        case NOT_NOT:
+            return new ClickHouseUnaryPrefixOperation(
+                    new ClickHouseUnaryPrefixOperation(col, ClickHouseUnaryPrefixOperator.NOT),
+                    ClickHouseUnaryPrefixOperator.NOT);
+        case NOT:
+            return new ClickHouseUnaryPrefixOperation(col, ClickHouseUnaryPrefixOperator.NOT);
+        case IS_TRUE:
+            return new ClickHouseExpression.ClickHousePostfixText(col, "IS TRUE", null);
+        case IS_NOT_TRUE:
+            return new ClickHouseExpression.ClickHousePostfixText(col, "IS NOT TRUE", null);
+        case IS_FALSE:
+            return new ClickHouseExpression.ClickHousePostfixText(col, "IS FALSE", null);
+        case IS_NOT_FALSE:
+            return new ClickHouseExpression.ClickHousePostfixText(col, "IS NOT FALSE", null);
+        case IS_UNKNOWN:
+            return new ClickHouseExpression.ClickHousePostfixText(col, "IS UNKNOWN", null);
+        case IS_NOT_UNKNOWN:
+            return new ClickHouseExpression.ClickHousePostfixText(col, "IS NOT UNKNOWN", null);
+        case IS_NOT_DISTINCT_FROM:
+            return new ClickHouseExpression.ClickHousePostfixText(col,
+                    "IS NOT DISTINCT FROM " + renderColumnLiteral(col), null);
+        case NULL_IF:
+            return new sqlancer.clickhouse.ast.ClickHouseWrappedExpression("nullIf(", col,
+                    ", " + renderColumnLiteral(col) + ")");
+        case IF_NULL:
+            return new sqlancer.clickhouse.ast.ClickHouseWrappedExpression("ifNull(", col,
+                    ", " + renderColumnLiteral(col) + ")");
+        case COALESCE:
+            return new sqlancer.clickhouse.ast.ClickHouseWrappedExpression("coalesce(", col,
+                    ", " + renderColumnLiteral(col) + ")");
+        default:
+            throw new AssertionError(wrapper);
+        }
+    }
+
+    private String renderColumnLiteral(ClickHouseColumnReference col) {
+        ClickHouseType term = col.getColumn().getType().getTypeTerm();
+        ClickHouseExpression literal = generateConstantFromTerm(term instanceof Nullable n ? n.inner() : term);
+        return ClickHouseToStringVisitor.asString(literal);
+    }
+
+    private static final List<String> LIKE_ESCAPE_PATTERNS = List.of("a#%b", "#_x", "%#%%", "#%", "x#_%");
+
+    public ClickHouseExpression generateLikeEscapePredicate(List<ClickHouseColumnReference> columns) {
+        List<ClickHouseColumnReference> stringCols = new java.util.ArrayList<>();
+        for (ClickHouseColumnReference c : columns) {
+            if (c.getColumn().getType().getType() == ClickHouseDataType.String) {
+                stringCols.add(c);
+            }
+        }
+        if (stringCols.isEmpty()) {
+            return null;
+        }
+        String op = Randomly.fromOptions("LIKE ", "NOT LIKE ", "ILIKE ", "NOT ILIKE ");
+        String pattern = Randomly.fromList(LIKE_ESCAPE_PATTERNS);
+        return new ClickHouseExpression.ClickHousePostfixText(Randomly.fromList(stringCols),
+                op + "'" + pattern + "' ESCAPE '#'", null);
+    }
+
     public ClickHouseExpression generateDateTransform(List<ClickHouseColumnReference> columns) {
         List<ClickHouseColumnReference> dateCols = new java.util.ArrayList<>();
         boolean dateTimeResolution = false;
@@ -926,27 +1043,44 @@ public class ClickHouseExpressionGenerator
         }
         List<ClickHouseTableReference> leftTables = new ArrayList<>();
         leftTables.add(left);
-        if (Randomly.getBoolean() && !tables.isEmpty()) {
-            int nrJoinClauses = (int) Randomly.getNotCachedInteger(0, tables.size());
-            for (int i = 0; i < nrJoinClauses; i++) {
-                ClickHouseTableReference leftTable = leftTables
-                        .get((int) Randomly.getNotCachedInteger(0, leftTables.size()));
-                ClickHouseTableReference rightTable = new ClickHouseTableReference(Randomly.fromList(tables),
-                        "right_" + i);
-                ClickHouseExpression.ClickHouseJoinOnClause joinClause = generateJoinClause(leftTable, rightTable);
-
-                ClickHouseExpression.ClickHouseJoin.JoinType options = Randomly.fromList(DETERMINISTIC_JOIN_TYPES);
-                ClickHouseExpression.ClickHouseJoin j = new ClickHouseExpression.ClickHouseJoin(leftTable, rightTable,
-                        options, joinClause);
-
-                if (joinClause != null) {
-                    j.setOnClause(maybeEnrichJoinOnClause(joinClause, options));
-                }
-                joinStatements.add(j);
-                leftTables.add(rightTable);
-            }
-        }
+        appendJoinChain(joinStatements, leftTables, tables);
         return joinStatements;
+    }
+
+    private void appendJoinChain(List<ClickHouseExpression.ClickHouseJoin> joinStatements,
+            List<ClickHouseTableReference> leftTables, List<ClickHouseSchema.ClickHouseTable> relations) {
+        if (relations.isEmpty() || !Randomly.getBoolean()) {
+            return;
+        }
+        boolean commaJoins = globalState.getClickHouseOptions().commaJoinEmission;
+        int bound = commaJoins ? Math.min(4, relations.size() + 2) : relations.size();
+        int nrJoinClauses = (int) Randomly.getNotCachedInteger(0, bound);
+        if (commaJoins && nrJoinClauses == 0) {
+            nrJoinClauses = 1;
+        }
+        for (int i = 0; i < nrJoinClauses; i++) {
+            ClickHouseTableReference leftTable = leftTables
+                    .get((int) Randomly.getNotCachedInteger(0, leftTables.size()));
+            ClickHouseTableReference rightTable = new ClickHouseTableReference(Randomly.fromList(relations),
+                    "right_" + i);
+            ClickHouseExpression.ClickHouseJoin.JoinType options = Randomly.fromList(DETERMINISTIC_JOIN_TYPES);
+
+            if (commaJoins && options == ClickHouseExpression.ClickHouseJoin.JoinType.CROSS
+                    && Randomly.getBooleanWithRatherLowProbability()) {
+                joinStatements.add(new ClickHouseExpression.ClickHouseJoin(leftTable, rightTable, options));
+                leftTables.add(rightTable);
+                continue;
+            }
+
+            ClickHouseExpression.ClickHouseJoinOnClause joinClause = generateJoinClause(leftTable, rightTable);
+            ClickHouseExpression.ClickHouseJoin j = new ClickHouseExpression.ClickHouseJoin(leftTable, rightTable,
+                    options, joinClause);
+            if (joinClause != null) {
+                j.setOnClause(maybeEnrichJoinOnClause(joinClause, options));
+            }
+            joinStatements.add(j);
+            leftTables.add(rightTable);
+        }
     }
 
     private static final List<ClickHouseExpression.ClickHouseJoin.JoinType> DETERMINISTIC_JOIN_TYPES = List.of(
@@ -1349,6 +1483,26 @@ public class ClickHouseExpressionGenerator
             }
         }
 
+        if (globalState.getClickHouseOptions().truthValuePredicateEmission
+                && Randomly.getBooleanWithRatherLowProbability()) {
+            ClickHouseExpression truthPred = generateTruthValuePredicate(columnRefs);
+            if (truthPred != null) {
+                return Randomly.getBoolean() ? truthPred
+                        : new ClickHouseBinaryLogicalOperation(base, truthPred,
+                                ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
+            }
+        }
+
+        if (globalState.getClickHouseOptions().truthValuePredicateEmission
+                && Randomly.getBooleanWithSmallProbability()) {
+            ClickHouseExpression likePred = generateLikeEscapePredicate(columnRefs);
+            if (likePred != null) {
+                return Randomly.getBoolean() ? likePred
+                        : new ClickHouseBinaryLogicalOperation(base, likePred,
+                                ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
+            }
+        }
+
         if (globalState.getClickHouseOptions().textSearchPredicateEmission
                 && Randomly.getBooleanWithSmallProbability()) {
             ClickHouseExpression textPred = generateTextSearchPredicate(columnRefs);
@@ -1532,26 +1686,7 @@ public class ClickHouseExpressionGenerator
         }
         List<ClickHouseTableReference> leftTables = new ArrayList<>();
         leftTables.add(new ClickHouseTableReference(tables.get(0), null));
-        if (Randomly.getBoolean() && !tables.isEmpty()) {
-            int nrJoinClauses = (int) Randomly.getNotCachedInteger(0, tables.size());
-            for (int i = 0; i < nrJoinClauses; i++) {
-                ClickHouseTableReference leftTable = leftTables
-                        .get((int) Randomly.getNotCachedInteger(0, leftTables.size()));
-                ClickHouseTableReference rightTable = new ClickHouseTableReference(Randomly.fromList(tables),
-                        "right_" + i);
-                ClickHouseExpression.ClickHouseJoinOnClause joinClause = generateJoinClause(leftTable, rightTable);
-
-                ClickHouseExpression.ClickHouseJoin.JoinType options = Randomly.fromList(DETERMINISTIC_JOIN_TYPES);
-                ClickHouseExpression.ClickHouseJoin j = new ClickHouseExpression.ClickHouseJoin(leftTable, rightTable,
-                        options, joinClause);
-
-                if (joinClause != null) {
-                    j.setOnClause(maybeEnrichJoinOnClause(joinClause, options));
-                }
-                joinStatements.add(j);
-                leftTables.add(rightTable);
-            }
-        }
+        appendJoinChain(joinStatements, leftTables, tables);
         return joinStatements;
     }
 
