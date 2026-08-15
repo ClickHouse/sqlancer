@@ -106,6 +106,150 @@ ssh ubuntu@nik-fomichev-dev-vm-1 'cd ~/sqlancer-fork && \
 
 Scaling on c7g.4xlarge (16 vCPU / 32 GiB): cap CH at 8 cpu / 6 GiB (`--cpus=8 -m=6g`) and run sqlancer with `--num-threads 8 -Xmx24g`. Totals out at ~30 GiB used, leaving ~2 GiB for the OS and container daemon. CH-side `MEMORY_LIMIT_EXCEEDED` is now globally tolerated (commit `15b8a901`), so the squeezed `-m=6g` cap surfaces as harmless `IgnoreMe`s rather than worker deaths — that's the trade for the bigger JVM heap. The earlier 8/16 split (CH at 10 cpu / 12 GiB, sqlancer at 8/16) also worked but left less GC margin for the heaviest iterations. CH at 12 cpu / 14 GiB + sqlancer at 12 threads / 12 GiB heap **overshoots** (per-thread heap drops below the 1.3 GiB floor) — attempt-1 of the 3h run died in 13 minutes that way.
 
+## P0 coverage batch, 2026-08-15 (`docs/plans/2026-08-15-001-...-4month-coverage-gap-plan.md`)
+
+Items 0a, 0b, 1–6 of the 4-month coverage-gap audit. Validated on dev-vm head **26.8.1.1470**:
+a 30-minute full-fleet run over all 94 oracles except `TextIndexDirectRead` (its #107186 flood
+drowns everything else) finished **exit 0, 137,380 queries, 0 reproducers, 0 threads shut down**.
+A separate 12-minute run of the changed and new oracles (CodecRoundtrip,
+DistributedPlanEquivalence, JoinReorder, LimitRanking, ReplacingDedup, FinalMerge,
+EngineEquivalence, PartitionMirror) did 36k queries with a single reproducer, and that one was the
+known unfiled `NOT (NOT` bug below.
+
+**0a — LIMIT BY cap is now asserted server-side.** `ClickHouseLimitRankingOracle.checkLimitByCap`
+used to pull the key column into Java through `ComparatorHelper.getResultSetFirstColumnAsString`,
+which routes every value through `trimTrailingDotZeros`; that helper rewrites `'0.0'` into `'0'`,
+so a String key holding both looked like one key appearing twice (the 2026-08-04/08-07 nightly
+false positives). The check is now
+`SELECT max(cnt) FROM (SELECT count() AS cnt FROM (<limit-by query>) GROUP BY lb_key)`. Nothing is
+normalised client-side any more, and 10000 rows no longer cross the wire. **`trimTrailingDotZeros`
+is still applied by every other oracle** — scoping or removing it is a separate, still-open
+follow-up (checklist rule C8).
+
+**0b — degenerate dedupe ORDER BY keys are rejected.** `ClickHouseTableGenerator` gained
+`hasDegenerateKeyDomain` / `isDedupeKeyColumn`: a dedupe or collapse engine's sorting key may no
+longer be `Bool` or an `Enum` with fewer than `MIN_DEDUPE_KEY_DOMAIN` (8) entries — and the type
+picker caps generated enums at 5 entries, so today that rejects every enum. `pickEngine` falls back
+to plain MergeTree when no non-degenerate bare key column exists, the dedupe fallback ORDER BY uses
+the same filter, and `ReplacingMergeTree` now **always** emits its ver argument (previously 50%).
+With a two-value key a background merge collapses visible cardinality between two reads, which is
+what produced the 08-07 `TLPWhere: size of the result sets mismatch (91 and 26)` false positive.
+Verified on a 12-minute dev-vm run: 0 dedupe tables with a Bool/Enum sorting key, 0 of 75
+ReplacingMergeTree tables without a ver argument.
+
+**1 — boolean-position and truth-value predicates** (`--truth-value-predicate-emission`, default
+on). `generatePredicate()` now emits `NOT (NOT x)`, `NOT x`, `x IS [NOT] TRUE/FALSE/UNKNOWN`,
+`x IS NOT DISTINCT FROM lit`, `nullIf/ifNull/coalesce(x, lit)` over numeric columns, plus
+`LIKE`/`ILIKE ... ESCAPE` over String columns; half the time the wrapper is compared against a
+numeric or float constant, which is the *value position* that matters. Rendered through real AST
+nodes (`ClickHouseUnaryPrefixOperation`, `ClickHousePostfixText`, and the new
+`ClickHouseWrappedExpression`), never `ClickHouseRawText`, so the KeyCondition oracle's
+`materialize()` rewrite still reaches the column references. **This finds a real, unfiled
+wrong-result bug on head — see the entry below.**
+
+**2 — `FloatPruning` oracle** (`--float-pruning-oracle`). Private fixture with
+Float32/Float64/Nullable(Float64) columns holding NaN, ±inf, -0.0 and NULL across several parts
+(one part all-NaN), float ORDER BY / PARTITION BY / minmax + bloom_filter skip indexes /
+materialized statistics. Two assertions: (a) a negated float comparison in WHERE must select the
+same key multiset as the same predicate evaluated as a `groupArrayIf` aggregate argument over a
+full scan, and (b) `count(P) + count(NOT P) + count(P IS NULL) = count(*)`.
+**Authoring lesson: `materialize()` plus `use_skip_indexes=0 / allow_statistics_optimize=0 /
+convert_query_to_cnf=0 / optimize_move_to_prewhere=0 / force_primary_key=0` does NOT defeat
+partition-level or primary-key-level pruning** — the first draft used that as its reference arm and
+was silently comparing two equally-pruned answers. The sound reference is a predicate that never
+reaches a WHERE clause at all: `groupArrayIf(k, ifNull((P), 0))` over the whole table. Copy that
+pattern for any future pruning oracle.
+
+**3 — `DistributedPlanEquivalence` oracle** (`--distributed-plan-equivalence-oracle`). One
+generated read must return the same multiset under plain local execution,
+`make_distributed_plan = 1`, `serialize_query_plan = 1`, a `cluster('default', ...)` read with
+`parallel_replicas_local_plan` on and off, and `enable_parallel_replicas = 1` +
+`max_parallel_replicas = 3` + `parallel_replicas_for_non_replicated_merge_tree = 1` over both the
+local and a `Distributed(...)` relation. Five query shapes including a three-way comma join whose
+middle relation is a VIEW (the #111727 shape). The single-node `default` cluster exists on head
+(1 shard, 1 replica, localhost), so all six profiles genuinely execute.
+
+**4 — views and comma joins reach multi-relation FROM lists.** Three changes:
+`--persistent-view-emission` (default on) adds a `VIEW` DDL action to the provider that creates up
+to 3 plain `v<n>` views per database, so views survive in the schema snapshot instead of existing
+only inside `ViewEquivalence`'s single iteration; `--comma-join-emission` (default on) lets the
+join generator emit **genuine ON-less CROSS joins** — previously every CROSS was handed an ON
+clause and silently degraded into an INNER join, so the fork could never produce `FROM t0, v0, t1`
+— and raises the chain to up to four relations; and `ClickHouseJoinReorderOracle` builds a VIEW over
+one of its private tables 40% of the time. Because views are now visible to every oracle,
+**write paths must filter them**: `ClickHouseAlterGenerator` and `ClickHouseMutationGenerator` moved
+to `getDatabaseTablesWithoutViews()`, and `ClickHouseCERTOracle` / `ClickHouseRowPolicyOracle` grew
+`!isView()` filters. Any new oracle that INSERTs, ALTERs or OPTIMIZEs a schema-picked table must do
+the same.
+
+**5 — join-order enumerator sweep.** `ClickHouseJoinReorderOracle.checkEnumerationAlgorithms` runs
+the same N-way join under `query_plan_optimize_join_order_algorithm` ∈ {greedy, dpsize, dpsub,
+dphyp, dphyp+greedy, dpsub+greedy}, plus `query_plan_enable_optimizations = 0`,
+`query_plan_join_shard_by_pk_ranges = 1` and `query_plan_optimize_join_order_max_searched_plans=1`.
+**The setting is `query_plan_optimize_join_order_algorithm`, not `query_plan_join_reorder_algorithm`
+as the plan guessed.** `dpsize` and `dphyp` only support inner joins and raise
+`Code: 717 (EXPERIMENTAL_FEATURE_ERROR) "Failed to find a valid join order, try adding 'greedy'
+algorithm as fallback"` on outer/semi/anti chains; that is a legitimate unsupported-shape error, not
+a finding, and is tolerated in a dedicated `algorithmErrors` set (924 reproducers in the first
+validation run were all this one message).
+
+**6 — `CodecRoundtrip` oracle** (`--codec-roundtrip-oracle`). A table with random per-type
+`CODEC(...)` declarations and a `CODEC(NONE)` mirror holding the same rows (including NaN, ±inf,
+-0.0, denormals) must answer identically, still after `OPTIMIZE ... FINAL`, and still after an
+`ALTER TABLE ... MODIFY COLUMN ... CODEC` mutation. The coded table sometimes carries
+`allow_experimental_adaptive_codec_selection = 1` (PR #111834). Lossy codecs (`SZ3`, `ZXC`) are
+excluded from the equality arm by allowlist and only have row count and NULL mask asserted; if the
+lossy DDL is rejected the oracle retries with a lossless float codec instead of dropping the
+iteration. `ALP` was also added to the general schema's float codec pool in `ClickHouseColumnBuilder`.
+
+### Known-open bugs the 2026-08-15 batch deliberately fires on
+
+Triage a run by these first; they are expected noise on a current head, not regressions.
+
+- **UNFILED — `NOT (NOT key)` in value position prunes valid parts.** Found by item 1's emission,
+  confirmed on head 26.8.1.1470. The projection says the predicate is true for every row, the WHERE
+  form returns a subset, and `EXPLAIN indexes = 1` prints `Condition: (c1 in (-Inf, 3])`. Root cause
+  is the `name == "not"` branch of `cloneDAGWithInversionPushDown` in
+  `src/Storages/MergeTree/KeyCondition.cpp` treating `not` as purely logical and ignoring
+  `boolean_context`, so two flips cancel and `NOT NOT c1` degrades to bare `c1`. **No setting
+  disables it** — `materialize()`, `use_skip_indexes=0`, `allow_statistics_optimize=0`,
+  `query_plan_enable_optimizations=0` and `optimize_move_to_prewhere=0` all still return the wrong
+  rows — so `KeyCondition` cannot catch it. **NoREC and TLPWhere do** (`countIf(P)` = 2 vs
+  `count() WHERE P` = 1). Wrong since at least 24.8. Triage by `NOT (NOT` in the failing query.
+  ```sql
+  CREATE TABLE t (c1 Int32) ENGINE = MergeTree ORDER BY c1;
+  INSERT INTO t VALUES (0); INSERT INTO t VALUES (100);
+  SELECT c1, (NOT (NOT c1)) <= 3.14 FROM t;            -- predicate is 1 for BOTH rows
+  SELECT count() FROM t WHERE (NOT (NOT c1)) <= 3.14;  -- 1, must be 2
+  SELECT countIf((NOT (NOT c1)) <= 3.14) FROM t;       -- 2, correct
+  ```
+- **[#113417](https://github.com/ClickHouse/ClickHouse/issues/113417) /
+  [#112036](https://github.com/ClickHouse/ClickHouse/issues/112036) — NaN rows dropped by float part
+  pruning under a negated comparison.** The `FloatPruning` oracle is a deliberate detector for this
+  family and fires on a current head **at default settings** — a 6-minute standalone run produced
+  326 worker deaths over 175 queries. It is therefore **deliberately absent from
+  `run-sqlancer.sh`'s `ALL_ORACLES`**; run it standalone with `--oracles FloatPruning` and add it
+  back once these issues close. (A constantly-firing oracle kills a worker and orphans a database
+  per iteration, which is what stalled the 2026-06-14 20h run.) Confirmed on 26.8.1.1470:
+  ```sql
+  CREATE TABLE fp (k Int64, f32 Float32, f64 Float64) ENGINE = MergeTree ORDER BY (f64, k)
+    PARTITION BY f32 SETTINGS index_granularity = 8, allow_floating_point_partition_key = 1;
+  INSERT INTO fp VALUES (0, nan, nan), (1, 1.5, 1.5), (2, -inf, inf), (3, 0, -0.0);
+  INSERT INTO fp VALUES (4, nan, nan), (5, nan, nan);
+  INSERT INTO fp VALUES (6, 100, -3.14), (7, -1.5, 0.0000001);
+  SELECT k FROM fp WHERE NOT (f64 < 1.5);   -- {1,2}; must be {0,1,2,4,5} (the NaN rows are dropped)
+  SELECT count() FROM fp WHERE (NOT (f64 < 1.5));          -- 2
+  SELECT count() FROM fp WHERE NOT (NOT (f64 < 1.5));      -- 3
+  SELECT count() FROM fp WHERE (NOT (f64 < 1.5)) IS NULL;  -- 0, and 2+3+0 != 8
+  ```
+- **[#114113](https://github.com/ClickHouse/ClickHouse/issues/114113)** — `LOGICAL_ERROR "Left and
+  right columns have same names"` out of `chooseJoinOrder` for a three-way comma join whose middle
+  relation is a VIEW; aborts asan/ubsan servers. Item 4 makes this shape reachable, so the message
+  is **pinned** via `ClickHouseErrors.getKnownOpenJoinOrderBugs()` (consumed by
+  `addExpectedExpressionErrors` and by `ClickHouseJoinReorderOracle`). It did **not** reproduce on
+  the release build 26.8.1.1470 with the plan's minimal `SELECT * FROM t0, v0, t1 WHERE <bool>`.
+  **Remove the pin when the issue closes.**
+
 ## Filed ClickHouse bugs — reproducer → issue (open only)
 
 Bugs SQLancer found here that are filed and still OPEN upstream. Minimal repros so a future run can
