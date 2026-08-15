@@ -121,7 +121,9 @@ public class ClickHouseTableGenerator {
 
             boolean engineRequiresNonEmptyOrderBy = isDedupeEngine(engine);
 
-            String fallbackKeyColumn = columns.stream().filter(ClickHouseTableGenerator::isBareKeyColumn)
+            java.util.function.Predicate<ClickHouseSchema.ClickHouseColumn> fallbackKeyFilter = engineRequiresNonEmptyOrderBy
+                    ? ClickHouseTableGenerator::isDedupeKeyColumn : ClickHouseTableGenerator::isBareKeyColumn;
+            String fallbackKeyColumn = columns.stream().filter(fallbackKeyFilter)
                     .map(ClickHouseSchema.ClickHouseColumn::getName).findFirst().orElse(columns.get(0).getName());
             String fallbackOrderBy = engineRequiresNonEmptyOrderBy ? " ORDER BY " + fallbackKeyColumn + " "
                     : " ORDER BY tuple() ";
@@ -233,6 +235,21 @@ public class ClickHouseTableGenerator {
                 || u instanceof sqlancer.clickhouse.ClickHouseType.Time64;
     }
 
+    private static final int MIN_DEDUPE_KEY_DOMAIN = 8;
+
+    static boolean hasDegenerateKeyDomain(ClickHouseSchema.ClickHouseColumn col) {
+        sqlancer.clickhouse.ClickHouseType u = col.getType().getTypeTerm().unwrap();
+        if (u instanceof sqlancer.clickhouse.ClickHouseType.Primitive p
+                && p.kind() == sqlancer.clickhouse.ClickHouseType.Kind.Bool) {
+            return true;
+        }
+        return u instanceof sqlancer.clickhouse.ClickHouseType.Enum e && e.entries().size() < MIN_DEDUPE_KEY_DOMAIN;
+    }
+
+    static boolean isDedupeKeyColumn(ClickHouseSchema.ClickHouseColumn col) {
+        return isBareKeyColumn(col) && !hasDegenerateKeyDomain(col);
+    }
+
     static java.util.List<String> pickDistinct(java.util.List<String> src, int k) {
         java.util.List<String> pool = new java.util.ArrayList<>(src);
         java.util.List<String> out = new java.util.ArrayList<>();
@@ -245,6 +262,10 @@ public class ClickHouseTableGenerator {
     private ClickHouseEngine pickEngine(List<ClickHouseSchema.ClickHouseColumn> cols) {
         int roll = (int) Randomly.getNotCachedInteger(0, 100);
         if (roll < 78) {
+            return ClickHouseEngine.MergeTree;
+        }
+        boolean hasDedupeKey = cols.stream().anyMatch(ClickHouseTableGenerator::isDedupeKeyColumn);
+        if (!hasDedupeKey) {
             return ClickHouseEngine.MergeTree;
         }
         if (roll < 86) {
@@ -272,15 +293,14 @@ public class ClickHouseTableGenerator {
         }
 
         boolean hasSimpleAgg = cols.stream().anyMatch(ClickHouseTableGenerator::isSimpleAggregateColumn);
-        boolean hasBareKey = cols.stream().anyMatch(ClickHouseTableGenerator::isBareKeyColumn);
-        return hasSimpleAgg && hasBareKey ? ClickHouseEngine.AggregatingMergeTree : ClickHouseEngine.MergeTree;
+        return hasSimpleAgg ? ClickHouseEngine.AggregatingMergeTree : ClickHouseEngine.MergeTree;
     }
 
     private String renderEngineArgs(ClickHouseEngine engine) {
         if (engine == ClickHouseEngine.ReplacingMergeTree) {
             List<ClickHouseSchema.ClickHouseColumn> candidates = columns.stream().filter(this::isValidReplacingVer)
                     .collect(Collectors.toList());
-            if (candidates.isEmpty() || !Randomly.getBoolean()) {
+            if (candidates.isEmpty()) {
                 return "";
             }
             return Randomly.fromList(candidates).getName();
@@ -545,7 +565,7 @@ public class ClickHouseTableGenerator {
 
     static boolean isValidOrderByForDedupe(ClickHouseExpression expr) {
 
-        return expr instanceof ClickHouseColumnReference cr && isBareKeyColumn(cr.getColumn());
+        return expr instanceof ClickHouseColumnReference cr && isDedupeKeyColumn(cr.getColumn());
     }
 
     static boolean isValidPartitionBy(ClickHouseExpression expr) {

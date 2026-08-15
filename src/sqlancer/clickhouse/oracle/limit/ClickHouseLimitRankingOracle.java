@@ -149,21 +149,26 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
     private void checkLimitByCap(String tableQ, String totalOrder, List<ClickHouseColumn> columns) throws SQLException {
         String key = quote(Randomly.fromList(columns).getName());
         long n = 1 + Randomly.getNotCachedInteger(0, 5);
-        String query = "SELECT toString(" + key + ") FROM " + tableQ + " ORDER BY " + totalOrder + " LIMIT " + n
+        String limitByQuery = "SELECT " + key + " AS lb_key FROM " + tableQ + " ORDER BY " + totalOrder + " LIMIT " + n
                 + " BY " + key;
+        String query = "SELECT toString(max(cnt)) FROM (SELECT count() AS cnt FROM (" + limitByQuery + ") GROUP BY "
+                + "lb_key)";
 
-        List<String> keyValues = ComparatorHelper.getResultSetFirstColumnAsString(query, readErrors, state);
-        Map<String, Long> perKey = new LinkedHashMap<>();
-        for (String v : keyValues) {
-            perKey.merge(v == null ? "\\N" : v, 1L, Long::sum);
+        List<String> rows = ComparatorHelper.getResultSetFirstColumnAsString(query, readErrors, state);
+        if (rows.size() != 1 || rows.get(0) == null) {
+            throw new IgnoreMeException();
         }
-        for (Map.Entry<String, Long> e : perKey.entrySet()) {
-            if (e.getValue() > n) {
-                throw new AssertionError(String.format(
-                        "LimitRanking LIMIT-BY cap violation: key %s appears %d times but 'LIMIT %d BY %s' caps it at "
-                                + "%d.%n  Q: %s",
-                        e.getKey(), e.getValue(), n, key, n, query));
-            }
+        long maxPerKey;
+        try {
+            maxPerKey = Long.parseLong(rows.get(0).trim());
+        } catch (NumberFormatException e) {
+            throw new IgnoreMeException();
+        }
+        if (maxPerKey > n) {
+            throw new AssertionError(String.format(
+                    "LimitRanking LIMIT-BY cap violation: the most frequent key appears %d times but 'LIMIT %d BY %s' "
+                            + "caps it at %d.%n  Q: %s",
+                    maxPerKey, n, key, n, query));
         }
     }
 
