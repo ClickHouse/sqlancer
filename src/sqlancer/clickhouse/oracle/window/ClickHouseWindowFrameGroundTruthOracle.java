@@ -111,9 +111,214 @@ public class ClickHouseWindowFrameGroundTruthOracle implements TestOracle<ClickH
                 Probe probe = probes.get(i);
                 assertProbe(table, probe, expected(probe, model));
             }
+            if (state.getClickHouseOptions().groupsWindowFrameEmission) {
+                assertGroupsEqualsRowsOnUniqueKey(table);
+            }
         } finally {
             dropQuietly(table);
         }
+        if (state.getClickHouseOptions().groupsWindowFrameEmission) {
+            checkGroupsFrame();
+        }
+    }
+
+    private void assertGroupsEqualsRowsOnUniqueKey(String table) throws SQLException {
+        long offset = 1 + state.getRandomly().getInteger(0, 3);
+        String query = "SELECT toString(tuple(g, w)) FROM (SELECT sum(v) OVER (PARTITION BY p ORDER BY ord GROUPS "
+                + "BETWEEN " + offset + " PRECEDING AND CURRENT ROW) AS g, sum(v) OVER (PARTITION BY p ORDER BY ord "
+                + "ROWS BETWEEN " + offset + " PRECEDING AND CURRENT ROW) AS w FROM " + table + ") WHERE g != w";
+        logStmt(query);
+        List<String> violations = ComparatorHelper.getResultSetFirstColumnAsString(query, errors, state);
+        if (!violations.isEmpty()) {
+            throw new AssertionError(String.format(
+                    "GROUPS frame differs from the equivalent ROWS frame on a fixture whose window ORDER BY key is "
+                            + "unique per partition, so every peer group holds exactly one row and the two frames must "
+                            + "coincide. %d rows disagree (GROUPS, ROWS): %s%n  Q: %s",
+                    violations.size(), truncate(violations), query));
+        }
+    }
+
+    private void checkGroupsFrame() throws SQLException {
+        long id = CTR.incrementAndGet();
+        Randomly r = state.getRandomly();
+        String table = state.getDatabaseName() + ".wing_" + id;
+        String create = "CREATE TABLE " + table
+                + " (p UInt32, ord Int64, rid Int64, v Int64) ENGINE = MergeTree ORDER BY (p, ord, rid)";
+
+        int partitions = 2 + r.getInteger(0, 2);
+        List<List<List<Long>>> model = new ArrayList<>();
+
+        try {
+            logStmt(create);
+            if (!new SQLQueryAdapter(create, errors, true).execute(state)) {
+                throw new IgnoreMeException();
+            }
+
+            StringBuilder sb = new StringBuilder("INSERT INTO ").append(table).append(" (p, ord, rid, v) VALUES ");
+            boolean firstRow = true;
+            long rid = 0;
+            for (int p = 0; p < partitions; p++) {
+                int groups = 3 + r.getInteger(0, 5);
+                List<List<Long>> partitionGroups = new ArrayList<>();
+                long ord = 0;
+                for (int g = 0; g < groups; g++) {
+                    ord += 1 + r.getInteger(0, 5);
+                    int peers = 1 + r.getInteger(0, 3);
+                    List<Long> groupValues = new ArrayList<>();
+                    for (int i = 0; i < peers; i++) {
+                        long v = r.getInteger(-50, 51);
+                        groupValues.add(v);
+                        if (!firstRow) {
+                            sb.append(", ");
+                        }
+                        firstRow = false;
+                        sb.append('(').append(p).append(", ").append(ord).append(", ").append(rid++).append(", ")
+                                .append(v).append(')');
+                    }
+                    partitionGroups.add(groupValues);
+                }
+                model.add(partitionGroups);
+            }
+            if (firstRow) {
+                throw new IgnoreMeException();
+            }
+            logStmt(sb.toString());
+            if (!new SQLQueryAdapter(sb.toString(), errors, true).execute(state)) {
+                throw new IgnoreMeException();
+            }
+
+            for (GroupsProbe probe : GroupsProbe.values()) {
+                assertGroupsProbe(table, probe, expectedGroups(probe, model));
+            }
+            assertConstantKeyWholePartition();
+        } finally {
+            dropQuietly(table);
+        }
+    }
+
+    private void assertConstantKeyWholePartition() throws SQLException {
+        String query = "SELECT toString(tuple(g, whole)) FROM (SELECT sum(v) OVER (PARTITION BY p ORDER BY ord GROUPS "
+                + "BETWEEN 0 PRECEDING AND 0 FOLLOWING) AS g, sum(v) OVER (PARTITION BY p) AS whole FROM "
+                + "(SELECT number % 3 AS p, 7 AS ord, toInt64(number) AS v FROM numbers(30))) WHERE g != whole";
+        logStmt(query);
+        List<String> violations = ComparatorHelper.getResultSetFirstColumnAsString(query, errors, state);
+        if (!violations.isEmpty()) {
+            throw new AssertionError(String.format(
+                    "GROUPS BETWEEN 0 PRECEDING AND 0 FOLLOWING over a constant window ORDER BY key must cover the "
+                            + "whole partition (every row is one peer group), but %d rows disagree with the "
+                            + "whole-partition aggregate (GROUPS, whole): %s%n  Q: %s",
+                    violations.size(), truncate(violations), query));
+        }
+    }
+
+    private enum GroupsProbe {
+        PREFIX("sum(v) OVER (PARTITION BY p ORDER BY ord GROUPS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)"),
+        NEIGHBOR("sum(v) OVER (PARTITION BY p ORDER BY ord GROUPS BETWEEN 1 PRECEDING AND 1 FOLLOWING)"),
+        TRAILING_COUNT("count() OVER (PARTITION BY p ORDER BY ord GROUPS BETWEEN 2 PRECEDING AND CURRENT ROW)"),
+        CURRENT_GROUP_MIN("min(v) OVER (PARTITION BY p ORDER BY ord GROUPS BETWEEN CURRENT ROW AND CURRENT ROW)"),
+        SUFFIX_MAX("max(v) OVER (PARTITION BY p ORDER BY ord GROUPS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING)");
+
+        private final String windowExpr;
+
+        GroupsProbe(String windowExpr) {
+            this.windowExpr = windowExpr;
+        }
+    }
+
+    private static List<String> expectedGroups(GroupsProbe probe, List<List<List<Long>>> model) {
+        List<String> result = new ArrayList<>();
+        for (List<List<Long>> partition : model) {
+            int groups = partition.size();
+            for (int g = 0; g < groups; g++) {
+                int lo;
+                int hi;
+                switch (probe) {
+                case PREFIX:
+                    lo = 0;
+                    hi = g;
+                    break;
+                case NEIGHBOR:
+                    lo = Math.max(0, g - 1);
+                    hi = Math.min(groups - 1, g + 1);
+                    break;
+                case TRAILING_COUNT:
+                    lo = Math.max(0, g - 2);
+                    hi = g;
+                    break;
+                case CURRENT_GROUP_MIN:
+                    lo = g;
+                    hi = g;
+                    break;
+                case SUFFIX_MAX:
+                    lo = g;
+                    hi = groups - 1;
+                    break;
+                default:
+                    throw new AssertionError(probe.name());
+                }
+                String value = aggregateOverGroups(probe, partition, lo, hi);
+                for (int i = 0; i < partition.get(g).size(); i++) {
+                    result.add(value);
+                }
+            }
+        }
+        return result;
+    }
+
+    private static String aggregateOverGroups(GroupsProbe probe, List<List<Long>> partition, int lo, int hi) {
+        long sum = 0;
+        long count = 0;
+        long min = Long.MAX_VALUE;
+        long max = Long.MIN_VALUE;
+        for (int g = lo; g <= hi; g++) {
+            for (Long v : partition.get(g)) {
+                sum += v;
+                count++;
+                min = Math.min(min, v);
+                max = Math.max(max, v);
+            }
+        }
+        switch (probe) {
+        case PREFIX:
+        case NEIGHBOR:
+            return String.valueOf(sum);
+        case TRAILING_COUNT:
+            return String.valueOf(count);
+        case CURRENT_GROUP_MIN:
+            return String.valueOf(min);
+        case SUFFIX_MAX:
+            return String.valueOf(max);
+        default:
+            throw new AssertionError(probe.name());
+        }
+    }
+
+    private void assertGroupsProbe(String table, GroupsProbe probe, List<String> expected) throws SQLException {
+        String query = "SELECT toString(" + probe.windowExpr + ") FROM " + table + " ORDER BY p, ord, rid";
+        logStmt(query);
+        List<String> actual = ComparatorHelper.getResultSetFirstColumnAsString(query, errors, state);
+        if (actual.size() != expected.size()) {
+            throw new AssertionError(String.format(
+                    "GROUPS-frame ground-truth row-count mismatch (%s): Java expects %d rows but query returned %d. "
+                            + "Q: %s",
+                    probe.name(), expected.size(), actual.size(), query));
+        }
+        for (int i = 0; i < expected.size(); i++) {
+            if (!nullSafeEquals(expected.get(i), actual.get(i))) {
+                throw new AssertionError(String.format(
+                        "GROUPS-frame ground-truth mismatch (%s) at global row %d: the frame spans peer groups (rows "
+                                + "tied on the window ORDER BY key), Java expects %s but query returned %s. Q: %s",
+                        probe.name(), i, expected.get(i), actual.get(i), query));
+            }
+        }
+    }
+
+    private static String truncate(List<String> rows) {
+        int limit = 20;
+        if (rows.size() <= limit) {
+            return rows.toString();
+        }
+        return rows.subList(0, limit) + "... (" + rows.size() + " total)";
     }
 
     private static List<String> expected(Probe probe, List<List<Long>> model) {

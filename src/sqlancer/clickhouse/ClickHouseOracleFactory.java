@@ -17,6 +17,9 @@ import sqlancer.clickhouse.oracle.join.ClickHouseJoinAlgorithmOracle;
 import sqlancer.clickhouse.oracle.keycond.ClickHouseKeyConditionOracle;
 import sqlancer.clickhouse.oracle.keycond.ClickHouseFloatPruningOracle;
 import sqlancer.clickhouse.oracle.codec.ClickHouseCodecRoundtripOracle;
+import sqlancer.clickhouse.oracle.join.ClickHouseIEJoinOracle;
+import sqlancer.clickhouse.oracle.pipe.ClickHousePipeEquivalenceOracle;
+import sqlancer.clickhouse.oracle.final_.ClickHouseTupleFinalAggregationOracle;
 import sqlancer.clickhouse.oracle.materialize.ClickHouseSubqueryMaterializeOracle;
 import sqlancer.clickhouse.oracle.parallelism.ClickHouseParallelismOracle;
 import sqlancer.clickhouse.oracle.cte.ClickHouseMaterializedCteOracle;
@@ -780,6 +783,27 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseCodecRoundtripOracle(globalState);
+        }
+    },
+    PipeEquivalence {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHousePipeEquivalenceOracle(globalState);
+        }
+    },
+    IEJoin {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseIEJoinOracle(globalState);
+        }
+    },
+    TupleFinalAggregation {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseTupleFinalAggregationOracle(globalState);
         }
     }
 }

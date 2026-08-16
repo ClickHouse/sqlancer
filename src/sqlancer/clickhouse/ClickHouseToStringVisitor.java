@@ -402,6 +402,9 @@ public class ClickHouseToStringVisitor extends ToStringVisitor<ClickHouseExpress
                 }
                 visit(window.getOrderBy().get(i));
             }
+            if (window.getFrame() != null) {
+                sb.append(" ").append(window.getFrame());
+            }
         }
         sb.append(")");
     }

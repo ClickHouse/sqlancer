@@ -56,6 +56,7 @@ public class ClickHouseJoinAlgorithmOracle extends ClickHouseTLPBase {
         String qMerge = baseQuery + " SETTINGS join_algorithm = 'partial_merge', " + CAPS;
         String qGrace = baseQuery + " SETTINGS join_algorithm = 'grace_hash', grace_hash_join_initial_buckets = "
                 + Randomly.fromOptions(1, 4, 32) + ", " + CAPS;
+        String qParallelSort = baseQuery + " SETTINGS join_algorithm = 'parallel_full_sorting_merge', " + CAPS;
 
         List<String> rowsHash;
         try {
@@ -65,8 +66,10 @@ public class ClickHouseJoinAlgorithmOracle extends ClickHouseTLPBase {
         }
         List<String> rowsMerge = ComparatorHelper.getResultSetFirstColumnAsString(qMerge, errors, state);
         List<String> rowsGrace = ComparatorHelper.getResultSetFirstColumnAsString(qGrace, errors, state);
+        List<String> rowsParallelSort = ComparatorHelper.getResultSetFirstColumnAsString(qParallelSort, errors, state);
         ComparatorHelper.assumeResultSetsAreEqual(rowsHash, rowsMerge, qHash, List.of(qMerge), state);
         ComparatorHelper.assumeResultSetsAreEqual(rowsHash, rowsGrace, qHash, List.of(qGrace), state);
+        ComparatorHelper.assumeResultSetsAreEqual(rowsHash, rowsParallelSort, qHash, List.of(qParallelSort), state);
     }
 
     static boolean isAlgorithmDeterministic(ClickHouseJoin.JoinType type) {

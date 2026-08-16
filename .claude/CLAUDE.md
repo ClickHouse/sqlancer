@@ -202,6 +202,104 @@ excluded from the equality arm by allowlist and only have row count and NULL mas
 lossy DDL is rejected the oracle retries with a lossless float codec instead of dropping the
 iteration. `ALP` was also added to the general schema's float codec pool in `ClickHouseColumnBuilder`.
 
+## P1 coverage batch, 2026-08-16 (same plan, items 7-18)
+
+Three new oracles — `PipeEquivalence`, `IEJoin`, `TupleFinalAggregation` — plus arms on eight existing
+oracles and four generators. All wired into `run-sqlancer.sh`'s `ALL_ORACLES`.
+
+Validated on dev-vm head **26.8.1.1473**: a 30-minute full-fleet run over all 97 oracles except
+`TextIndexDirectRead` finished **162,814 queries, 0 reproducers, 0 threads shut down**. Every new arm was
+confirmed to actually execute, by counting it in `system.query_log` for that run: 7322 GROUPS frames, 8982
+trivial-count-from-text-index reads, 4005 `hasPhrase`, 2092 `ie_join` joins, 1046 tuple-aggregation reads,
+922 pipe queries, 685 negative LIMITs, 623 `uniq_v2` statistics statements, 562 chain-rewrite flips, 414
+`indexHint` reads, 246 `icu` tokenizer statements, 90 `parallel_full_sorting_merge` joins, and 6092 columns
+sitting in `Sparse` serialization. A preceding 15-minute run of only the new and changed oracles did 80,962
+queries and produced exactly two reproducers, both fixed here: a `DROP STATISTICS` versus in-flight-mutation
+DDL race (now tolerated) and the `indexHint` constant-truncation bug below (the arm no longer generates that
+shape). New flags (all default-on
+except the last): `--groups-window-frame-emission`, `--negative-limit-emission`,
+`--comparison-chain-emission`, `--index-hint-emission`, `--sparse-column-emission`,
+`--mixed-direction-sorting-key`, `--text-index-second-wave`, `--pipe-equivalence-oracle`,
+`--ie-join-oracle`, `--tuple-final-aggregation-oracle`, `--summing-subset-projection-arm` (**off**).
+
+**Probe head before trusting a plan entry.** Five of the twelve items needed a different shape than the plan
+assumed, and every one of those was caught by a 5-minute `clickhouse-client` probe against a fresh head
+rather than by reading a PR description:
+
+- **`indexHint` is NOT result-neutral.** It does not evaluate its argument as a filter, but it *does*
+  restrict the read to the granules index analysis selects, so rows outside them are legitimately dropped
+  (`WHERE indexHint(c0) AND (exp(c0) AND 2147483648)` = 5 rows, without the hint = 6). The oracle therefore
+  asserts containment, `rows(P AND Q) ⊆ rows(indexHint(P) AND Q) ⊆ rows(Q)`; the lower bound is the real
+  pruning-soundness assertion. **Never emit `indexHint` from `generatePredicate`** — granule-level semantics
+  inside a TLP partition make the three branches read different granule sets, so their union is no longer
+  the whole table.
+- **ASC→DESC is not an order reversal.** ClickHouse sorts NULLs last in *both* directions. Any oracle
+  building a "reverse total order" arm must write `ASC NULLS LAST` versus `DESC NULLS FIRST` explicitly, or
+  it reports a false positive the moment a nullable column holds NULL (cost two reproducers in the first
+  P1 validation run).
+- **Pipe operators wrap every stage in a subquery.** `FROM t |> WHERE p` analyses as
+  `SELECT * FROM (SELECT * FROM t) WHERE p`, so (a) a table-qualified column reference stops resolving after
+  stage 1 and (b) MATERIALIZED and ALIAS columns vanish, because `SELECT *` does not carry them. The
+  `PipeEquivalence` oracle is single-relation and uses unqualified, star-visible columns only. Ignoring
+  either rule produced 1184 Code-47 reproducers in one 12-minute run.
+- **IEJoin has nothing to sweep against.** The value is `ie_join` (not `iejoin`), and every other algorithm
+  rejects a two-inequality ON with `INVALID_JOIN_ON_EXPRESSION`, so the reference arm is the equivalent
+  `CROSS JOIN ... WHERE`. `EXPLAIN` prints an `IEJoin` step, which is how the arm is confirmed non-decorative.
+- **Per-element Tuple aggregation is gated** behind the `allow_tuple_element_aggregation` MergeTree setting
+  (default 0) and covers SummingMergeTree and CoalescingMergeTree only; a plain `Tuple` is not an aggregate
+  state, so AggregatingMergeTree keeps the first row and is excluded from the oracle.
+- **`null_count` statistics do not exist**; head accepts `basic`, `countmin`, `minmax`, `tdigest`, `uniq`,
+  `uniq_v2`. `auto_statistics_types` and `materialize_statistics_on_merge` are *MergeTree* settings, while
+  `use_statistics_for_part_pruning` and `materialize_statistics_on_insert` are *query* settings.
+- **The Japanese text tokenizer needs a server dictionary** (`<tokenizer><japanese>`; `NO_ELEMENTS_IN_CONFIG`
+  on the first INSERT) and there is no posting-list apply-mode setting on head, so those two item-13
+  sub-items are unreachable. `icu` needs its locale as a mandatory function argument (`icu('en')`), and it
+  was probed index-vs-scan equal on startsWith / endsWith / multiSearchAny / hasToken / hasAllTokens /
+  hasAnyTokens / LIKE / ILIKE, so unlike the tokenizers in the #107186 family it is safe for the general
+  pool.
+
+**Sparse serialization now actually engages** (item 15): `ratio_of_defaults_for_sparse_serialization` is set
+at a low value on about half of generated tables and a random subset of plain-MergeTree columns is filled
+with the type default ~94% of the time. Verified via `system.parts_columns.serialization_kind = 'Sparse'`.
+Never applied to a dedupe engine's table, so rule C2 is untouched. Side effect worth knowing: a
+default-heavy `String` column makes the pre-existing "cannot parse `''` as a number" noise family more
+frequent, which is why `ClickHouseStatsToggleOracle` now pulls in `addExpectedExpressionErrors`.
+
+### Known-open bugs the 2026-08-16 P1 batch fires on
+
+- **UNFILED — an integer constant inside `indexHint` is narrowed to UInt8 during index analysis.** Any
+  multiple of 256 therefore reads as false, the key condition becomes unsatisfiable and every granule is
+  pruned, while the same constant in a plain WHERE is truthy. Same family as
+  [#112236](https://github.com/ClickHouse/ClickHouse/issues/112236) (leftover WHERE conjunct rebuilt with a
+  truncating CAST to UInt8). Confirmed on head 26.8.1.1471. The KeyCondition oracle's `indexHint` argument is
+  deliberately built as a `<column> <op> <constant>` comparison so the arm does not keep re-finding this:
+  with the fuzzer's `256` / `65536` / `2147483648` literal pool a free-form hint argument hits it constantly.
+  ```sql
+  CREATE TABLE t (c0 Int64) ENGINE = MergeTree ORDER BY c0;
+  INSERT INTO t VALUES (1),(2),(3);
+  SELECT count() FROM t WHERE 256 AND c0 > 0;             -- 3
+  SELECT count() FROM t WHERE indexHint(256) AND c0 > 0;  -- 0, must be 3
+  SELECT count() FROM t WHERE indexHint(1) AND c0 > 0;    -- 3, so it is the value, not indexHint itself
+  ```
+
+- **UNFILED — `optimize_aggregation_in_order` collapses every GROUP BY group over a DESC sorting key.**
+  Found by item 18's mixed-direction key emission plus the `ReadInOrderToggle` oracle, confirmed on head
+  26.8.1.1471. Same family as [#111901](https://github.com/ClickHouse/ClickHouse/issues/111901) (which is
+  filed for the two-column `(a, b DESC)` case); the single-column form below is a strictly smaller repro and
+  is not on that issue. Needs one part: with three separate parts it does not fire. Type-independent
+  (reproduced on Int64, UInt128, Int128, String). Triage by `optimize_aggregation_in_order = 1` plus a
+  `DESC` sorting key in the reproducer's DDL.
+  ```sql
+  CREATE TABLE t (c Int64) ENGINE = MergeTree ORDER BY c DESC;
+  INSERT INTO t VALUES (1),(2),(3);
+  SELECT c, count() FROM t GROUP BY c SETTINGS optimize_aggregation_in_order = 1;  -- 1 row: (3,3) WRONG
+  SELECT c, count() FROM t GROUP BY c SETTINGS optimize_aggregation_in_order = 0;  -- 3 rows, correct
+  -- the two-column (a, b DESC) form of #111901 also still reproduces:
+  CREATE TABLE t2 (a Int64, b Int64) ENGINE = MergeTree ORDER BY (a, b DESC);
+  INSERT INTO t2 VALUES (1,1),(1,2),(2,1);
+  SELECT a, b, count() FROM t2 GROUP BY a, b SETTINGS optimize_aggregation_in_order = 1;  -- 2 rows WRONG
+  ```
+
 ### Known-open bugs the 2026-08-15 batch deliberately fires on
 
 Triage a run by these first; they are expected noise on a current head, not regressions.

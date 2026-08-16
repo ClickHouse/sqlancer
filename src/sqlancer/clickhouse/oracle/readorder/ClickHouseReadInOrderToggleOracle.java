@@ -62,7 +62,10 @@ public class ClickHouseReadInOrderToggleOracle implements TestOracle<ClickHouseG
 
         String projection = "toString(tuple("
                 + orderableCols.stream().map(c -> ref(c.getName())).collect(Collectors.joining(", ")) + "))";
-        String orderBy = orderableCols.stream().map(c -> ref(c.getName()) + " ASC").collect(Collectors.joining(", "));
+        boolean mixedDirections = Randomly.getBoolean();
+        String orderBy = orderableCols.stream()
+                .map(c -> ref(c.getName()) + (mixedDirections && Randomly.getBoolean() ? " DESC" : " ASC"))
+                .collect(Collectors.joining(", "));
         int limit = Randomly.fromOptions(1, 5, 20);
 
         String base = "SELECT " + projection + " FROM " + table.getName() + " ORDER BY " + orderBy + " LIMIT " + limit;
@@ -86,16 +89,28 @@ public class ClickHouseReadInOrderToggleOracle implements TestOracle<ClickHouseG
         if (keyCols.isEmpty()) {
             throw new IgnoreMeException();
         }
-        ClickHouseColumn key = keyCols.get((int) Randomly.getNotCachedInteger(0, keyCols.size()));
+        List<ClickHouseColumn> groupKeys = new java.util.ArrayList<>();
+        groupKeys.add(keyCols.get((int) Randomly.getNotCachedInteger(0, keyCols.size())));
+        if (keyCols.size() > 1 && Randomly.getBoolean()) {
+            ClickHouseColumn second = keyCols.get((int) Randomly.getNotCachedInteger(0, keyCols.size()));
+            if (!second.getName().equals(groupKeys.get(0).getName())) {
+                groupKeys.add(second);
+            }
+        }
 
         List<ClickHouseColumn> intCols = table.getColumns().stream()
                 .filter(c -> isExactInteger(c.getType().getType())).collect(Collectors.toList());
         String sumArg = intCols.isEmpty() ? "0"
                 : ref(intCols.get((int) Randomly.getNotCachedInteger(0, intCols.size())).getName());
 
-        String keyRef = ref(key.getName());
-        String projection = "toString(tuple(" + keyRef + ", count(), sum(" + sumArg + ")))";
-        String base = "SELECT " + projection + " FROM " + table.getName() + " GROUP BY " + keyRef;
+        String keyRefs = groupKeys.stream().map(c -> ref(c.getName())).collect(Collectors.joining(", "));
+        String projection = "toString(tuple(" + keyRefs + ", count(), sum(" + sumArg + ")))";
+        String base = "SELECT " + projection + " FROM " + table.getName() + " GROUP BY " + keyRefs;
+        if (Randomly.getBoolean()) {
+            base += " ORDER BY " + groupKeys.stream()
+                    .map(c -> ref(c.getName()) + (Randomly.getBoolean() ? " DESC" : " ASC"))
+                    .collect(Collectors.joining(", "));
+        }
         String on = base + ARM_ON;
         String off = base + ARM_OFF;
 

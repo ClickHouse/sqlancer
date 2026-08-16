@@ -101,14 +101,32 @@ public class ClickHouseSettingFlipOracle implements TestOracle<ClickHouseGlobalS
             groupBy = " GROUP BY " + keyName;
         }
 
+        if (state.getClickHouseOptions().comparisonChainEmission && Randomly.getBoolean()) {
+            ClickHouseExpression chain = gen.generateComparisonChain(columns);
+            if (chain != null) {
+                whereClause = " WHERE " + ClickHouseToStringVisitor.asString(chain);
+            }
+        }
+
         String base = "SELECT " + projection + " FROM " + table.getName() + whereClause + groupBy;
-        String[] flip = NEUTRAL_SETTINGS[(int) Randomly.getNotCachedInteger(0, NEUTRAL_SETTINGS.length)];
+        String[] flip = pickFlip(whereClause);
         String queryA = base + " SETTINGS " + flip[0] + " = " + flip[1];
         String queryB = base + " SETTINGS " + flip[0] + " = " + flip[2];
 
         List<String> rowsA = ComparatorHelper.getResultSetFirstColumnAsString(queryA, errors, state);
         List<String> rowsB = ComparatorHelper.getResultSetFirstColumnAsString(queryB, errors, state);
         ComparatorHelper.assumeResultSetsAreEqual(rowsA, rowsB, queryA, List.of(queryB), state);
+    }
+
+    private static final String[][] CHAIN_REWRITE_SETTINGS = { { "optimize_or_like_chain", "1", "0" },
+            { "optimize_and_compare_chain", "1", "0" }, { "convert_query_to_cnf", "1", "0" } };
+
+    private String[] pickFlip(String whereClause) {
+        if (!whereClause.isEmpty() && state.getClickHouseOptions().comparisonChainEmission
+                && Randomly.getBoolean()) {
+            return CHAIN_REWRITE_SETTINGS[(int) Randomly.getNotCachedInteger(0, CHAIN_REWRITE_SETTINGS.length)];
+        }
+        return NEUTRAL_SETTINGS[(int) Randomly.getNotCachedInteger(0, NEUTRAL_SETTINGS.length)];
     }
 
     private static boolean isScalarGroupKey(ClickHouseDataType t) {

@@ -30,8 +30,10 @@ class ClickHouseStatsToggleOracleTest {
         String select = "SELECT toString(tuple(`c0`)) FROM t0 WHERE (`c0` < 5)";
         String[] pair = ClickHouseStatsToggleOracle.renderDifferentialPair(select, false);
         assertEquals(2, pair.length);
-        assertEquals(select + " SETTINGS use_statistics = 1, allow_statistics_optimize = 1", pair[0]);
-        assertEquals(select + " SETTINGS use_statistics = 0, allow_statistics_optimize = 0", pair[1]);
+        assertEquals(select + " SETTINGS use_statistics = 1, allow_statistics_optimize = 1, "
+                + "use_statistics_for_part_pruning = 1", pair[0]);
+        assertEquals(select + " SETTINGS use_statistics = 0, allow_statistics_optimize = 0, "
+                + "use_statistics_for_part_pruning = 0", pair[1]);
     }
 
     @Test
@@ -39,9 +41,9 @@ class ClickHouseStatsToggleOracleTest {
 
         String[] pair = ClickHouseStatsToggleOracle.renderDifferentialPair("SELECT 1", true);
         assertEquals("SELECT 1 SETTINGS use_statistics = 1, allow_statistics_optimize = 1, "
-                + "query_plan_optimize_join_order_limit = 0", pair[0]);
+                + "use_statistics_for_part_pruning = 1, query_plan_optimize_join_order_limit = 0", pair[0]);
         assertEquals("SELECT 1 SETTINGS use_statistics = 0, allow_statistics_optimize = 0, "
-                + "query_plan_optimize_join_order_limit = 0", pair[1]);
+                + "use_statistics_for_part_pruning = 0, query_plan_optimize_join_order_limit = 0", pair[1]);
     }
 
     @Test
@@ -64,7 +66,10 @@ class ClickHouseStatsToggleOracleTest {
 
     @Test
     void kindPoolMatchesTheStatisticsGenerators() {
-        assertEquals(List.of("tdigest", "uniq", "countmin", "minmax"), ClickHouseStatsToggleOracle.STATISTICS_KINDS);
+        assertEquals(List.of("tdigest", "uniq", "countmin", "minmax", "uniq_v2", "basic"),
+                ClickHouseStatsToggleOracle.STATISTICS_KINDS);
+        assertEquals(ClickHouseStatsToggleOracle.STATISTICS_KINDS,
+                sqlancer.clickhouse.gen.ClickHouseStatisticsGenerator.KINDS);
     }
 
     @Test
@@ -77,7 +82,9 @@ class ClickHouseStatsToggleOracleTest {
     void stalenessSequenceOrdersCreateInsertStatsMaterialize() {
         List<String> seq = ClickHouseStatsToggleOracle.renderStalenessSetup("db.stats_1_t", 750, "tdigest", "minmax");
         assertEquals(7, seq.size());
-        assertEquals("CREATE TABLE db.stats_1_t (k Int32, v Int64) ENGINE = MergeTree ORDER BY k", seq.get(0));
+        assertTrue(seq.get(0).startsWith("CREATE TABLE db.stats_1_t (k Int32, v Int64) ENGINE = MergeTree ORDER BY k "
+                + "SETTINGS auto_statistics_types = '"), seq.get(0));
+        assertTrue(seq.get(0).contains("materialize_statistics_on_merge = "), seq.get(0));
         assertEquals("INSERT INTO db.stats_1_t SELECT toInt32(if(number % 4 = 3, number, number % 3)), "
                 + "toInt64(number % 11) FROM numbers(750)", seq.get(1));
         assertEquals("ALTER TABLE db.stats_1_t ADD STATISTICS IF NOT EXISTS k TYPE tdigest", seq.get(2));
@@ -184,10 +191,10 @@ class ClickHouseStatsToggleOracleTest {
     }
 
     @Test
-    void kindRotationCoversEveryKindWithinFourIterations() {
+    void kindRotationCoversEveryKind() {
         Set<String> seenK = new HashSet<>();
         Set<String> seenV = new HashSet<>();
-        for (long id = 1; id <= 4; id++) {
+        for (long id = 1; id <= ClickHouseStatsToggleOracle.STATISTICS_KINDS.size(); id++) {
             seenK.add(ClickHouseStatsToggleOracle.kindForIteration(id, 0));
             seenV.add(ClickHouseStatsToggleOracle.kindForIteration(id, 1));
         }

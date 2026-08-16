@@ -228,6 +228,39 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--low-cardinality-equivalence-oracle", description = "LowCardinalityEquivalence oracle: over a private fixture with paired plain/LowCardinality columns (Int32, String, Nullable(Int32), FixedString(4)) holding identical values, any read (row projection / GROUP BY / uniqExact / predicate) over the plain columns must equal the same read over the LowCardinality twins.", arity = 1)
     public boolean lowCardinalityEquivalenceOracle = true;
 
+    @Parameter(names = "--groups-window-frame-emission", description = "Let the window-function generator attach an explicit frame clause, including the GROUPS frame mode added by PR #108653 (offsets count peer groups, not rows). ROWS and RANGE frames are emitted too; before this the generator emitted no frame clause at all, so every window call used the implicit default frame. The WindowFrameGroundTruth oracle grows a matching GROUPS arm with a tie-forming fixture and a Java peer-group ground truth.", arity = 1)
+    public boolean groupsWindowFrameEmission = true;
+
+    @Parameter(names = "--negative-limit-emission", description = "Let the LimitRanking oracle emit the negative LIMIT forms (LIMIT -n, LIMIT -n BY k, LIMIT -n WITH TIES) added by PR #103222 / PR #100930 and rewritten by PR #106502. LIMIT -n BY k takes the LAST n rows per key, so the sound assertion is that it equals LIMIT n BY k over the reverse total order (one fixture, multiset compare).", arity = 1)
+    public boolean negativeLimitEmission = true;
+
+    @Parameter(names = "--comparison-chain-emission", description = "Emit long homogeneous predicate chains -- 'col LIKE a% OR col LIKE b% OR ...' and 'col != 1 AND col != 2 AND ... AND col < n' (sometimes with a deliberately conflicting conjunct) -- so that optimize_or_like_chain (default-on since PR #94517) and optimize_and_compare_chain (PR #99736) actually fire. Without a chain shape neither rewrite is reachable. The SettingFlip oracle gains a dedicated arm that toggles both plus convert_query_to_cnf over such a chain.", arity = 1)
+    public boolean comparisonChainEmission = true;
+
+    @Parameter(names = "--index-hint-emission", description = "Enable the KeyCondition oracle's indexHint arm: rows(P AND Q) must be a sub-multiset of rows(indexHint(P) AND Q), which in turn must be a sub-multiset of rows(Q). indexHint(P) does NOT evaluate P as a filter, but it is not result-neutral either -- it restricts the read to the granules index analysis selects for P, so a row outside those granules is legitimately dropped (measured on head 26.8.1.1471). The lower bound is the pruning-soundness assertion that matters: a row satisfying P AND Q that indexHint(P) AND Q loses means index analysis pruned a granule holding a matching row. Deliberately NOT emitted into the general fleet's generatePredicate: with granule-level semantics inside a TLP partition, P / NOT P / P IS NULL read different granule sets and their union is no longer the whole table.", arity = 1)
+    public boolean indexHintEmission = true;
+
+    @Parameter(names = "--sparse-column-emission", description = "Make sparse serialization actually engage in fuzzed tables: set ratio_of_defaults_for_sparse_serialization explicitly at a low value in CREATE TABLE about half the time, and bias a random subset of columns of plain-MergeTree tables overwhelmingly towards the type default on INSERT. Sparse columns have a separate read path, a separate default-filling path and (since PR #105890) separate pruning and trivial-count logic; every existing pruning/count/FINAL oracle then covers them for free. Never applied to a dedupe engine's table, so the C2 rule on key-domain degeneracy is untouched.", arity = 1)
+    public boolean sparseColumnEmission = true;
+
+    @Parameter(names = "--mixed-direction-sorting-key", description = "Let the table generator emit descending and mixed-direction sorting keys (ORDER BY (a, b DESC), ORDER BY a DESC). Read-in-order and aggregation-in-order only take their non-uniform code path for such a key, which is where #111901 (optimize_aggregation_in_order over (a, b DESC) collapses GROUP BY groups) lives. A DESC key suppresses the PRIMARY KEY prefix and SAMPLE BY clauses for that table, and is never emitted for a dedupe engine.", arity = 1)
+    public boolean mixedDirectionSortingKey = true;
+
+    @Parameter(names = "--text-index-second-wave", description = "Enable the second-wave text-index arms: the icu('<locale>') tokenizer, hasPhrase with a Java token-position ground truth (needs allow_experimental_text_index_phrase_search = 1), the trivial-count-from-text-index arm (query_plan_optimize_count_from_text_index on vs off vs use_skip_indexes = 0), and text index parameters supplied via table settings instead of inline index arguments. The Japanese/MeCab tokenizer is deliberately absent: it needs a server-side <tokenizer><japanese> dictionary that the fuzzer's container does not carry.", arity = 1)
+    public boolean textIndexSecondWave = true;
+
+    @Parameter(names = "--pipe-equivalence-oracle", description = "PipeEquivalence oracle: one generated single-relation read rendered in classic SQL and in pipe-operator syntax (PR #111151) must return the same rows. Second renderer over one AST, the MaterializedColumnVisitor pattern. Restricted to a single relation on purpose -- each pipe stage is wrapped in a subquery, so a qualified name from a multi-relation FROM list stops resolving after the first stage.", arity = 1)
+    public boolean pipeEquivalenceOracle = true;
+
+    @Parameter(names = "--ie-join-oracle", description = "IEJoin oracle: a join whose ON has two inequality comparisons (the shape that activates the IEJoin algorithm of PR #109920) must return the same rows as the equivalent CROSS JOIN + WHERE. Other join algorithms cannot answer that ON shape at all (INVALID_JOIN_ON_EXPRESSION), so the cross-join rewrite, not an algorithm sweep, is the reference arm. Small fixtures by construction, since a non-equi join is quadratic.", arity = 1)
+    public boolean ieJoinOracle = true;
+
+    @Parameter(names = "--tuple-final-aggregation-oracle", description = "TupleFinalAggregation oracle: per-element aggregation of Tuple columns in SummingMergeTree and CoalescingMergeTree (PR #98039, gated by the allow_tuple_element_aggregation table setting) == a Java element-wise ground truth, and query-time FINAL == the result after a physical OPTIMIZE ... FINAL. Integer tuple elements only (C3), full projections only. AggregatingMergeTree is excluded: a plain Tuple is not an aggregate state there, so its FINAL legitimately keeps the first row.", arity = 1)
+    public boolean tupleFinalAggregationOracle = true;
+
+    @Parameter(names = "--summing-subset-projection-arm", description = "Enable the TupleFinalAggregation oracle's subset-projection arm, which reads only some of a SummingMergeTree's summed columns under query-time FINAL. Default false: this is a positive-control detector for the still-open #106125 (query-time FINAL applies the all-zero-row-deletion rule over only the columns the query reads), which reproduces on every current head, so with the arm on the oracle asserts on essentially every iteration -- the FloatPruning/TextIndexDirectRead situation. Turn it on to demonstrate #106125, not for fleet runs.", arity = 1)
+    public boolean summingSubsetProjectionArm;
+
     @Override
     public List<ClickHouseOracleFactory> getTestOracleFactory() {
         return oracle;

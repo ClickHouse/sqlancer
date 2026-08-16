@@ -106,8 +106,8 @@ class ClickHouseSelectArrayJoinTest {
 
         String rendered = ClickHouseVisitor.asString(select);
         int arrayJoinIdx = rendered.indexOf("ARRAY JOIN");
-        int joinIdx = rendered.indexOf(" JOIN t2");
+        int joinIdx = rendered.indexOf(", t2");
         assertTrue(arrayJoinIdx >= 0 && joinIdx > arrayJoinIdx,
-                "ARRAY JOIN must come before regular JOIN, got: " + rendered);
+                "ARRAY JOIN must come before the comma-joined relation, got: " + rendered);
     }
 }

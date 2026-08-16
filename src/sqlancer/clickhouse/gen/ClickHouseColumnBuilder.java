@@ -27,9 +27,10 @@ public class ClickHouseColumnBuilder {
         DEFAULT, MATERIALIZED, CODEC, STATISTICS, ALIAS, EPHEMERAL
     }
 
-    private static final List<String> STATISTICS_KINDS_NUMERIC = List.of("tdigest", "uniq", "countmin", "minmax");
-    private static final List<String> STATISTICS_KINDS_STRING = List.of("uniq", "countmin");
-    private static final List<String> STATISTICS_KINDS_OTHER = List.of("uniq");
+    private static final List<String> STATISTICS_KINDS_NUMERIC = List.of("tdigest", "uniq", "countmin", "minmax",
+            "uniq_v2", "basic");
+    private static final List<String> STATISTICS_KINDS_STRING = List.of("uniq", "countmin", "uniq_v2", "basic");
+    private static final List<String> STATISTICS_KINDS_OTHER = List.of("uniq", "uniq_v2");
 
     public String createColumn(String columnName, ClickHouseProvider.ClickHouseGlobalState globalState,
             List<ClickHouseSchema.ClickHouseColumn> columns) {
