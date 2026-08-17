@@ -21,6 +21,7 @@ public class ClickHouseInsertGenerator extends AbstractInsertGenerator<ClickHous
     private final ClickHouseExpressionGenerator gen;
 
     private boolean signConstrained;
+    private java.util.Set<String> defaultHeavyColumns = java.util.Collections.emptySet();
 
     public ClickHouseInsertGenerator(ClickHouseGlobalState globalState) {
         this.globalState = globalState;
@@ -58,7 +59,64 @@ public class ClickHouseInsertGenerator extends AbstractInsertGenerator<ClickHous
             }
             columns = withSign;
         }
+        defaultHeavyColumns = pickDefaultHeavyColumns(table, columns);
         buildInsertInto(table.getName(), columns);
+    }
+
+    private java.util.Set<String> pickDefaultHeavyColumns(ClickHouseTable table, List<ClickHouseColumn> columns) {
+        if (!globalState.getClickHouseOptions().sparseColumnEmission || !"MergeTree".equals(table.getEngine())
+                || Randomly.getBoolean()) {
+            return java.util.Collections.emptySet();
+        }
+        java.util.Set<String> picked = new java.util.HashSet<>();
+        for (ClickHouseColumn c : columns) {
+            if (defaultLiteral(c) != null && Randomly.getBoolean()) {
+                picked.add(c.getName());
+            }
+        }
+        return picked;
+    }
+
+    private static String defaultLiteral(ClickHouseColumn column) {
+        sqlancer.clickhouse.ClickHouseType term = column.getType().getTypeTerm();
+        if (term instanceof sqlancer.clickhouse.ClickHouseType.Nullable) {
+            return "NULL";
+        }
+        sqlancer.clickhouse.ClickHouseType unwrapped = term.unwrap();
+        if (unwrapped instanceof sqlancer.clickhouse.ClickHouseType.Array) {
+            return "[]";
+        }
+        if (unwrapped instanceof sqlancer.clickhouse.ClickHouseType.FixedString) {
+            return "''";
+        }
+        switch (column.getType().getType()) {
+        case Int8:
+        case Int16:
+        case Int32:
+        case Int64:
+        case Int128:
+        case Int256:
+        case UInt8:
+        case UInt16:
+        case UInt32:
+        case UInt64:
+        case UInt128:
+        case UInt256:
+        case Float32:
+        case Float64:
+        case Bool:
+            return "0";
+        case String:
+            return "''";
+        case Date:
+        case Date32:
+            return "'1970-01-01'";
+        case DateTime:
+        case DateTime32:
+            return "'1970-01-01 00:00:00'";
+        default:
+            return null;
+        }
     }
 
     @Override
@@ -66,6 +124,13 @@ public class ClickHouseInsertGenerator extends AbstractInsertGenerator<ClickHous
         if (signConstrained && column.getType().getType() == ClickHouseDataType.Int8) {
             sb.append(Randomly.getBoolean() ? "1" : "-1");
             return;
+        }
+        if (defaultHeavyColumns.contains(column.getName()) && !Randomly.getBooleanWithSmallProbability()) {
+            String literal = defaultLiteral(column);
+            if (literal != null) {
+                sb.append(literal);
+                return;
+            }
         }
         String s = ClickHouseToStringVisitor.asString(gen.generateConstant(column.getType()));
         sb.append(s);

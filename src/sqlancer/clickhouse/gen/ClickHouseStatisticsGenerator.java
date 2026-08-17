@@ -12,9 +12,16 @@ import sqlancer.clickhouse.ast.ClickHouseAlterStatistics;
 
 public final class ClickHouseStatisticsGenerator {
 
-    private static final List<String> KINDS = List.of("tdigest", "uniq", "countmin", "minmax");
+    public static final List<String> KINDS = List.of("tdigest", "uniq", "countmin", "minmax", "uniq_v2", "basic");
 
     private ClickHouseStatisticsGenerator() {
+    }
+
+    public static String pickKinds() {
+        List<String> pool = new java.util.ArrayList<>(KINDS);
+        java.util.Collections.shuffle(pool, new java.util.Random(Randomly.getNotCachedInteger(0, Integer.MAX_VALUE)));
+        int n = 1 + (int) Randomly.getNotCachedInteger(0, 2);
+        return String.join(", ", pool.subList(0, Math.min(n, pool.size())));
     }
 
     public static ClickHouseAlterStatistics buildStatement(ClickHouseGlobalState state) {
@@ -24,15 +31,22 @@ public final class ClickHouseStatisticsGenerator {
             throw new IgnoreMeException();
         }
         ClickHouseTable table = Randomly.fromList(tables);
-        ClickHouseColumn col = Randomly.fromList(table.getColumns());
+        List<ClickHouseColumn> statisticsColumns = table.getColumns().stream().filter(c -> !c.isAlias())
+                .collect(Collectors.toList());
+        if (statisticsColumns.isEmpty()) {
+            throw new IgnoreMeException();
+        }
+        ClickHouseColumn col = Randomly.fromList(statisticsColumns);
         String fq = state.getDatabaseName() + "." + table.getName();
 
         ClickHouseAlterStatistics.Kind kind = Randomly.fromOptions(ClickHouseAlterStatistics.Kind.values());
         String sql;
         switch (kind) {
+        case ADD_STATISTICS:
+            sql = "ALTER TABLE " + fq + " ADD STATISTICS IF NOT EXISTS " + col.getName() + " TYPE " + pickKinds();
+            break;
         case MODIFY_STATISTICS:
-            String kind1 = Randomly.fromList(KINDS);
-            sql = "ALTER TABLE " + fq + " MODIFY STATISTICS " + col.getName() + " TYPE " + kind1;
+            sql = "ALTER TABLE " + fq + " MODIFY STATISTICS " + col.getName() + " TYPE " + pickKinds();
             break;
         case MATERIALIZE_STATISTICS:
             sql = "ALTER TABLE " + fq + " MATERIALIZE STATISTICS " + col.getName();

@@ -52,12 +52,23 @@ public class ClickHouseTextIndexLifecycleOracle implements TestOracle<ClickHouse
         String tableB = state.getDatabaseName() + ".txtlc_" + id + "_b";
         Randomly r = state.getRandomly();
 
+        boolean secondWave = state.getClickHouseOptions().textIndexSecondWave;
         boolean splitByNonAlpha = r.getInteger(0, 4) != 0;
-        String indexType = splitByNonAlpha ? "text(tokenizer = 'splitByNonAlpha')" : "text(tokenizer = ngrams(3))";
+        String indexType;
+        if (splitByNonAlpha) {
+            indexType = "text(tokenizer = 'splitByNonAlpha')";
+        } else if (secondWave && Randomly.getBoolean()) {
+            indexType = "text(tokenizer = icu('" + Randomly.fromOptions("en", "de", "fr", "ja") + "'))";
+        } else {
+            indexType = "text(tokenizer = ngrams(3))";
+        }
+        boolean phraseSearch = secondWave && splitByNonAlpha;
+        String tableSettings = renderTableSettings(secondWave, phraseSearch);
 
         String createA = "CREATE TABLE " + tableA + " (k UInt32, s String, INDEX " + INDEX_NAME + " (s) TYPE "
-                + indexType + " GRANULARITY 1) ENGINE = MergeTree ORDER BY k";
-        String createB = "CREATE TABLE " + tableB + " (k UInt32, s String) ENGINE = MergeTree ORDER BY k";
+                + indexType + " GRANULARITY 1) ENGINE = MergeTree ORDER BY k" + tableSettings;
+        String createB = "CREATE TABLE " + tableB + " (k UInt32, s String) ENGINE = MergeTree ORDER BY k"
+                + tableSettings;
 
         List<String> corpus = new ArrayList<>();
         try {
@@ -101,11 +112,17 @@ public class ClickHouseTextIndexLifecycleOracle implements TestOracle<ClickHouse
                 throw new IgnoreMeException();
             }
 
-            for (String predicate : predicateBattery(r, splitByNonAlpha)) {
+            for (String predicate : predicateBattery(r, splitByNonAlpha, phraseSearch)) {
                 List<String> keysA = keys(tableA, predicate, "");
                 List<String> keysB = keys(tableB, predicate, "");
                 List<String> keysScan = keys(tableB, predicate, " SETTINGS use_skip_indexes = 0");
 
+                if (secondWave) {
+                    assertTrivialCountAgrees(tableA, predicate, keysScan.size(), indexType);
+                }
+                if (predicate.startsWith("hasPhrase(")) {
+                    assertPhraseGroundTruth(corpus, predicate, keysA, indexType);
+                }
                 if (!keysA.equals(keysScan)) {
                     throw new AssertionError(String.format(
                             "text-index lifecycle mismatch (born-with-index vs scan): predicate %s. A keys %s vs "
@@ -125,7 +142,22 @@ public class ClickHouseTextIndexLifecycleOracle implements TestOracle<ClickHouse
         }
     }
 
-    private static List<String> predicateBattery(Randomly r, boolean splitByNonAlpha) {
+    private static String renderTableSettings(boolean secondWave, boolean phraseSearch) {
+        List<String> settings = new ArrayList<>();
+        if (phraseSearch) {
+            settings.add("allow_experimental_text_index_phrase_search = 1");
+        }
+        if (secondWave && Randomly.getBoolean()) {
+            settings.add("text_index_dictionary_block_size = " + Randomly.fromOptions(64, 128, 512, 4096));
+            settings.add("text_index_dictionary_block_frontcoding_compression = " + Randomly.fromOptions(0, 1));
+        }
+        if (secondWave && Randomly.getBoolean()) {
+            settings.add("text_index_posting_list_block_size = " + Randomly.fromOptions(4096, 65536, 1048576));
+        }
+        return settings.isEmpty() ? "" : " SETTINGS " + String.join(", ", settings);
+    }
+
+    private static List<String> predicateBattery(Randomly r, boolean splitByNonAlpha, boolean phraseSearch) {
         List<String> vocab = ClickHouseTextIndexLikeOracle.TOKEN_VOCABULARY;
         String w1 = ClickHouseTextIndexLikeOracle.escapeStringLiteral(vocab.get(r.getInteger(0, vocab.size())));
         String w2 = ClickHouseTextIndexLikeOracle.escapeStringLiteral(vocab.get(r.getInteger(0, vocab.size())));
@@ -136,7 +168,75 @@ public class ClickHouseTextIndexLifecycleOracle implements TestOracle<ClickHouse
             battery.add("hasAllTokens(s, '" + w1 + " " + w2 + "')");
             battery.add("hasAnyTokens(s, '" + w1 + " " + w2 + "')");
         }
+        if (phraseSearch) {
+            battery.add("hasPhrase(s, '" + w1 + " " + w2 + "')");
+        }
         return battery;
+    }
+
+    private void assertTrivialCountAgrees(String table, String predicate, int expected, String indexType)
+            throws SQLException {
+        String optimized = "SELECT toString(count()) FROM " + table + " WHERE " + predicate
+                + " SETTINGS query_plan_optimize_count_from_text_index = 1";
+        String plain = "SELECT toString(count()) FROM " + table + " WHERE " + predicate
+                + " SETTINGS query_plan_optimize_count_from_text_index = 0, use_skip_indexes = 0";
+        logStmt(optimized);
+        List<String> optimizedRows = ComparatorHelper.getResultSetFirstColumnAsString(optimized, readErrors, state);
+        logStmt(plain);
+        List<String> plainRows = ComparatorHelper.getResultSetFirstColumnAsString(plain, readErrors, state);
+        if (optimizedRows.size() != 1 || plainRows.size() != 1) {
+            throw new IgnoreMeException();
+        }
+        String scanned = String.valueOf(expected);
+        if (!optimizedRows.get(0).equals(plainRows.get(0)) || !optimizedRows.get(0).equals(scanned)) {
+            throw new AssertionError(String.format(
+                    "trivial-count-from-text-index mismatch: count() answered from the text index is %s, the "
+                            + "full-scan count is %s, and the row list of the same predicate holds %s keys. "
+                            + "predicate %s, index type %s",
+                    optimizedRows.get(0), plainRows.get(0), scanned, predicate, indexType));
+        }
+    }
+
+    private static void assertPhraseGroundTruth(List<String> corpus, String predicate, List<String> keys,
+            String indexType) {
+        int open = predicate.indexOf('\'');
+        int close = predicate.lastIndexOf('\'');
+        if (open < 0 || close <= open) {
+            return;
+        }
+        String[] phrase = predicate.substring(open + 1, close).split(" ");
+        List<String> expected = new ArrayList<>();
+        for (int key = 0; key < corpus.size(); key++) {
+            if (containsPhrase(corpus.get(key).split(" "), phrase)) {
+                expected.add(String.valueOf(key));
+            }
+        }
+        if (!expected.equals(keys)) {
+            throw new AssertionError(String.format(
+                    "hasPhrase ground-truth mismatch: the corpus is whitespace-separated tokens, so hasPhrase is true "
+                            + "exactly when the needle's tokens occur consecutively. Java expects %d keys, the query "
+                            + "returned %d. predicate %s, index type %s%n  expected: %s%n  actual:   %s",
+                    expected.size(), keys.size(), predicate, indexType, truncate(expected), truncate(keys)));
+        }
+    }
+
+    private static boolean containsPhrase(String[] tokens, String[] phrase) {
+        if (phrase.length == 0 || phrase.length > tokens.length) {
+            return false;
+        }
+        for (int start = 0; start + phrase.length <= tokens.length; start++) {
+            boolean match = true;
+            for (int i = 0; i < phrase.length; i++) {
+                if (!tokens[start + i].equals(phrase[i])) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<String> keys(String table, String predicate, String suffix) throws SQLException {

@@ -116,11 +116,15 @@ public final class ClickHouseErrors {
 
                 "CAST AS FixedString is only implemented", "default expression and column type are incompatible",
 
-                "Incompatible data types between aggregate function", "NOT_IMPLEMENTED");
+                "Incompatible data types between aggregate function", "NOT_IMPLEMENTED",
+
+                "does not support PREWHERE", "ILLEGAL_PREWHERE", "is not supported by storage View");
     }
 
     public static void addExpectedExpressionErrors(ExpectedErrors errors) {
         errors.addAll(getExpectedExpressionErrors());
+
+        errors.addAll(getKnownOpenJoinOrderBugs());
 
         errors.addAll(getStatisticsErrors());
 
@@ -245,6 +249,10 @@ public final class ClickHouseErrors {
 
     public static List<String> getKnownOpenMutationAnalyzerBugs() {
         return List.of("is already registered");
+    }
+
+    public static List<String> getKnownOpenJoinOrderBugs() {
+        return List.of("Left and right columns have same names");
     }
 
     public static boolean isToleratedException(Throwable e) {

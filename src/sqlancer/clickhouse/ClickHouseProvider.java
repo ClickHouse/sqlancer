@@ -24,6 +24,7 @@ import sqlancer.clickhouse.gen.ClickHouseCommon;
 import sqlancer.clickhouse.gen.ClickHouseInsertGenerator;
 import sqlancer.clickhouse.gen.ClickHouseMutationGenerator;
 import sqlancer.clickhouse.gen.ClickHouseTableGenerator;
+import sqlancer.clickhouse.gen.ClickHouseViewGenerator;
 import sqlancer.common.query.SQLQueryAdapter;
 import sqlancer.common.query.SQLQueryProvider;
 
@@ -40,7 +41,9 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
 
         ALTER(ClickHouseAlterGenerator::getQuery),
 
-        MUTATION(ClickHouseMutationGenerator::getQuery);
+        MUTATION(ClickHouseMutationGenerator::getQuery),
+
+        VIEW(ClickHouseViewGenerator::getQuery);
 
         private final SQLQueryProvider<ClickHouseGlobalState> sqlQueryProvider;
 
@@ -65,6 +68,9 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
         case MUTATION:
 
             return Randomly.fromOptions(0, 0, 0, 0, 1, 1, 1, 2);
+        case VIEW:
+
+            return Randomly.fromOptions(0, 0, 0, 1);
         default:
             throw new AssertionError(a);
         }

@@ -1,7 +1,7 @@
 ---
 title: "feat: ClickHouse coverage gap audit, 2026-04-15 to 2026-08-15 (25 prioritized items)"
 type: feat
-status: proposed
+status: p0-p1-implemented
 date: 2026-08-15
 related:
   - docs/plans/2026-06-13-001-feat-clickhouse-coverage-backlog-30-ideas-plan.md
@@ -152,18 +152,103 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 | 24 | `AT TIME ZONE`, `AT LOCAL`, `LOCALTIME` | Gen | P2 | S | wrong result |
 | 25 | Continuous queries, what-if indexes, QueryRunner | Gen+Oracle | P2 | L | crash |
 
+## Implementation status
+
+**P0 (items 0a, 0b, 1-6) is implemented and validated on dev-vm head 26.8.1.1470 (2026-08-15).**
+**P1 (items 7-18) is implemented and validated on dev-vm head 26.8.1.1471/1473 (2026-08-16).** P2 remains
+open. The P1 deviations are listed in "P1 implementation status" below; the P0 ones follow here.
+
+- **Item 1's oracle is NoREC/TLPWhere, not KeyCondition.** No setting or `materialize()` wrapper
+  defeats the `NOT (NOT key)` pruning, so the KeyCondition oracle's no-prune arm returns the same
+  wrong rows as the baseline. `countIf(P)` versus `count() WHERE P` does catch it. The bug is
+  confirmed on head and still unfiled.
+- **Item 2's reference arm had to change for the same reason.** The plan specified `materialize()`
+  plus a pruning-off settings profile; that does not disable partition-level or primary-key-level
+  pruning, so the shipped oracle compares against `groupArrayIf(k, ifNull((P), 0))` over a full scan
+  instead, which no optimizer can prune.
+- **Item 5's setting is `query_plan_optimize_join_order_algorithm`** (values greedy / dpsize /
+  dpsub / dphyp, comma-separated fallback lists allowed), not `query_plan_join_reorder_algorithm`.
+  `dpsize` and `dphyp` reject non-inner joins with Code 717 EXPERIMENTAL_FEATURE_ERROR, which is
+  tolerated per-arm.
+- **Item 4 needed a persistent-view DDL action**, not just a join-picker change: views already were
+  visible to the join picker, but `ViewEquivalence` dropped its view inside the same iteration, so
+  no schema snapshot ever contained one. It also needed a real ON-less CROSS join, because every
+  CROSS was previously handed an ON clause and degraded into an INNER join.
+- **#114113 did not reproduce** on release build 26.8.1.1470 with the plan's minimal repro. The
+  error message is pinned anyway, per the plan.
+
+See the `## P0 coverage batch, 2026-08-15` section of `.claude/CLAUDE.md` for operational detail.
+
+## P1 implementation status
+
+Three new oracles (`PipeEquivalence`, `IEJoin`, `TupleFinalAggregation`), ten new default-on flags plus one
+default-off arm, and changes to eight existing oracles and four generators. Probed and validated against
+dev-vm head **26.8.1.1471** (probe container) and **26.8.1.1473** (fuzz runs): a 30-minute full-fleet run
+over all 97 oracles except `TextIndexDirectRead` did **162,814 queries with 0 reproducers and 0 threads shut
+down**, and `system.query_log` confirms every new arm executed rather than silently erroring out. Two
+findings came out of the validation itself, both listed in `.claude/CLAUDE.md`: the DESC-sorting-key GROUP BY
+collapse (item 18's target) and `indexHint`'s UInt8 constant truncation. Deviations, all forced by what head
+actually accepts:
+
+- **Item 8: reversing ASC to DESC is not a true order reversal.** ClickHouse orders NULLs last in *both*
+  directions, so `ORDER BY c ASC LIMIT -n` and `ORDER BY c DESC LIMIT n` select different rows whenever the
+  column holds NULL. The negative-limit identities pin `ASC NULLS LAST` against `DESC NULLS FIRST`.
+- **Item 9: no separate pipe AST visitor.** Each pipe stage is wrapped in its own subquery
+  (`FROM t |> WHERE p` analyses as `SELECT * FROM (SELECT * FROM t) WHERE p`), which has two consequences a
+  general AST renderer cannot paper over: a table-qualified column reference stops resolving after stage 1,
+  and `SELECT *` does not carry MATERIALIZED or ALIAS columns. The oracle therefore renders both forms from
+  one structure over a single relation with unqualified, star-visible columns.
+- **Item 10: the join-algorithm value is `ie_join`, and there is nothing to sweep it against.** Every other
+  algorithm rejects a two-inequality ON with `INVALID_JOIN_ON_EXPRESSION` / "Cannot determine join keys", so
+  the reference arm is the equivalent `CROSS JOIN ... WHERE`, not an algorithm comparison. `EXPLAIN` confirms
+  the `IEJoin` step. `parallel_full_sorting_merge` was added to `JoinAlgorithm`'s existing sweep separately.
+- **Item 11: `null_count` statistics do not exist on head.** The accepted set is `basic`, `countmin`,
+  `minmax`, `tdigest`, `uniq`, `uniq_v2`; `basic` is what PR #102356's null counting ended up inside. The
+  item shipped as `uniq_v2` + `basic` in every statistics pool, an `ADD STATISTICS` DDL form, multi-type
+  `TYPE a, b` declarations, and explicit `auto_statistics_types` / `materialize_statistics_on_merge` table
+  settings. Note the split: those two are MergeTree settings, while `use_statistics_for_part_pruning` and
+  `materialize_statistics_on_insert` are query settings.
+- **Item 12: the cache arms must compare multisets.** The baseline read has no ORDER BY, so cache-on and
+  cache-off legitimately return the same rows in a different order; a positional compare reported four
+  "poisoning" hits that were pure row-order differences.
+- **Item 13: two sub-items are unreachable on head.** The Japanese tokenizer needs a server-side
+  `<tokenizer><japanese>` dictionary the fuzzer's container does not carry (`NO_ELEMENTS_IN_CONFIG` on the
+  first INSERT), and no lazy / randomized posting-list apply-mode setting exists in `system.settings` or
+  `system.merge_tree_settings`. What shipped: the `icu('<locale>')` tokenizer (the locale argument is
+  mandatory, `tokenizer = 'icu'` is rejected), a `hasPhrase` arm with a Java token-position ground truth
+  behind the `allow_experimental_text_index_phrase_search` table setting, a trivial-count arm over
+  `query_plan_optimize_count_from_text_index`, and text index parameters supplied as table settings. `icu`
+  was probed index-vs-scan on `startsWith` / `endsWith` / `multiSearchAny` / `hasToken` / `hasAllTokens` /
+  `hasAnyTokens` / `LIKE` / `ILIKE` and agreed on all eight, so it is safe for the general tokenizer pool as
+  well as for the oracles.
+- **Item 14: per-element Tuple aggregation is gated and narrower than the PR title suggests.** It needs the
+  `allow_tuple_element_aggregation` MergeTree setting (default 0) and it applies to SummingMergeTree and
+  CoalescingMergeTree only -- a plain `Tuple` is not an aggregate state, so AggregatingMergeTree keeps the
+  first row and is excluded. The #106125 subset-projection detector is a separate default-off flag
+  (`--summing-subset-projection-arm`): the bug still reproduces on head, so with the arm on the oracle
+  asserts nearly every iteration.
+- **Item 17: `indexHint` is not result-neutral, so the plan's equality invariant is wrong.** `indexHint(P)`
+  does not evaluate P as a filter, but it does restrict the read to the granules index analysis selects for
+  P, so rows outside those granules are legitimately dropped: measured 5 rows versus 6 on head for
+  `WHERE indexHint(c0) AND (exp(c0) AND 2147483648)`. The shipped invariant is containment,
+  `rows(P AND Q) ⊆ rows(indexHint(P) AND Q) ⊆ rows(Q)`, whose lower bound is exactly the pruning-soundness
+  assertion the item wanted. For the same reason `indexHint` is **not** emitted into the general fleet's
+  `generatePredicate`: inside a TLP partition the three branches would read different granule sets and their
+  union would no longer be the whole table.
+- **Item 18 found a real wrong result on head, minimised to three lines.** See the entry in `.claude/CLAUDE.md`.
+
 ## P0, prerequisite fixes
 
 > These are not coverage items. They are the two false positives found in the 2026-08 nightly triage. Both cost triage time on every run, and both are checklist violations, so they land before new surface is added.
 
-- [ ] **0a. Assert the `LIMIT BY` cap server-side** `[Fix]` `[P0]` `[S]`
+- [x] **0a. Assert the `LIMIT BY` cap server-side** `[Fix]` `[P0]` `[S]`
   - **Problem:** `ClickHouseLimitRankingOracle.checkLimitByCap` reads the key column through `ComparatorHelper.getResultSetFirstColumnAsString`, which pipes every value through `trimTrailingDotZeros`. That helper rewrites `'0.0'` into `'0'`. When the key column is a String holding both `'0.0'` (from the value generator) and `'0'` (from the `numbers(N)` filler), the client sees one key twice and reports a cap violation that does not exist. Confirmed on the 08-04 and 08-07 reproducers: replay against head shows `uniqExact(c0) = count() = 10000` and `LIMIT 1 BY` returning exactly 10000 rows.
   - **Fix:** compute the violation in ClickHouse instead of in Java: `SELECT max(cnt) FROM (SELECT k, count() AS cnt FROM (<limit-by query>) GROUP BY k)` and assert the result is at most `n`. This is also strictly cheaper, since it does not ship 10000 rows to the client.
   - **Files:** `src/sqlancer/clickhouse/oracle/limit/ClickHouseLimitRankingOracle.java`.
   - **Verification:** replay both saved reproducers, expect no assertion; one deliberately broken assertion (cap of 0) must still fire.
   - **Follow-up worth considering separately:** `trimTrailingDotZeros` in `src/sqlancer/ComparatorHelper.java` is a lossy normalisation applied to *every* oracle's result values. It exists to hide float text differences, but it silently merges distinct String values. Scoping it to columns whose type is float, or dropping it in favour of the ULP-tolerant comparison mode that already exists in the same file, would remove a whole class of latent false positives. Checklist rule C8.
 
-- [ ] **0b. Reject degenerate dedupe ORDER BY keys** `[Fix]` `[P0]` `[S]`
+- [x] **0b. Reject degenerate dedupe ORDER BY keys** `[Fix]` `[P0]` `[S]`
   - **Problem:** the engine pool picked `ReplacingMergeTree()` for `t0 (c0 Bool, c1 DateTime, c2 String) ORDER BY c0`. The gate allows ReplacingMergeTree when a viable ver column exists, but the emitted DDL carries no ver argument, and `isValidOrderByForDedupe` accepts `Bool` because it is a bare key column. With only two distinct keys, visible cardinality drops from 7 rows to 2 the moment a background merge runs, which is what produced the 08-07 TLPWhere `91 and 26` mismatch. Replay confirms the table sits at 2 rows.
   - **Fix:** require the dedupe ORDER BY key to have a non-degenerate domain (reject `Bool`, reject an `Enum` with fewer than some threshold of values, reject any column the generator knows it fills from a tiny value pool), or always emit the ver argument when ReplacingMergeTree is chosen. Both are cheap; doing both is better.
   - **Files:** `src/sqlancer/clickhouse/gen/ClickHouseTableGenerator.java` (`pickEngine`, `isValidOrderByForDedupe`, `isBareKeyColumn`).
@@ -173,7 +258,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 1. Boolean-position and three-valued predicate forms
 
-- [ ] **1. Emit boolean-position wrappers and SQL truth-value predicates in `generatePredicate()`** `[Gen]` `[P0]` `[S]`
+- [x] **1. Emit boolean-position wrappers and SQL truth-value predicates in `generatePredicate()`** `[Gen]` `[P0]` `[S]`
   - **Goal:** feed the existing, already-sound `ClickHouseKeyConditionOracle` the predicate shapes for which ClickHouse performs index and statistics analysis, and which its negation-pushdown code handles incorrectly. This is the single highest-value change in the plan because the oracle already exists, the bug class is already proven, and the change is generator-only.
   - **ClickHouse surface:**
     - SQL truth-value predicates `IS TRUE`, `IS FALSE`, `IS UNKNOWN` and their `IS NOT` variants, added by [PR #99997](https://github.com/ClickHouse/ClickHouse/pull/99997) (closes [#99597](https://github.com/ClickHouse/ClickHouse/issues/99597)).
@@ -193,7 +278,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 2. NaN-aware negated-comparison pruning oracle
 
-- [ ] **2. Float and NaN pruning-soundness oracle** `[Oracle]` `[P0]` `[M]`
+- [x] **2. Float and NaN pruning-soundness oracle** `[Oracle]` `[P0]` `[M]`
   - **Goal:** assert that part, granule, partition and statistics pruning never removes a row that the predicate accepts, on float columns containing NaN and negative zero, under negated and CNF-rewritten comparisons. This is currently ClickHouse's densest open wrong-result cluster and the fork's most systematic blind spot.
   - **ClickHouse surface:** `convert_query_to_cnf`, `optimize_move_to_prewhere`, `use_skip_indexes`, `use_skip_indexes_on_data_read`, `allow_statistics_optimize` and the auto-statistics defaults, minmax and bloom_filter skip indexes, `PARTITION BY` over a float expression, and primary keys over float expressions. Known open bugs in exactly this shape: [#113417](https://github.com/ClickHouse/ClickHouse/issues/113417) statistics-based part pruning drops NaN rows for `NOT (f < c)`; [#112036](https://github.com/ClickHouse/ClickHouse/issues/112036) `convert_query_to_cnf = 1` rewrites `NOT (x < c)` to `x >= c` and silently drops NaN rows; the still-unmerged fix [#107074](https://github.com/ClickHouse/ClickHouse/pull/107074) for minmax skip index and partition pruning skipping NaN under negated float ranges; [#106533](https://github.com/ClickHouse/ClickHouse/issues/106533) metamorphic equivalence violation in HAVING due to NaN partition pruning; [#110266](https://github.com/ClickHouse/ClickHouse/issues/110266), closed, minmax over-prunes a NaN granule for `NOT (f > c)`. The fork already found a member of this family once, [#106262](https://github.com/ClickHouse/ClickHouse/issues/106262), through `TLPSetOp` and by accident.
   - **Invariant:** for one fixture and one predicate `P`, the row set of `SELECT <key> FROM t WHERE P` must equal the row set of the same query with all pruning disabled. "All pruning disabled" means the `materialize()` wrapper of the existing KeyCondition oracle plus `SETTINGS use_skip_indexes = 0, use_skip_indexes_on_data_read = 0, allow_statistics_optimize = 0, use_query_condition_cache = 0, optimize_move_to_prewhere = 0, convert_query_to_cnf = 0`. Compare as multisets of the key column. Additionally assert the union invariant `count(P) + count(NOT P) + count(P IS NULL) = count(*)` under both settings profiles, which is the shape that catches the CNF rewrite specifically.
@@ -207,7 +292,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 3. Parallel-replicas and distributed-plan equivalence
 
-- [ ] **3. Distributed-plan and parallel-replicas equivalence oracle** `[Oracle]` `[P0]` `[M]`
+- [x] **3. Distributed-plan and parallel-replicas equivalence oracle** `[Oracle]` `[P0]` `[M]`
   - **Goal:** assert that a query answered through the new plan-based distributed and parallel-replica execution paths returns exactly what the plain local path returns. This subsystem was rewritten across five large PRs in this window and already has four open wrong-result issues, and the fork has zero coverage.
   - **ClickHouse surface:** plan-based parallel replicas parts 1 to 3, [PR #108504](https://github.com/ClickHouse/ClickHouse/pull/108504) aggregation, [PR #111063](https://github.com/ClickHouse/ClickHouse/pull/111063), [PR #112268](https://github.com/ClickHouse/ClickHouse/pull/112268) JOINs; multi-stage distributed queries [PR #106020](https://github.com/ClickHouse/ClickHouse/pull/106020); distributed execution of `CreatingSets` steps [PR #113826](https://github.com/ClickHouse/ClickHouse/pull/113826); `FINAL` reads in distributed plans [PR #108148](https://github.com/ClickHouse/ClickHouse/pull/108148); automatic setting adjustment when `make_distributed_plan` is on [PR #112463](https://github.com/ClickHouse/ClickHouse/pull/112463); per-replica ports for distributed plan workers [PR #107885](https://github.com/ClickHouse/ClickHouse/pull/107885); reimplemented reading in order for parallel replicas [PR #101434](https://github.com/ClickHouse/ClickHouse/pull/101434); `parallel_replicas_prefer_local_replica` [PR #100139](https://github.com/ClickHouse/ClickHouse/pull/100139); pushing a whole outer query to shards for trivial views [PR #101791](https://github.com/ClickHouse/ClickHouse/pull/101791); pushing ORDER BY into simple views for distributed optimization [PR #94102](https://github.com/ClickHouse/ClickHouse/pull/94102).
   - **Known open wrong results this would target:** [#111727](https://github.com/ClickHouse/ClickHouse/issues/111727) parallel replicas silently multiply results by the replica count when a three-or-more-table JOIN contains a VIEW; [#111654](https://github.com/ClickHouse/ClickHouse/issues/111654) custom-key parallel replicas silently drop a WHERE with an EXISTS operand and return one replica's unfiltered slice; [#111363](https://github.com/ClickHouse/ClickHouse/issues/111363) query condition cache poisoned by a parallel-replicas read of Merge over a VIEW, so later plain queries silently return wrong results; [#113622](https://github.com/ClickHouse/ClickHouse/issues/113622) a parameterized view inside an offloaded JOIN is shipped unqualified; [#113246](https://github.com/ClickHouse/ClickHouse/issues/113246) `make_distributed_plan` throws TYPE_MISMATCH for `IN (SELECT ...)` with a non-convertible literal; [#112028](https://github.com/ClickHouse/ClickHouse/issues/112028) `serialize_query_plan = 1` fails for `LowCardinality IN (subquery)` through a distributed read; [#111211](https://github.com/ClickHouse/ClickHouse/issues/111211) ORDER BY is not applied globally when reading a Distributed table through a Merge engine.
@@ -221,7 +306,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 4. Multi-table joins containing a VIEW
 
-- [ ] **4. Put views into multi-table joins** `[Gen]` `[P0]` `[S]`
+- [x] **4. Put views into multi-table joins** `[Gen]` `[P0]` `[S]`
   - **Goal:** make the FROM-list generator able to place a VIEW as one relation of a three-or-more-relation join. Four separate bugs in this window need exactly that shape, including the one that aborts our own nightly PP server every single run.
   - **ClickHouse surface:** the join-order optimizer entry point, `src/Processors/QueryPlan/Optimizations/optimizeJoin.cpp` `chooseJoinOrder`, and `src/Interpreters/JoinExpressionActions.cpp`; `analyzer_inline_views`; `analyzer_compatibility_apply_final_to_all_joined_tables` [PR #111589](https://github.com/ClickHouse/ClickHouse/pull/111589); the multiple-join identifier-qualification compatibility setting [PR #110746](https://github.com/ClickHouse/ClickHouse/pull/110746).
   - **Known bugs of this exact shape:** [#114113](https://github.com/ClickHouse/ClickHouse/issues/114113) open, `SELECT * FROM t0, v0, t1 WHERE <bool>` raises `LOGICAL_ERROR "Left and right columns have same names"` from `chooseJoinOrder`, which aborts an asan or ubsan server; [#111727](https://github.com/ClickHouse/ClickHouse/issues/111727) open, parallel replicas multiply results when a three-or-more-table JOIN contains a VIEW; [#113245](https://github.com/ClickHouse/ClickHouse/issues/113245) open, `analyzer_inline_views = 1` plus a JOIN with a plain VIEW throws ALIAS_REQUIRED; [#111276](https://github.com/ClickHouse/ClickHouse/issues/111276) open, nested-alias JOIN USING key over Distributed can silently join by a shadowed column. Closed precedent for the same optimizer: [#106426](https://github.com/ClickHouse/ClickHouse/issues/106426), found by this fork.
@@ -236,7 +321,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 5. Join-order algorithm sweep
 
-- [ ] **5. Sweep the join-order enumeration algorithms** `[Oracle]` `[P0]` `[S]`
+- [x] **5. Sweep the join-order enumeration algorithms** `[Oracle]` `[P0]` `[S]`
   - **Goal:** run the same multi-way join under every join-order enumerator and assert identical results. Two new enumerators landed in this window and one already has an open conjunct-dropping bug.
   - **ClickHouse surface:** the DPhyp join-reordering algorithm for inner joins [PR #98798](https://github.com/ClickHouse/ClickHouse/pull/98798); the DPsub enumeration algorithm [PR #107351](https://github.com/ClickHouse/ClickHouse/pull/107351); merging expressions into the join during reordering [PR #98533](https://github.com/ClickHouse/ClickHouse/pull/98533); `query_plan_optimize_join_order_limit`, `query_plan_join_reorder_algorithm`, and `query_plan_join_shard_by_pk_ranges`.
   - **Known open bugs:** [#111898](https://github.com/ClickHouse/ClickHouse/issues/111898) DPsub join-order reordering with `query_plan_enable_optimizations = 0` silently drops a non-equi `JOIN ON` conjunct on chained joins, a regression after [PR #109638](https://github.com/ClickHouse/ClickHouse/pull/109638); [#112236](https://github.com/ClickHouse/ClickHouse/issues/112236) `query_plan_merge_filter_into_join_condition` rebuilds the leftover WHERE conjunct with a truncating CAST to UInt8; [#111897](https://github.com/ClickHouse/ClickHouse/issues/111897) query condition cache poisoned by a `query_plan_join_shard_by_pk_ranges` plus `full_sorting_merge` multi-threaded join read.
@@ -250,7 +335,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 6. Codec roundtrip oracle
 
-- [ ] **6. Compression codec roundtrip and merge-stability oracle** `[Oracle+Gen]` `[P0]` `[M]`
+- [x] **6. Compression codec roundtrip and merge-stability oracle** `[Oracle+Gen]` `[P0]` `[M]`
   - **Goal:** assert that data written through any codec reads back byte-identically for lossless codecs, and within a declared tolerance for lossy ones, and that it survives merges, mutations and codec changes. Six codec-related changes landed in this window, including two lossy codecs and an adaptive selector that changes codecs *during* merges, and the fork emits `CODEC(` in exactly one file.
   - **ClickHouse surface:** the ZXC codec [PR #110620](https://github.com/ClickHouse/ClickHouse/pull/110620); the revived SZ3 codec [PR #108788](https://github.com/ClickHouse/ClickHouse/pull/108788) and its NaN quantizer fix [PR #110762](https://github.com/ClickHouse/ClickHouse/pull/110762); the ALP RD variant and variant selection [PR #99654](https://github.com/ClickHouse/ClickHouse/pull/99654); quantization codecs for vector columns with two-stage retrieval [PR #108565](https://github.com/ClickHouse/ClickHouse/pull/108565); adaptive codec selection on merges and mutations [PR #111834](https://github.com/ClickHouse/ClickHouse/pull/111834); reading MergeTree parts with mixed codecs in one stream [PR #108592](https://github.com/ClickHouse/ClickHouse/pull/108592); packed part storage [PR #108118](https://github.com/ClickHouse/ClickHouse/pull/108118) and packed skip-index storage [PR #105321](https://github.com/ClickHouse/ClickHouse/pull/105321) with its uncompressed-size reporting fix [PR #109272](https://github.com/ClickHouse/ClickHouse/pull/109272).
   - **Related open PR:** [#114531](https://github.com/ClickHouse/ClickHouse/pull/114531) "Reject a lossy codec on columns backing keys and indexes" shows lossy codecs on key columns are a live hazard, which is precisely the shape a fuzzer will generate by accident.
@@ -266,7 +351,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 7. `GROUPS` window frame mode
 
-- [ ] **7. Emit and ground-truth the `GROUPS` window frame mode** `[Gen+Oracle]` `[P1]` `[S]`
+- [x] **7. Emit and ground-truth the `GROUPS` window frame mode** `[Gen+Oracle]` `[P1]` `[S]`
   - **Goal:** cover the third window frame mode. The fork has three window oracles and emits `ROWS` and `RANGE` frames, but `GROUPS` is brand new and completely unexercised.
   - **ClickHouse surface:** `GROUPS` frame mode for window functions, [PR #108653](https://github.com/ClickHouse/ClickHouse/pull/108653), merged 2026-08-13. Syntax is `GROUPS BETWEEN <n> PRECEDING AND <m> FOLLOWING`, where the offsets count *peer groups* (rows tied on the ORDER BY key) rather than rows.
   - **Invariant:** `GROUPS` is exactly ground-truthable in Java, which is the strongest oracle shape available. Fetch the fixture, sort by the window ORDER BY key, partition into peer groups, and compute the expected aggregate per row. Assert equality against ClickHouse. Additionally assert the degenerate identities: with a fixture whose ORDER BY key is unique, `GROUPS n PRECEDING` must equal `ROWS n PRECEDING`; with a fixture whose key is constant, every row is one peer group so `GROUPS 0 PRECEDING AND 0 FOLLOWING` must equal the whole-partition aggregate.
@@ -279,7 +364,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 8. Negative `LIMIT BY` and `WITH TIES` on negative `LIMIT`
 
-- [ ] **8. Emit negative LIMIT forms** `[Gen+Oracle]` `[P1]` `[S]`
+- [x] **8. Emit negative LIMIT forms** `[Gen+Oracle]` `[P1]` `[S]`
   - **Goal:** cover the negative-offset LIMIT family. ClickHouse both *added* these forms and *rewrote* their execution path inside this window, and the fork's LIMIT oracle only emits non-negative limits.
   - **ClickHouse surface:** negative `LIMIT BY`, [PR #103222](https://github.com/ClickHouse/ClickHouse/pull/103222); `WITH TIES` for negative `LIMIT`, [PR #100930](https://github.com/ClickHouse/ClickHouse/pull/100930); the performance rewrite of `DISTINCT` in order, sort-merge joins, `LIMIT BY` and negative `LIMIT BY`, [PR #106502](https://github.com/ClickHouse/ClickHouse/pull/106502); removal of redundant `LIMIT BY` key expressions, [PR #106818](https://github.com/ClickHouse/ClickHouse/pull/106818); `DISTINCT` run independently per partition, [PR #108326](https://github.com/ClickHouse/ClickHouse/pull/108326); removal of the legacy `DistinctSortedTransform`, [PR #110170](https://github.com/ClickHouse/ClickHouse/pull/110170).
   - **Related open bug in the neighbourhood:** [#112029](https://github.com/ClickHouse/ClickHouse/issues/112029), Merge over Distributed plus JOIN plus `LIMIT n WITH TIES` keeps `WITH TIES` in the shard fragment but drops the ORDER BY.
@@ -293,7 +378,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 9. Pipe operators
 
-- [ ] **9. Pipe-operator equivalence oracle** `[Gen+Oracle]` `[P1]` `[M]`
+- [x] **9. Pipe-operator equivalence oracle** `[Gen+Oracle]` `[P1]` `[M]`
   - **Goal:** cover an entirely new query syntax. A pipe query and its classic-SQL equivalent must return the same thing, which is a textbook metamorphic oracle and needs no ground truth at all.
   - **ClickHouse surface:** pipe operators in SQL queries, [PR #111151](https://github.com/ClickHouse/ClickHouse/pull/111151), merged 2026-08-11. Reachable at parse time, so it exercises the parser, the analyzer's query-tree construction, and every rewrite that assumes a classic clause order.
   - **Invariant:** the generator already builds a `ClickHouseSelect` AST and renders it through `ClickHouseToStringVisitor`. Add a second visitor that renders the same AST in pipe form, then assert the two render forms return identical results in one iteration. This mirrors the `MaterializedColumnVisitor` pattern in `ClickHouseKeyConditionOracle`, which already proves that a second visitor over one AST is a cheap way to build a differential.
@@ -306,7 +391,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 10. IEJoin
 
-- [ ] **10. Generate joins whose ON has two inequality comparisons** `[Gen+Oracle]` `[P1]` `[M]`
+- [x] **10. Generate joins whose ON has two inequality comparisons** `[Gen+Oracle]` `[P1]` `[M]`
   - **Goal:** reach the new IEJoin algorithm. It only activates for a specific ON shape that the fork never generates, so the algorithm is currently untested by us.
   - **ClickHouse surface:** IEJoin support for joins whose ON has two inequality comparisons, [PR #109920](https://github.com/ClickHouse/ClickHouse/pull/109920), merged 2026-08-06. This is the interval-join algorithm, so the trigger shape is `ON a.x < b.x AND a.y > b.y`.
   - **Invariant:** the same join must return the same rows under IEJoin and under every other applicable `join_algorithm` (`hash`, `parallel_hash`, `grace_hash`, `full_sorting_merge`, and the new `parallel_full_sorting_merge` from [PR #109005](https://github.com/ClickHouse/ClickHouse/pull/109005)). This is exactly what `ClickHouseJoinAlgorithmOracle` already does; the missing piece is a generator that produces the two-inequality ON shape, plus `parallel_full_sorting_merge` in the algorithm list.
@@ -319,7 +404,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 11. New statistics types
 
-- [ ] **11. Emit `null_count` and `uniq_v2` statistics and toggle the new defaults** `[Gen+Oracle]` `[P1]` `[S]`
+- [x] **11. Emit `null_count` and `uniq_v2` statistics and toggle the new defaults** `[Gen+Oracle]` `[P1]` `[S]`
   - **Goal:** cover the statistics types added in this window, and the two default changes that mean nearly every fuzzed table now carries statistics whether we asked for them or not.
   - **ClickHouse surface:** `null_count` statistics, [PR #102356](https://github.com/ClickHouse/ClickHouse/pull/102356), and NullCount statistics support for part pruning, [PR #104214](https://github.com/ClickHouse/ClickHouse/pull/104214); `uniq_v2` statistics backed by `UniqCombined64(12)`, [PR #107863](https://github.com/ClickHouse/ClickHouse/pull/107863); the default `auto_statistics_types` change from `basic, uniq` to `basic, uniq_v2`, [PR #110878](https://github.com/ClickHouse/ClickHouse/pull/110878); materializing column statistics on INSERT for small tables by default, [PR #109454](https://github.com/ClickHouse/ClickHouse/pull/109454); the sparse `checkInHyperrectangle` change, [PR #110153](https://github.com/ClickHouse/ClickHouse/pull/110153); skipping predicate statistics counters when the feature is off, [PR #108190](https://github.com/ClickHouse/ClickHouse/pull/108190).
   - **Known open bug this targets:** [#113417](https://github.com/ClickHouse/ClickHouse/issues/113417), statistics-based part pruning drops NaN rows, which is also item 2's positive control. The two items are complementary: item 2 supplies the float and NaN data, item 11 supplies the statistics variety.
@@ -333,7 +418,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 12. Query condition cache
 
-- [ ] **12. Cover `ORDER BY ... LIMIT n` caching and cross-query cache poisoning** `[Oracle]` `[P1]` `[M]`
+- [x] **12. Cover `ORDER BY ... LIMIT n` caching and cross-query cache poisoning** `[Oracle]` `[P1]` `[M]`
   - **Goal:** cover the query condition cache shape whose default was flipped three times in four months, and the failure mode that a single-query oracle structurally cannot see: one query poisoning the cache so that a *later, different* query returns wrong results.
   - **ClickHouse surface:** enabling the query condition cache for `ORDER BY ... LIMIT n`, [PR #104478](https://github.com/ClickHouse/ClickHouse/pull/104478); better coverage for `ORDER BY ... LIMIT k`, [PR #110507](https://github.com/ClickHouse/ClickHouse/pull/110507); disabling it by default, [PR #111492](https://github.com/ClickHouse/ClickHouse/pull/111492); re-enabling it by default, [PR #114539](https://github.com/ClickHouse/ClickHouse/pull/114539), merged 2026-08-13; not disabling the cache for materialized lightweight deletes, [PR #112947](https://github.com/ClickHouse/ClickHouse/pull/112947); the cache key derivation, [#112016](https://github.com/ClickHouse/ClickHouse/issues/112016).
   - **Known open poisoning bugs:** [#111897](https://github.com/ClickHouse/ClickHouse/issues/111897), the cache is poisoned by a `query_plan_join_shard_by_pk_ranges` plus `full_sorting_merge` multi-threaded join read; [#111363](https://github.com/ClickHouse/ClickHouse/issues/111363), the cache is poisoned by a parallel-replicas read of Merge over a VIEW, and later plain queries silently return wrong results. Both are "query A breaks query B", which is a different oracle shape from anything the fork has.
@@ -347,7 +432,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 13. Text index second wave
 
-- [ ] **13. Extend the text-index oracles to the second wave of features** `[Gen+Oracle]` `[P1]` `[M]`
+- [x] **13. Extend the text-index oracles to the second wave of features** `[Gen+Oracle]` `[P1]` `[M]`
   - **Goal:** the fork has four text-index oracles built in June, and ClickHouse then shipped another nine text-index changes. Bring the oracles up to the current feature set.
   - **ClickHouse surface, all merged in this window:** the ICU tokenizer, [PR #109940](https://github.com/ClickHouse/ClickHouse/pull/109940); the Japanese MeCab tokenizer, [PR #111420](https://github.com/ClickHouse/ClickHouse/pull/111420); storing positions for better phrase search, [PR #103172](https://github.com/ClickHouse/ClickHouse/pull/103172), which is what makes `hasPhrase` order-sensitive; the text index postprocessor, [PR #98939](https://github.com/ClickHouse/ClickHouse/pull/98939) and its resubmit [PR #108606](https://github.com/ClickHouse/ClickHouse/pull/108606), plus the filter-only postprocessor fast path, [PR #109049](https://github.com/ClickHouse/ClickHouse/pull/109049); lazy posting-list evaluation mode, [PR #100035](https://github.com/ClickHouse/ClickHouse/pull/100035), and randomized posting-list apply mode, [PR #108814](https://github.com/ClickHouse/ClickHouse/pull/108814); text index parameters via table settings, [PR #100626](https://github.com/ClickHouse/ClickHouse/pull/100626); trivial count optimization for text indexes, [PR #111494](https://github.com/ClickHouse/ClickHouse/pull/111494); caching missing tokens, [PR #112742](https://github.com/ClickHouse/ClickHouse/pull/112742); generic exclusion search for text index analysis, [PR #110530](https://github.com/ClickHouse/ClickHouse/pull/110530); pushing current mark ranges into the text index analyzer, [PR #108114](https://github.com/ClickHouse/ClickHouse/pull/108114); configurable flush limits, [PR #111573](https://github.com/ClickHouse/ClickHouse/pull/111573); `system.stemmers`, [PR #100611](https://github.com/ClickHouse/ClickHouse/pull/100611); `tokenizeQuery` and `highlightQuery`, [PR #101054](https://github.com/ClickHouse/ClickHouse/pull/101054).
   - **Known open bugs nearby:** [#105848](https://github.com/ClickHouse/ClickHouse/pull/105848) text index for LIKE/ILIKE with ESCAPE; [#107038](https://github.com/ClickHouse/ClickHouse/issues/107038) skip indexes on subcolumns ignored when querying through a view; the still-unmerged fix [#113157](https://github.com/ClickHouse/ClickHouse/pull/113157) for text and token skip indexes over-pruning IPv6 columns.
@@ -361,7 +446,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 14. `Tuple` per-element aggregation in summing engines
 
-- [ ] **14. Emit Tuple columns in SummingMergeTree, AggregatingMergeTree and CoalescingMergeTree** `[Gen+Oracle]` `[P1]` `[M]`
+- [x] **14. Emit Tuple columns in SummingMergeTree, AggregatingMergeTree and CoalescingMergeTree** `[Gen+Oracle]` `[P1]` `[M]`
   - **Goal:** cover per-element Tuple aggregation in the dedupe engine family, which is the same family that just produced an open wrong-result bug through a different mechanism.
   - **ClickHouse surface:** support for per-element aggregation of `Tuple` columns in `SummingMergeTree`, `AggregatingMergeTree` and `CoalescingMergeTree`, [PR #98039](https://github.com/ClickHouse/ClickHouse/pull/98039), merged 2026-06-11.
   - **Known open bug in the same family, worth using as a positive control:** [#106125](https://github.com/ClickHouse/ClickHouse/issues/106125), query-time `FINAL` on SummingMergeTree applies the zero-row-deletion rule over only the columns the query reads. The minimal repro found during this audit is worth adding to the fork's own regression notes: with `mini (k UInt32, v_nonzero Int32, v_zero UInt8) ENGINE = SummingMergeTree ORDER BY k` and two identical inserts of `(1,100,0),(2,200,0)`, `SELECT k, v_nonzero, v_zero FROM mini FINAL` returns 2 rows while `SELECT count() FROM mini FINAL` returns 0, and both become correct after `OPTIMIZE TABLE ... FINAL`. That is a strictly better repro than the one on the issue and demonstrates rule C7 (never measure a presence bug with `count()`).
@@ -375,7 +460,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 15. Sparse columns
 
-- [ ] **15. Emit high-default-ratio columns so sparse serialization engages** `[Gen]` `[P1]` `[S]`
+- [x] **15. Emit high-default-ratio columns so sparse serialization engages** `[Gen]` `[P1]` `[S]`
   - **Goal:** make sparse serialization actually happen in fuzzed tables, so the new sparse-aware pruning and trivial-count paths are exercised by every existing oracle for free.
   - **ClickHouse surface:** sparsity-aware part and granule pruning plus the trivial-count optimization, [PR #105890](https://github.com/ClickHouse/ClickHouse/pull/105890); `InlinedVector` for the RPN stack in sparse `checkInHyperrectangle`, [PR #110153](https://github.com/ClickHouse/ClickHouse/pull/110153); the controlling table setting is `ratio_of_defaults_for_sparse_serialization`.
   - **Invariant:** none of its own. This is a pure emission change: set `ratio_of_defaults_for_sparse_serialization` explicitly in `CREATE TABLE` settings, and make the insert generator produce columns that are overwhelmingly default (say 95 percent zeros or empty strings) for a subset of columns. Every existing pruning, count and FINAL oracle then covers sparse serialization at no extra cost, which is the highest leverage available for an S-effort change.
@@ -388,7 +473,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 16. Comparison and LIKE chain rewrites
 
-- [ ] **16. Toggle `optimize_or_like_chain` and `optimize_and_compare_chain`** `[Oracle]` `[P1]` `[S]`
+- [x] **16. Toggle `optimize_or_like_chain` and `optimize_and_compare_chain`** `[Oracle]` `[P1]` `[S]`
   - **Goal:** put a targeted differential on two AST rewrites that *prune* predicates, one of which was turned on by default in this window.
   - **ClickHouse surface:** enabling `optimize_or_like_chain` by default, [PR #94517](https://github.com/ClickHouse/ClickHouse/pull/94517), merged 2026-07-13, which rewrites a chain of `LIKE` disjunctions into `multiMatchAny`; the AND comparison-chain optimizer that detects conflicts and prunes redundancies, [PR #99736](https://github.com/ClickHouse/ClickHouse/pull/99736); the bound on its analysis cost, [PR #108757](https://github.com/ClickHouse/ClickHouse/pull/108757); and the older `convert_query_to_cnf`, which item 2 also covers from the float side.
   - **Known bug precedent:** [#104537](https://github.com/ClickHouse/ClickHouse/issues/104537), `tryOptimizeAndEqualsNotEqualsChain` loses type information when converting a `notEquals` chain to `NOT IN`, causing wrong results. Same code path, already broken once.
@@ -402,7 +487,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 17. `indexHint`
 
-- [ ] **17. Emit `indexHint` and assert it does not change results** `[Gen+Oracle]` `[P1]` `[S]`
+- [x] **17. Emit `indexHint` and assert it does not change results** `[Gen+Oracle]` `[P1]` `[S]`
   - **Goal:** cover a function whose entire contract is "affects index analysis, never affects the result set", which makes it the purest possible pruning-soundness assertion, and which has an open wrong-result bug right now.
   - **ClickHouse surface:** `indexHint(...)`, handled as a logical no-op in `KeyCondition.cpp` (see `isLogicalOperator` and the `indexHint` branch of `cloneDAGWithInversionPushDown`, both of which item 1 also touches).
   - **Known open bug:** [#112035](https://github.com/ClickHouse/ClickHouse/issues/112035), `indexHint` in a WHERE over the right table of a LEFT JOIN prunes right-side granules and flips matched rows to unmatched, silently.
@@ -416,7 +501,7 @@ Priority weighting: (bug class, wrong result above crash) x (subsystem youth and
 
 ### Item 18. Mixed-direction sorting keys
 
-- [ ] **18. Emit mixed-direction ORDER BY keys and sweep aggregation-in-order** `[Gen+Oracle]` `[P1]` `[S]`
+- [x] **18. Emit mixed-direction ORDER BY keys and sweep aggregation-in-order** `[Gen+Oracle]` `[P1]` `[S]`
   - **Goal:** reach the read-in-order and aggregation-in-order code paths for a sorting key that is not uniformly ascending, which is where they currently break.
   - **ClickHouse surface:** `optimize_read_in_order`, `optimize_aggregation_in_order`, `read_in_order_use_buffering`; read-in-order propagation through `SpillingHashJoin`, [PR #111973](https://github.com/ClickHouse/ClickHouse/pull/111973); avoiding scans for constant sort keys, [PR #113899](https://github.com/ClickHouse/ClickHouse/pull/113899); the unordered stream modifier, [PR #111794](https://github.com/ClickHouse/ClickHouse/pull/111794); `STREAM BOUNDED`, [PR #110653](https://github.com/ClickHouse/ClickHouse/pull/110653); reimplemented reading in order for parallel replicas, [PR #101434](https://github.com/ClickHouse/ClickHouse/pull/101434).
   - **Known open bug:** [#111901](https://github.com/ClickHouse/ClickHouse/issues/111901), `optimize_aggregation_in_order` over a mixed-direction sorting key `(a, b DESC)` collapses GROUP BY groups, a silent wrong result. Also nearby: [#114407](https://github.com/ClickHouse/ClickHouse/issues/114407), `toUnixTimestamp()` in ORDER BY silently loses primary-key pruning from 26.7, which is a performance regression rather than a wrong result but lives in the same emission gap.

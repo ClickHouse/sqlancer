@@ -22,7 +22,10 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
     enum Mode {
         OFFSET_FORM_EQUIVALENCE,
         WITH_TIES_SUPERSET,
-        LIMIT_BY_CAP
+        LIMIT_BY_CAP,
+        NEGATIVE_LIMIT_TAIL,
+        NEGATIVE_LIMIT_BY_REVERSAL,
+        NEGATIVE_WITH_TIES_SUPERSET
     }
 
     private final ClickHouseGlobalState state;
@@ -73,7 +76,7 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
         String totalOrder = columns.stream().map(c -> quote(c.getName()) + " ASC").collect(Collectors.joining(", "));
         String base = "SELECT " + projection + " FROM " + tableQ;
 
-        Mode mode = Randomly.fromOptions(Mode.values());
+        Mode mode = pickMode();
         switch (mode) {
         case OFFSET_FORM_EQUIVALENCE:
             checkOffsetFormEquivalence(base, totalOrder);
@@ -84,9 +87,101 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
         case LIMIT_BY_CAP:
             checkLimitByCap(tableQ, totalOrder, columns);
             break;
+        case NEGATIVE_LIMIT_TAIL:
+            checkNegativeLimitTail(base, totalOrder);
+            break;
+        case NEGATIVE_LIMIT_BY_REVERSAL:
+            checkNegativeLimitByReversal(tableQ, columns);
+            break;
+        case NEGATIVE_WITH_TIES_SUPERSET:
+            checkNegativeWithTiesSuperset(base, columns);
+            break;
         default:
             throw new AssertionError(mode);
         }
+    }
+
+    private Mode pickMode() {
+        if (state.getClickHouseOptions().negativeLimitEmission) {
+            return Randomly.fromOptions(Mode.values());
+        }
+        return Randomly.fromOptions(Mode.OFFSET_FORM_EQUIVALENCE, Mode.WITH_TIES_SUPERSET, Mode.LIMIT_BY_CAP);
+    }
+
+    private void checkNegativeLimitTail(String base, String totalOrder) throws SQLException {
+        long n = 1 + Randomly.getNotCachedInteger(0, 10);
+        String ascOrder = totalOrder.replace(" ASC", " ASC NULLS LAST");
+        String reverseOrder = totalOrder.replace(" ASC", " DESC NULLS FIRST");
+        String tail = base + " ORDER BY " + ascOrder + " LIMIT -" + n;
+        String head = base + " ORDER BY " + reverseOrder + " LIMIT " + n;
+
+        List<String> tailRows = ComparatorHelper.getResultSetFirstColumnAsString(tail, readErrors, state);
+        List<String> headRows = ComparatorHelper.getResultSetFirstColumnAsString(head, readErrors, state);
+
+        List<String> tailSorted = sorted(tailRows);
+        List<String> headSorted = sorted(headRows);
+        if (!tailSorted.equals(headSorted)) {
+            throw new AssertionError(String.format(
+                    "LimitRanking negative-LIMIT mismatch: 'LIMIT -%d' takes the last %d rows of the ascending total "
+                            + "order, which must be the same multiset as 'LIMIT %d' over the reverse total order.%n"
+                            + "  tail: %s%n  head: %s%n  tail rows (%d): %s%n  head rows (%d): %s",
+                    n, n, n, tail, head, tailRows.size(), truncate(tailSorted), headRows.size(), truncate(headSorted)));
+        }
+    }
+
+    private void checkNegativeLimitByReversal(String tableQ, List<ClickHouseColumn> columns) throws SQLException {
+        String key = quote(Randomly.fromList(columns).getName());
+        String projection = "toString(tuple(" + columns.stream().map(c -> quote(c.getName()))
+                .collect(Collectors.joining(", ")) + "))";
+        String ascOrder = columns.stream().map(c -> quote(c.getName()) + " ASC NULLS LAST")
+                .collect(Collectors.joining(", "));
+        String descOrder = columns.stream().map(c -> quote(c.getName()) + " DESC NULLS FIRST")
+                .collect(Collectors.joining(", "));
+        long n = 1 + Randomly.getNotCachedInteger(0, 5);
+
+        String tail = "SELECT " + projection + " FROM " + tableQ + " ORDER BY " + ascOrder + " LIMIT -" + n + " BY "
+                + key;
+        String head = "SELECT " + projection + " FROM " + tableQ + " ORDER BY " + descOrder + " LIMIT " + n + " BY "
+                + key;
+
+        List<String> tailRows = sorted(ComparatorHelper.getResultSetFirstColumnAsString(tail, readErrors, state));
+        List<String> headRows = sorted(ComparatorHelper.getResultSetFirstColumnAsString(head, readErrors, state));
+
+        if (!tailRows.equals(headRows)) {
+            throw new AssertionError(String.format(
+                    "LimitRanking negative-LIMIT-BY mismatch: 'LIMIT -%d BY %s' keeps the last %d rows per key in the "
+                            + "ascending total order, which must be the same multiset as 'LIMIT %d BY %s' over the "
+                            + "reverse total order.%n  tail: %s%n  head: %s%n  tail rows (%d): %s%n  head rows (%d): %s",
+                    n, key, n, n, key, tail, head, tailRows.size(), truncate(tailRows), headRows.size(),
+                    truncate(headRows)));
+        }
+    }
+
+    private void checkNegativeWithTiesSuperset(String base, List<ClickHouseColumn> columns) throws SQLException {
+        String key = quote(Randomly.fromList(columns).getName());
+        long n = 1 + Randomly.getNotCachedInteger(0, 20);
+        String plain = base + " ORDER BY " + key + " ASC LIMIT -" + n;
+        String withTies = base + " ORDER BY " + key + " ASC LIMIT -" + n + " WITH TIES";
+
+        List<String> plainRows = ComparatorHelper.getResultSetFirstColumnAsString(plain, readErrors, state);
+        List<String> tiesRows = ComparatorHelper.getResultSetFirstColumnAsString(withTies, readErrors, state);
+
+        if (tiesRows.size() < plainRows.size() || !isSubMultiset(plainRows, tiesRows)) {
+            throw new AssertionError(String.format(
+                    "LimitRanking negative WITH-TIES containment violation: the rows of 'LIMIT -%d' must be a "
+                            + "sub-multiset of 'LIMIT -%d WITH TIES' under the identical ORDER BY %s.%n"
+                            + "  plain (%d):    %s%n  withTies (%d): %s",
+                    n, n, key, plainRows.size(), truncate(plainRows), tiesRows.size(), truncate(tiesRows)));
+        }
+    }
+
+    private static List<String> sorted(List<String> rows) {
+        List<String> out = new ArrayList<>(rows.size());
+        for (String r : rows) {
+            out.add(r == null ? "\\N" : r);
+        }
+        out.sort(String::compareTo);
+        return out;
     }
 
     private void checkOffsetFormEquivalence(String base, String totalOrder) throws SQLException {
@@ -149,21 +244,26 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
     private void checkLimitByCap(String tableQ, String totalOrder, List<ClickHouseColumn> columns) throws SQLException {
         String key = quote(Randomly.fromList(columns).getName());
         long n = 1 + Randomly.getNotCachedInteger(0, 5);
-        String query = "SELECT toString(" + key + ") FROM " + tableQ + " ORDER BY " + totalOrder + " LIMIT " + n
+        String limitByQuery = "SELECT " + key + " AS lb_key FROM " + tableQ + " ORDER BY " + totalOrder + " LIMIT " + n
                 + " BY " + key;
+        String query = "SELECT toString(max(cnt)) FROM (SELECT count() AS cnt FROM (" + limitByQuery + ") GROUP BY "
+                + "lb_key)";
 
-        List<String> keyValues = ComparatorHelper.getResultSetFirstColumnAsString(query, readErrors, state);
-        Map<String, Long> perKey = new LinkedHashMap<>();
-        for (String v : keyValues) {
-            perKey.merge(v == null ? "\\N" : v, 1L, Long::sum);
+        List<String> rows = ComparatorHelper.getResultSetFirstColumnAsString(query, readErrors, state);
+        if (rows.size() != 1 || rows.get(0) == null) {
+            throw new IgnoreMeException();
         }
-        for (Map.Entry<String, Long> e : perKey.entrySet()) {
-            if (e.getValue() > n) {
-                throw new AssertionError(String.format(
-                        "LimitRanking LIMIT-BY cap violation: key %s appears %d times but 'LIMIT %d BY %s' caps it at "
-                                + "%d.%n  Q: %s",
-                        e.getKey(), e.getValue(), n, key, n, query));
-            }
+        long maxPerKey;
+        try {
+            maxPerKey = Long.parseLong(rows.get(0).trim());
+        } catch (NumberFormatException e) {
+            throw new IgnoreMeException();
+        }
+        if (maxPerKey > n) {
+            throw new AssertionError(String.format(
+                    "LimitRanking LIMIT-BY cap violation: the most frequent key appears %d times but 'LIMIT %d BY %s' "
+                            + "caps it at %d.%n  Q: %s",
+                    maxPerKey, n, key, n, query));
         }
     }
 

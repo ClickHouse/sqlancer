@@ -27,6 +27,11 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
     static final String ARM_REORDER_RANDOMIZE = "SETTINGS query_plan_optimize_join_order_limit = 10, "
             + "query_plan_optimize_join_order_randomize = 1";
 
+    static final List<String> JOIN_REORDER_ALGORITHMS = List.of("greedy", "dpsize", "dpsub", "dphyp", "dphyp,greedy",
+            "dpsub,greedy");
+
+    static final String ARM_NO_PLAN_OPTIMIZATIONS = "SETTINGS query_plan_enable_optimizations = 0";
+
     enum JoinKind {
         INNER("INNER JOIN"), LEFT("LEFT JOIN"), FULL("FULL JOIN"), LEFT_SEMI("LEFT SEMI JOIN"),
         LEFT_ANTI("LEFT ANTI JOIN"), RIGHT_SEMI("RIGHT SEMI JOIN"), RIGHT_ANTI("RIGHT ANTI JOIN");
@@ -90,11 +95,12 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
     private final ExpectedErrors readErrors = new ExpectedErrors();
     private final ExpectedErrors selectErrors = new ExpectedErrors();
     private final ExpectedErrors statsErrors = new ExpectedErrors();
+    private final ExpectedErrors algorithmErrors = new ExpectedErrors();
 
     public ClickHouseJoinReorderOracle(ClickHouseGlobalState state) {
         this.state = state;
 
-        for (ExpectedErrors e : List.of(readErrors, selectErrors, statsErrors)) {
+        for (ExpectedErrors e : List.of(readErrors, selectErrors, statsErrors, algorithmErrors)) {
 
             ClickHouseErrors.addSessionSettingsErrors(e);
 
@@ -109,6 +115,12 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
         }
 
         selectErrors.add("Join restriction violated");
+        selectErrors.addAll(ClickHouseErrors.getKnownOpenJoinOrderBugs());
+
+        algorithmErrors.add("Join restriction violated");
+        algorithmErrors.addAll(ClickHouseErrors.getKnownOpenJoinOrderBugs());
+        algorithmErrors.add("Failed to find a valid join order");
+        algorithmErrors.add("EXPERIMENTAL_FEATURE_ERROR");
 
         ClickHouseErrors.addStatisticsErrors(statsErrors);
         statsErrors.add("already contains statistics");
@@ -140,6 +152,9 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
             nullableKey[1] = true;
         }
 
+        String viewRelation = null;
+        int viewRelationIndex = 1 + (int) Randomly.getNotCachedInteger(0, numTables - 1);
+
         try {
             for (int i = 0; i < numTables; i++) {
                 String keyType = nullableKey[i] ? "Nullable(Int32)" : "Int32";
@@ -151,6 +166,16 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
                 }
             }
             seedTables(tables, nullableKey);
+
+            if (Randomly.getNotCachedInteger(0, 100) < 40) {
+                String candidate = db + ".jreord_" + id + "_v" + viewRelationIndex;
+                String createView = "CREATE VIEW " + candidate + " AS SELECT k, v, s FROM "
+                        + tables.get(viewRelationIndex);
+                logStmt(createView);
+                if (new SQLQueryAdapter(createView, readErrors, true).execute(state)) {
+                    viewRelation = candidate;
+                }
+            }
 
             if (Randomly.getNotCachedInteger(0, 100) < 25) {
                 materializeStatsBestEffort(tables.get(0));
@@ -181,9 +206,14 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
                 where = "a" + aIdx + ".v " + Randomly.fromOptions("<", "<=", "!=") + " a" + bIdx + ".v";
             }
 
-            String qOn = renderQuery(kinds, tables, onLeft, where, ARM_REORDER_ON);
-            String qOff = renderQuery(kinds, tables, onLeft, where, ARM_REORDER_OFF);
-            String qRandomized = renderQuery(kinds, tables, onLeft, where, ARM_REORDER_RANDOMIZE);
+            List<String> relations = new ArrayList<>(tables);
+            if (viewRelation != null) {
+                relations.set(viewRelationIndex, viewRelation);
+            }
+
+            String qOn = renderQuery(kinds, relations, onLeft, where, ARM_REORDER_ON);
+            String qOff = renderQuery(kinds, relations, onLeft, where, ARM_REORDER_OFF);
+            String qRandomized = renderQuery(kinds, relations, onLeft, where, ARM_REORDER_RANDOMIZE);
 
             logStmt(qOn);
             List<String> rowsOn = ComparatorHelper.getResultSetFirstColumnAsString(qOn, selectErrors, state);
@@ -196,7 +226,16 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
             assertMultisetsEqual(kinds, qOn, rowsOn, qOff, rowsOff);
             assertMultisetsEqual(kinds, qOn, rowsOn, qRandomized, rowsRandomized);
             assertMultisetsEqual(kinds, qOff, rowsOff, qRandomized, rowsRandomized);
+
+            checkEnumerationAlgorithms(kinds, relations, onLeft, where, qOn, rowsOn);
         } finally {
+            if (viewRelation != null) {
+                try {
+                    new SQLQueryAdapter("DROP VIEW IF EXISTS " + viewRelation, readErrors, true).execute(state);
+                } catch (Exception | AssertionError ignored) {
+
+                }
+            }
             for (String t : tables) {
                 try {
                     new SQLQueryAdapter("DROP TABLE IF EXISTS " + t, readErrors, true).execute(state);
@@ -204,6 +243,30 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
 
                 }
             }
+        }
+    }
+
+    private void checkEnumerationAlgorithms(List<JoinKind> kinds, List<String> relations, List<Integer> onLeft,
+            String where, String referenceQuery, List<String> referenceRows) throws SQLException {
+        List<String> arms = new ArrayList<>();
+        for (String algorithm : JOIN_REORDER_ALGORITHMS) {
+            arms.add(ARM_REORDER_ON + ", query_plan_optimize_join_order_algorithm = '" + algorithm + "'");
+        }
+        arms.add(ARM_NO_PLAN_OPTIMIZATIONS);
+        arms.add(ARM_REORDER_ON + ", query_plan_enable_optimizations = 0");
+        arms.add(ARM_REORDER_ON + ", query_plan_join_shard_by_pk_ranges = 1");
+        arms.add(ARM_REORDER_ON + ", query_plan_optimize_join_order_max_searched_plans = 1");
+
+        for (String arm : arms) {
+            String query = renderQuery(kinds, relations, onLeft, where, arm);
+            List<String> rows;
+            try {
+                logStmt(query);
+                rows = ComparatorHelper.getResultSetFirstColumnAsString(query, algorithmErrors, state);
+            } catch (IgnoreMeException e) {
+                continue;
+            }
+            assertMultisetsEqual(kinds, referenceQuery, referenceRows, query, rows);
         }
     }
 

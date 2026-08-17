@@ -3,7 +3,7 @@ package sqlancer.clickhouse.ast;
 public class ClickHouseAlterStatistics extends ClickHouseDdlStatement {
 
     public enum Kind {
-        MODIFY_STATISTICS, MATERIALIZE_STATISTICS, DROP_STATISTICS
+        ADD_STATISTICS, MODIFY_STATISTICS, MATERIALIZE_STATISTICS, DROP_STATISTICS
     }
 
     private final Kind kind;

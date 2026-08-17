@@ -57,7 +57,8 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
         queryPlan1Sequences = new ArrayList<>();
         queryPlan2Sequences = new ArrayList<>();
 
-        List<ClickHouseTable> tables = state.getSchema().getRandomTableNonEmptyTables().getTables();
+        List<ClickHouseTable> tables = state.getSchema().getRandomTableNonEmptyTables().getTables().stream()
+                .filter(t -> !t.isView()).collect(Collectors.toList());
         if (tables.isEmpty()) {
             throw new IgnoreMeException();
         }

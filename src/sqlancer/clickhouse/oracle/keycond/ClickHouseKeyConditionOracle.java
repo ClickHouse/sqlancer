@@ -69,6 +69,68 @@ public class ClickHouseKeyConditionOracle implements TestOracle<ClickHouseGlobal
         }
         List<String> noPruneRows = ComparatorHelper.getResultSetFirstColumnAsString(noPrune, errors, state);
         ComparatorHelper.assumeResultSetsAreEqual(baseRows, noPruneRows, baseline, List.of(noPrune), state);
+
+        if (state.getClickHouseOptions().indexHintEmission && Randomly.getBoolean()) {
+            checkIndexHintIsResultNeutral(select, gen, columns);
+        }
+    }
+
+    private void checkIndexHintIsResultNeutral(ClickHouseSelect select, ClickHouseExpressionGenerator gen,
+            List<ClickHouseColumnReference> columns) throws SQLException {
+        ClickHouseExpression retained = select.getWhereClause();
+        String pinned = " SETTINGS force_primary_key = 0, convert_query_to_cnf = 0, use_query_condition_cache = 0";
+        String outerOnly = ClickHouseToStringVisitor.asString(select) + pinned;
+
+        ClickHouseColumnReference hintColumn = columns.get((int) Randomly.getNotCachedInteger(0, columns.size()));
+        ClickHouseExpression hintArgument = new sqlancer.clickhouse.ast.ClickHouseBinaryComparisonOperation(hintColumn,
+                gen.generateConstant(hintColumn.getColumn().getType()),
+                sqlancer.clickhouse.ast.ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator
+                        .getRandomOperator());
+        ClickHouseExpression hint = new sqlancer.clickhouse.ast.ClickHouseWrappedExpression("indexHint(",
+                hintArgument, ")");
+        select.setWhereClause(new sqlancer.clickhouse.ast.ClickHouseBinaryLogicalOperation(hint, retained,
+                sqlancer.clickhouse.ast.ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND));
+        String hinted = ClickHouseToStringVisitor.asString(select) + pinned;
+        select.setWhereClause(new sqlancer.clickhouse.ast.ClickHouseBinaryLogicalOperation(hintArgument, retained,
+                sqlancer.clickhouse.ast.ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND));
+        String bothFilters = ClickHouseToStringVisitor.asString(select) + pinned;
+        select.setWhereClause(retained);
+
+        List<String> outerRows = ComparatorHelper.getResultSetFirstColumnAsString(outerOnly, errors, state);
+        List<String> hintedRows = ComparatorHelper.getResultSetFirstColumnAsString(hinted, errors, state);
+        List<String> bothRows = ComparatorHelper.getResultSetFirstColumnAsString(bothFilters, errors, state);
+
+        if (!isSubMultiset(bothRows, hintedRows)) {
+            throw new AssertionError(String.format(
+                    "indexHint dropped a matching row: indexHint(P) does not filter, it only restricts the granules "
+                            + "the read touches, so every row selected by 'P AND Q' must also be selected by "
+                            + "'indexHint(P) AND Q'. A missing row means index analysis pruned a granule that holds a "
+                            + "row satisfying P.%n  P AND Q (%d rows):          %s%n  indexHint(P) AND Q (%d rows): %s",
+                    bothRows.size(), bothFilters, hintedRows.size(), hinted));
+        }
+        if (!isSubMultiset(hintedRows, outerRows)) {
+            throw new AssertionError(String.format(
+                    "indexHint added a row: it can only remove whole granules from the read, so "
+                            + "'indexHint(P) AND Q' must be a sub-multiset of 'Q'.%n"
+                            + "  indexHint(P) AND Q (%d rows): %s%n  Q (%d rows):                  %s",
+                    hintedRows.size(), hinted, outerRows.size(), outerOnly));
+        }
+    }
+
+    private static boolean isSubMultiset(List<String> sub, List<String> sup) {
+        java.util.Map<String, Long> counts = new java.util.HashMap<>();
+        for (String v : sup) {
+            counts.merge(v == null ? "\\N" : v, 1L, Long::sum);
+        }
+        for (String v : sub) {
+            String key = v == null ? "\\N" : v;
+            long remaining = counts.getOrDefault(key, 0L) - 1;
+            if (remaining < 0) {
+                return false;
+            }
+            counts.put(key, remaining);
+        }
+        return true;
     }
 
     static final class MaterializedColumnVisitor extends ClickHouseToStringVisitor {

@@ -29,6 +29,7 @@ public class ClickHouseTextIndexDirectReadOracle implements TestOracle<ClickHous
         NGRAMS("text(tokenizer = ngrams(3))"),
         SPARSEGRAMS("text(tokenizer = sparseGrams(3, 5))"),
         SPLIT_BY_STRING("text(tokenizer = splitByString([' ']))"),
+        ICU("text(tokenizer = icu('en'))"),
         PREPROCESSOR_LOWER("text(tokenizer = 'splitByNonAlpha', preprocessor = lower(s))");
 
         private final String indexType;
@@ -67,6 +68,9 @@ public class ClickHouseTextIndexDirectReadOracle implements TestOracle<ClickHous
         Randomly r = state.getRandomly();
 
         Scenario scenario = Scenario.values()[(int) Randomly.getNotCachedInteger(0, Scenario.values().length)];
+        if (scenario == Scenario.ICU && !state.getClickHouseOptions().textIndexSecondWave) {
+            scenario = Scenario.SPLIT_CONTROL;
+        }
         String create = "CREATE TABLE " + table + " (k UInt32, s String, INDEX idx (s) TYPE " + scenario.indexType
                 + " GRANULARITY 1) ENGINE = MergeTree ORDER BY k";
 
@@ -150,6 +154,7 @@ public class ClickHouseTextIndexDirectReadOracle implements TestOracle<ClickHous
             return "hasToken(s, '" + esc(fragment) + "')";
         }
         case SPLIT_BY_STRING:
+        case ICU:
             return "hasToken(s, '" + esc(vocab.get(r.getInteger(0, vocab.size()))) + "')";
         case PREPROCESSOR_LOWER:
             return "hasToken(s, '" + esc(vocab.get(r.getInteger(0, vocab.size())).toLowerCase(Locale.ROOT)) + "')";

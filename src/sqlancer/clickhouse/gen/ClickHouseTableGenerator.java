@@ -121,7 +121,9 @@ public class ClickHouseTableGenerator {
 
             boolean engineRequiresNonEmptyOrderBy = isDedupeEngine(engine);
 
-            String fallbackKeyColumn = columns.stream().filter(ClickHouseTableGenerator::isBareKeyColumn)
+            java.util.function.Predicate<ClickHouseSchema.ClickHouseColumn> fallbackKeyFilter = engineRequiresNonEmptyOrderBy
+                    ? ClickHouseTableGenerator::isDedupeKeyColumn : ClickHouseTableGenerator::isBareKeyColumn;
+            String fallbackKeyColumn = columns.stream().filter(fallbackKeyFilter)
                     .map(ClickHouseSchema.ClickHouseColumn::getName).findFirst().orElse(columns.get(0).getName());
             String fallbackOrderBy = engineRequiresNonEmptyOrderBy ? " ORDER BY " + fallbackKeyColumn + " "
                     : " ORDER BY tuple() ";
@@ -136,11 +138,15 @@ public class ClickHouseTableGenerator {
                 if (bareCols.size() >= 2) {
                     java.util.List<String> obCols = pickDistinct(bareCols,
                             2 + (int) Randomly.getNotCachedInteger(0, Math.min(2, bareCols.size() - 1)));
-                    int pkCount = 1 + (int) Randomly.getNotCachedInteger(0, obCols.size() - 1);
-                    sb.append(" ORDER BY (").append(String.join(", ", obCols)).append(")");
-                    java.util.List<String> pkCols = obCols.subList(0, pkCount);
-                    primaryKeyClause = " PRIMARY KEY (" + String.join(", ", pkCols) + ")";
-                    sampleByColumn = firstBareUnsignedIntIn(pkCols);
+                    java.util.List<String> directed = withSortDirections(obCols);
+                    boolean descending = !directed.equals(obCols);
+                    sb.append(" ORDER BY (").append(String.join(", ", directed)).append(")");
+                    if (!descending) {
+                        int pkCount = 1 + (int) Randomly.getNotCachedInteger(0, obCols.size() - 1);
+                        java.util.List<String> pkCols = obCols.subList(0, pkCount);
+                        primaryKeyClause = " PRIMARY KEY (" + String.join(", ", pkCols) + ")";
+                        sampleByColumn = firstBareUnsignedIntIn(pkCols);
+                    }
                     orderByHandled = true;
                 }
             }
@@ -160,8 +166,12 @@ public class ClickHouseTableGenerator {
                 if (expr != null) {
                     sb.append(" ORDER BY ");
                     sb.append(ClickHouseToStringVisitor.asString(expr));
-
                     sampleByColumn = bareIntegerColumnName(expr);
+                    if (!isDedupeEngine(engine) && descendingKeysAllowed()
+                            && Randomly.getBooleanWithRatherLowProbability()) {
+                        sb.append(" DESC");
+                        sampleByColumn = null;
+                    }
                 } else {
                     sb.append(fallbackOrderBy);
                     sampleByColumn = fallbackSampleColumn(engineRequiresNonEmptyOrderBy);
@@ -233,6 +243,49 @@ public class ClickHouseTableGenerator {
                 || u instanceof sqlancer.clickhouse.ClickHouseType.Time64;
     }
 
+    private static final int MIN_DEDUPE_KEY_DOMAIN = 8;
+
+    static boolean hasDegenerateKeyDomain(ClickHouseSchema.ClickHouseColumn col) {
+        sqlancer.clickhouse.ClickHouseType u = col.getType().getTypeTerm().unwrap();
+        if (u instanceof sqlancer.clickhouse.ClickHouseType.Primitive p
+                && p.kind() == sqlancer.clickhouse.ClickHouseType.Kind.Bool) {
+            return true;
+        }
+        return u instanceof sqlancer.clickhouse.ClickHouseType.Enum e && e.entries().size() < MIN_DEDUPE_KEY_DOMAIN;
+    }
+
+    static boolean isDedupeKeyColumn(ClickHouseSchema.ClickHouseColumn col) {
+        return isBareKeyColumn(col) && !hasDegenerateKeyDomain(col);
+    }
+
+    private static String renderAutoStatisticsTypes() {
+        List<String> pool = new ArrayList<>(ClickHouseStatisticsGenerator.KINDS);
+        java.util.Collections.shuffle(pool, new java.util.Random(Randomly.getNotCachedInteger(0, Integer.MAX_VALUE)));
+        int n = (int) Randomly.getNotCachedInteger(0, 4);
+        return String.join(", ", pool.subList(0, Math.min(n, pool.size())));
+    }
+
+    private boolean descendingKeysAllowed() {
+        return globalState.getClickHouseOptions().mixedDirectionSortingKey;
+    }
+
+    private java.util.List<String> withSortDirections(java.util.List<String> orderByColumns) {
+        if (!descendingKeysAllowed() || Randomly.getBoolean()) {
+            return orderByColumns;
+        }
+        java.util.List<String> out = new java.util.ArrayList<>(orderByColumns.size());
+        boolean anyDescending = false;
+        for (String col : orderByColumns) {
+            boolean descending = Randomly.getBoolean();
+            anyDescending |= descending;
+            out.add(descending ? col + " DESC" : col);
+        }
+        if (!anyDescending) {
+            out.set(out.size() - 1, orderByColumns.get(out.size() - 1) + " DESC");
+        }
+        return out;
+    }
+
     static java.util.List<String> pickDistinct(java.util.List<String> src, int k) {
         java.util.List<String> pool = new java.util.ArrayList<>(src);
         java.util.List<String> out = new java.util.ArrayList<>();
@@ -245,6 +298,10 @@ public class ClickHouseTableGenerator {
     private ClickHouseEngine pickEngine(List<ClickHouseSchema.ClickHouseColumn> cols) {
         int roll = (int) Randomly.getNotCachedInteger(0, 100);
         if (roll < 78) {
+            return ClickHouseEngine.MergeTree;
+        }
+        boolean hasDedupeKey = cols.stream().anyMatch(ClickHouseTableGenerator::isDedupeKeyColumn);
+        if (!hasDedupeKey) {
             return ClickHouseEngine.MergeTree;
         }
         if (roll < 86) {
@@ -272,15 +329,14 @@ public class ClickHouseTableGenerator {
         }
 
         boolean hasSimpleAgg = cols.stream().anyMatch(ClickHouseTableGenerator::isSimpleAggregateColumn);
-        boolean hasBareKey = cols.stream().anyMatch(ClickHouseTableGenerator::isBareKeyColumn);
-        return hasSimpleAgg && hasBareKey ? ClickHouseEngine.AggregatingMergeTree : ClickHouseEngine.MergeTree;
+        return hasSimpleAgg ? ClickHouseEngine.AggregatingMergeTree : ClickHouseEngine.MergeTree;
     }
 
     private String renderEngineArgs(ClickHouseEngine engine) {
         if (engine == ClickHouseEngine.ReplacingMergeTree) {
             List<ClickHouseSchema.ClickHouseColumn> candidates = columns.stream().filter(this::isValidReplacingVer)
                     .collect(Collectors.toList());
-            if (candidates.isEmpty() || !Randomly.getBoolean()) {
+            if (candidates.isEmpty()) {
                 return "";
             }
             return Randomly.fromList(candidates).getName();
@@ -349,13 +405,21 @@ public class ClickHouseTableGenerator {
         if (Randomly.getBooleanWithSmallProbability()) {
             settings.add("merge_max_block_size=" + Randomly.fromOptions(1L, 1024L, 8192L));
         }
-        if (Randomly.getBooleanWithSmallProbability()) {
-            settings.add("ratio_of_defaults_for_sparse_serialization="
-                    + Randomly.fromOptions(0.0, 0.5, 0.95, 1.0));
+        if (globalState.getClickHouseOptions().sparseColumnEmission ? Randomly.getBoolean()
+                : Randomly.getBooleanWithSmallProbability()) {
+            settings.add(
+                    "ratio_of_defaults_for_sparse_serialization=" + Randomly.fromOptions(0.0, 0.1, 0.3, 0.5, 0.95,
+                            1.0));
         }
         if (Randomly.getBooleanWithSmallProbability()) {
             settings.add("min_compress_block_size=" + Randomly.fromOptions(0L, 65536L));
             settings.add("max_compress_block_size=" + Randomly.fromOptions(65536L, 1048576L));
+        }
+        if (Randomly.getBooleanWithSmallProbability()) {
+            settings.add("auto_statistics_types='" + renderAutoStatisticsTypes() + "'");
+        }
+        if (Randomly.getBooleanWithSmallProbability()) {
+            settings.add("materialize_statistics_on_merge=" + Randomly.fromOptions(0, 1));
         }
         if (Randomly.getBooleanWithRatherLowProbability()) {
             settings.add("enable_block_number_column=1");
@@ -461,9 +525,16 @@ public class ClickHouseTableGenerator {
                 granularity);
     }
 
-    private static String pickTokenizer() {
-        return Randomly.fromOptions("'splitByNonAlpha'", "ngrams(2)", "ngrams(3)", "ngrams(4)", "'array'", "'asciiCJK'",
-                "splitByString([' '])", "splitByString([' ', '-', '::'])", "sparseGrams(3, 5)");
+    private String pickTokenizer() {
+        List<String> tokenizers = new ArrayList<>(List.of("'splitByNonAlpha'", "ngrams(2)", "ngrams(3)", "ngrams(4)",
+                "'array'", "'asciiCJK'", "splitByString([' '])", "splitByString([' ', '-', '::'])",
+                "sparseGrams(3, 5)"));
+        if (globalState.getClickHouseOptions().textIndexSecondWave) {
+            tokenizers.add("icu('en')");
+            tokenizers.add("icu('de')");
+            tokenizers.add("icu('ja')");
+        }
+        return Randomly.fromList(tokenizers);
     }
 
     private static String textIndexTarget(ClickHouseSchema.ClickHouseColumn col) {
@@ -545,7 +616,7 @@ public class ClickHouseTableGenerator {
 
     static boolean isValidOrderByForDedupe(ClickHouseExpression expr) {
 
-        return expr instanceof ClickHouseColumnReference cr && isBareKeyColumn(cr.getColumn());
+        return expr instanceof ClickHouseColumnReference cr && isDedupeKeyColumn(cr.getColumn());
     }
 
     static boolean isValidPartitionBy(ClickHouseExpression expr) {

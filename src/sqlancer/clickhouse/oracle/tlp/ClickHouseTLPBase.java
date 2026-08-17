@@ -138,7 +138,8 @@ public class ClickHouseTLPBase extends TernaryLogicPartitioningOracleBase<ClickH
         select.setFetchColumns(from);
         select.setWhereClause(null);
 
-        if (select.getJoinClauses().isEmpty() && Randomly.getBooleanWithRatherLowProbability()) {
+        if (select.getJoinClauses().isEmpty() && !table.getTable().isView()
+                && Randomly.getBooleanWithRatherLowProbability()) {
             select.setPrewhereClause(gen.generateExpressionWithColumns(columns, 3));
         }
 

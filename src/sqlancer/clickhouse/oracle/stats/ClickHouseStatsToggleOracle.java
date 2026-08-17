@@ -28,13 +28,16 @@ public class ClickHouseStatsToggleOracle implements TestOracle<ClickHouseGlobalS
     private static final AtomicLong STATS_COUNTER = new AtomicLong();
     private static final int DIFF_LIMIT = 20;
 
-    static final List<String> STATISTICS_KINDS = List.of("tdigest", "uniq", "countmin", "minmax");
+    static final List<String> STATISTICS_KINDS = List.of("tdigest", "uniq", "countmin", "minmax", "uniq_v2", "basic");
 
     private static final Map<String, AtomicLong> MATERIALIZED_BY_KIND = Map.of("tdigest", new AtomicLong(), "uniq",
-            new AtomicLong(), "countmin", new AtomicLong(), "minmax", new AtomicLong());
+            new AtomicLong(), "countmin", new AtomicLong(), "minmax", new AtomicLong(), "uniq_v2", new AtomicLong(),
+            "basic", new AtomicLong());
 
-    static final String ARM_STATS_ON = "SETTINGS use_statistics = 1, allow_statistics_optimize = 1";
-    static final String ARM_STATS_OFF = "SETTINGS use_statistics = 0, allow_statistics_optimize = 0";
+    static final String ARM_STATS_ON = "SETTINGS use_statistics = 1, allow_statistics_optimize = 1, "
+            + "use_statistics_for_part_pruning = 1";
+    static final String ARM_STATS_OFF = "SETTINGS use_statistics = 0, allow_statistics_optimize = 0, "
+            + "use_statistics_for_part_pruning = 0";
 
     static final String PIN_JOIN_ORDER = ", query_plan_optimize_join_order_limit = 0";
 
@@ -49,6 +52,7 @@ public class ClickHouseStatsToggleOracle implements TestOracle<ClickHouseGlobalS
         for (ExpectedErrors e : List.of(readErrors, statsDdlErrors)) {
 
             ClickHouseErrors.addSessionSettingsErrors(e);
+            ClickHouseErrors.addExpectedExpressionErrors(e);
 
             e.add("UNKNOWN_TABLE");
             e.add("Unknown table expression identifier");
@@ -74,6 +78,7 @@ public class ClickHouseStatsToggleOracle implements TestOracle<ClickHouseGlobalS
         statsDdlErrors.add("ILLEGAL_STATISTICS");
         statsDdlErrors.add("already contains statistics");
 
+        statsDdlErrors.add("because it's affected by mutation with ID");
         statsDdlErrors.add("Exception happened during execution of mutation");
         statsDdlErrors.add("UNFINISHED");
         statsDdlErrors.add("contains a duplicate expression");
@@ -231,8 +236,18 @@ public class ClickHouseStatsToggleOracle implements TestOracle<ClickHouseGlobalS
         return diff;
     }
 
+    static String renderAutoStatisticsTypes() {
+        List<String> pool = new ArrayList<>(STATISTICS_KINDS);
+        java.util.Collections.shuffle(pool, new java.util.Random(Randomly.getNotCachedInteger(0, Integer.MAX_VALUE)));
+        int n = (int) Randomly.getNotCachedInteger(0, 4);
+        return String.join(", ", pool.subList(0, Math.min(n, pool.size())));
+    }
+
     static List<String> renderStalenessSetup(String table, long rows, String kindK, String kindV) {
-        return List.of("CREATE TABLE " + table + " (k Int32, v Int64) ENGINE = MergeTree ORDER BY k",
+        return List.of(
+                "CREATE TABLE " + table + " (k Int32, v Int64) ENGINE = MergeTree ORDER BY k SETTINGS "
+                        + "auto_statistics_types = '" + renderAutoStatisticsTypes() + "', "
+                        + "materialize_statistics_on_merge = " + (Randomly.getBoolean() ? 1 : 0),
                 "INSERT INTO " + table + " SELECT toInt32(if(number % 4 = 3, number, number % 3)), "
                         + "toInt64(number % 11) FROM numbers(" + rows + ")",
                 "ALTER TABLE " + table + " ADD STATISTICS IF NOT EXISTS k TYPE " + kindK,

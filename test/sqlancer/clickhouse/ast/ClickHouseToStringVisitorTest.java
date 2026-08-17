@@ -208,7 +208,7 @@ class ClickHouseToStringVisitorTest {
                 ClickHouseExpression.ClickHouseJoin.JoinType.CROSS);
         select.setJoinClauses(Arrays.asList(join));
         String result = ClickHouseVisitor.asString(select);
-        String answer = "SELECT t1.a1, t2.a2, t1.b1, t2.b2 FROM t1 JOIN t2";
+        String answer = "SELECT t1.a1, t2.a2, t1.b1, t2.b2 FROM t1, t2";
         assertEquals(answer, result);
     }
 
@@ -250,7 +250,7 @@ class ClickHouseToStringVisitorTest {
                 ClickHouseExpression.ClickHouseJoin.JoinType.CROSS);
         select.setJoinClauses(Arrays.asList(join));
         String result = ClickHouseVisitor.asString(select);
-        String answer = "SELECT left.a1, left.b1, right.a2, right.b2 FROM t1 AS left JOIN t2 AS right";
+        String answer = "SELECT left.a1, left.b1, right.a2, right.b2 FROM t1 AS left, t2 AS right";
         assertEquals(answer, result);
     }
 

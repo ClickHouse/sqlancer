@@ -15,6 +15,11 @@ import sqlancer.clickhouse.oracle.eet.ClickHouseEETOracle;
 import sqlancer.clickhouse.oracle.final_.ClickHouseFinalMergeOracle;
 import sqlancer.clickhouse.oracle.join.ClickHouseJoinAlgorithmOracle;
 import sqlancer.clickhouse.oracle.keycond.ClickHouseKeyConditionOracle;
+import sqlancer.clickhouse.oracle.keycond.ClickHouseFloatPruningOracle;
+import sqlancer.clickhouse.oracle.codec.ClickHouseCodecRoundtripOracle;
+import sqlancer.clickhouse.oracle.join.ClickHouseIEJoinOracle;
+import sqlancer.clickhouse.oracle.pipe.ClickHousePipeEquivalenceOracle;
+import sqlancer.clickhouse.oracle.final_.ClickHouseTupleFinalAggregationOracle;
 import sqlancer.clickhouse.oracle.materialize.ClickHouseSubqueryMaterializeOracle;
 import sqlancer.clickhouse.oracle.parallelism.ClickHouseParallelismOracle;
 import sqlancer.clickhouse.oracle.cte.ClickHouseMaterializedCteOracle;
@@ -82,6 +87,7 @@ import sqlancer.clickhouse.oracle.tokenbf.ClickHouseTokenBfOracle;
 import sqlancer.clickhouse.oracle.vecindex.ClickHouseVectorIndexRecallOracle;
 import sqlancer.clickhouse.oracle.sample.ClickHouseSampleClauseOracle;
 import sqlancer.clickhouse.oracle.distributed.ClickHouseDistributedTableOracle;
+import sqlancer.clickhouse.oracle.distributed.ClickHouseDistributedPlanEquivalenceOracle;
 import sqlancer.clickhouse.oracle.join.ClickHouseAsofJoinOracle;
 import sqlancer.clickhouse.oracle.groupby.ClickHouseCubeGroupingSetsOracle;
 import sqlancer.clickhouse.oracle.join.ClickHousePasteJoinOracle;
@@ -756,6 +762,48 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseLowCardinalityEquivalenceOracle(globalState);
+        }
+    },
+    DistributedPlanEquivalence {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseDistributedPlanEquivalenceOracle(globalState);
+        }
+    },
+    FloatPruning {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseFloatPruningOracle(globalState);
+        }
+    },
+    CodecRoundtrip {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseCodecRoundtripOracle(globalState);
+        }
+    },
+    PipeEquivalence {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHousePipeEquivalenceOracle(globalState);
+        }
+    },
+    IEJoin {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseIEJoinOracle(globalState);
+        }
+    },
+    TupleFinalAggregation {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseTupleFinalAggregationOracle(globalState);
         }
     }
 }

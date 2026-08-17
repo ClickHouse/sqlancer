@@ -16,13 +16,24 @@ public class ClickHouseWindowFunction extends ClickHouseExpression {
     private final ClickHouseExpression argument;
     private final List<ClickHouseExpression> partitionBy;
     private final List<ClickHouseExpression> orderBy;
+    private final String frame;
 
     public ClickHouseWindowFunction(Kind kind, ClickHouseExpression argument, List<ClickHouseExpression> partitionBy,
             List<ClickHouseExpression> orderBy) {
+        this(kind, argument, partitionBy, orderBy, null);
+    }
+
+    public ClickHouseWindowFunction(Kind kind, ClickHouseExpression argument, List<ClickHouseExpression> partitionBy,
+            List<ClickHouseExpression> orderBy, String frame) {
         this.kind = kind;
         this.argument = argument;
         this.partitionBy = partitionBy == null ? Collections.emptyList() : List.copyOf(partitionBy);
         this.orderBy = orderBy == null ? Collections.emptyList() : List.copyOf(orderBy);
+        this.frame = frame;
+    }
+
+    public String getFrame() {
+        return frame;
     }
 
     public Kind getKind() {
