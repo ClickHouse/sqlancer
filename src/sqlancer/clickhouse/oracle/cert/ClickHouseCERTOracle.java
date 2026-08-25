@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import sqlancer.IgnoreMeException;
 import sqlancer.Randomly;
 import sqlancer.clickhouse.ClickHouseErrors;
+import sqlancer.clickhouse.ClickHouseFailureDiagnostics;
 import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseColumn;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
@@ -119,6 +120,9 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
         }
 
         if (card2 > card1) {
+            ClickHouseFailureDiagnostics.logTableState(state, pivotTable.getName());
+            ClickHouseFailureDiagnostics.logQueryPlan(state, "Q1", q1);
+            ClickHouseFailureDiagnostics.logQueryPlan(state, "Q2", q2);
             throw new AssertionError(String.format(
                     "CERT: more-restrictive query has higher estimated cardinality (%d > %d)%n  Q1: %s%n  Q2: %s",
                     card2, card1, q1, q2));
