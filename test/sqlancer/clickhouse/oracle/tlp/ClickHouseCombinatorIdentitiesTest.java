@@ -77,10 +77,10 @@ class ClickHouseCombinatorIdentitiesTest {
                 continue;
             }
             String rewrite = id.rewriteForm().apply(args);
-            assertTrue(rewrite.contains(", NULL))"), id.name()
-                    + " rewrite must use NULL as the else branch, not a neutral value: with"
-                    + " aggregate_functions_null_for_empty=1 the combinator returns NULL when the condition"
-                    + " selects no row, while a 0 else branch makes the rewrite return 0. Got: " + rewrite);
+            assertTrue(rewrite.contains(", NULL))"),
+                    id.name() + " rewrite must use NULL as the else branch, not a neutral value: with"
+                            + " aggregate_functions_null_for_empty=1 the combinator returns NULL when the condition"
+                            + " selects no row, while a 0 else branch makes the rewrite return 0. Got: " + rewrite);
         }
     }
 
@@ -98,8 +98,7 @@ class ClickHouseCombinatorIdentitiesTest {
     void countIfRewriteCoercesNullConditionToZero() {
         ClickHouseCombinatorIdentities.Identity countIf = ClickHouseCombinatorIdentities.CATALOG.stream()
                 .filter(i -> i.name().equals("countIf")).findFirst().orElseThrow();
-        String rewrite = countIf.rewriteForm()
-                .apply(new ClickHouseCombinatorIdentities.IdentityArgs("t.x", "t.c > 0"));
+        String rewrite = countIf.rewriteForm().apply(new ClickHouseCombinatorIdentities.IdentityArgs("t.x", "t.c > 0"));
         assertTrue(rewrite.contains("ifNull("),
                 "countIf rewrite must coerce a NULL condition to 0: sum over an argument that is NULL for"
                         + " every row returns NULL, while countIf returns 0. Got: " + rewrite);
