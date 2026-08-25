@@ -29,11 +29,11 @@ final class ClickHouseCombinatorIdentities {
             new Identity("sumIf", fn -> fn == ClickHouseAggregate.ClickHouseAggregateFunction.SUM,
                     ClickHouseCombinatorIdentities::isNumericType, SETTINGS_NULL_FOR_EMPTY_ON, true,
                     args -> "sumIf(" + args.xSql() + ", " + args.condSql() + ")",
-                    args -> "sum(if(" + args.condSql() + ", " + args.xSql() + ", 0))"),
+                    args -> "sum(if(" + args.condSql() + ", " + args.xSql() + ", NULL))"),
 
             new Identity("countIf", fn -> fn == ClickHouseAggregate.ClickHouseAggregateFunction.COUNT, t -> true,
                     SETTINGS_NULL_FOR_EMPTY_OFF, true, args -> "countIf(" + args.condSql() + ")",
-                    args -> "sum(toUInt64(" + args.condSql() + "))"),
+                    args -> "sum(toUInt64(ifNull(" + args.condSql() + ", 0)))"),
             new Identity("avgOrNull", fn -> fn == ClickHouseAggregate.ClickHouseAggregateFunction.AVG,
                     ClickHouseCombinatorIdentities::isNumericType, SETTINGS_NULL_FOR_EMPTY_OFF, false,
                     args -> "avgOrNull(" + args.xSql() + ")",
