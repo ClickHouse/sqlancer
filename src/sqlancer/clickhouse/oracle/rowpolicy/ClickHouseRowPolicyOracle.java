@@ -32,6 +32,13 @@ public class ClickHouseRowPolicyOracle implements TestOracle<ClickHouseGlobalSta
         this.state = state;
         ClickHouseErrors.addExpectedExpressionErrors(errors);
         ClickHouseErrors.addSessionSettingsErrors(errors);
+        errors.add("TOO_DEEP_SUBQUERIES");
+        errors.add("Too deep subqueries");
+        errors.add("TOO_DEEP_RECURSION");
+        errors.add("Maximum parse depth");
+        errors.add("Stack size too large");
+        errors.add("TOO_DEEP_AST");
+        errors.add("TOO_BIG_AST");
     }
 
     @Override
@@ -74,8 +81,9 @@ public class ClickHouseRowPolicyOracle implements TestOracle<ClickHouseGlobalSta
                 + ") TO CURRENT_USER";
         String dropPolicy = "DROP ROW POLICY IF EXISTS " + policyName + " ON " + fqTable;
 
+        boolean policyCreated;
         try {
-            new SQLQueryAdapter(createPolicy, errors, false).execute(state);
+            policyCreated = new SQLQueryAdapter(createPolicy, errors, false).execute(state);
         } catch (SQLException e) {
 
             String msg = String.valueOf(e.getMessage());
@@ -84,6 +92,10 @@ public class ClickHouseRowPolicyOracle implements TestOracle<ClickHouseGlobalSta
                 throw new IgnoreMeException();
             }
             throw e;
+        }
+        if (!policyCreated) {
+            new SQLQueryAdapter(dropPolicy, errors, false).execute(state);
+            throw new IgnoreMeException();
         }
 
         try {

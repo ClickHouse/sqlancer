@@ -375,12 +375,6 @@ before acting** — when an issue is fixed/closed, delete its entry from this li
   INSERT INTO s VALUES (0,1,0),(1,1,1),(2,1,2);  INSERT INTO s VALUES (3,1,3),(4,1,4),(5,1,5);
   SELECT c0 FROM s FINAL WHERE v_zero >= 0 ORDER BY c0;   -- c0=0 MISSING (5 rows, expected 6)
   ```
-- **[#106099](https://github.com/ClickHouse/ClickHouse/issues/106099)** — `LOGICAL_ERROR "Duplicate column name in row policy actions output"` (Code 49) when a permissive row policy's `USING` is a bare physical column ref. 26.x regression. Any wrapper (`c0+0`, `c0!=0`, `materialize(c0)`) avoids it.
-  ```sql
-  CREATE TABLE t (c0 Int32) ENGINE=MergeTree ORDER BY tuple(); INSERT INTO t VALUES (1),(2),(3);
-  CREATE ROW POLICY pol ON t USING c0 TO ALL;
-  SELECT c0 FROM t;   -- Code 49 (reading the policy column)
-  ```
 
 ## Reproducing findings
 
