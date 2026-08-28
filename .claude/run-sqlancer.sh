@@ -26,8 +26,9 @@ KEEP=0
 # e.g. --extra-ch-args "--eet-26x-modes true --variant-where-emission true").
 EXTRA_CH_ARGS=""
 
-# RowPolicy temporarily removed (2026-05-31): it dominates all-oracle run noise (Code 49/162/306)
-# and is commented out in ClickHouseOracleFactory, so passing it would fail enum parsing.
+# RowPolicy re-enabled 2026-07-10: its Code-49 noise source (#106099, bare-column USING
+# LOGICAL_ERROR) is fixed upstream (closed 2026-07-08), and the oracle now tolerates the
+# Code 162/306 depth-error families locally. A #106099 regression fires as a finding again.
 # DictGetVsJoin/WindowEquivalence/DynamicSubcolumn/SubqueryMaterialize were registered in the
 # factory but had drifted out of this list (never ran under --oracles all); re-added 2026-06-10.
 # ExtendedDatetime/JoinUseNulls/QueryCache appended 2026-06-11 (settings-coverage plan section 3/5
@@ -42,7 +43,13 @@ EXTRA_CH_ARGS=""
 # 26.x coverage oracles (TextIndexLike..StatsToggle) appended 2026-06-10 after their convergence
 # run: 3h x 41 oracles x 1.09M queries with --eet-26x-modes/--variant-where-emission on produced
 # 0 false positives and 1 genuine CH wrong-result (JoinReorder, ANTI/SEMI/INNER chain).
-ALL_ORACLES="TLPWhere,TLPDistinct,TLPGroupBy,TLPAggregate,TLPHaving,NoREC,PQS,CERT,CODDTest,SEMR,SEMRMulti,EET,SetOpTLP,CombinatorTLP,QccCache,SortedUnionLimitBy,SchemaRoundtrip,JoinAlgorithm,Cast,Parallelism,PartitionMirror,KeyCondition,TableFunctionIN,ViewEquivalence,AggregateStateRoundtrip,MaterializedViewConsistency,FinalMerge,ProjectionToggle,PatchPartConsistency,DictGetVsJoin,WindowEquivalence,DynamicSubcolumn,SubqueryMaterialize,MutationAnalyzer,TextIndexLike,TopK,JoinReorder,NaturalJoin,JsonSkipIndex,MaterializedCte,StatsToggle,ExtendedDatetime,JoinUseNulls,QueryCache,TextIndexDirectRead,TextIndexContainer,TextIndexLifecycle,PrewhereEquivalence,ReadInOrderToggle,CountOptimization,LazyMaterializationToggle,ReplacingDedup,QuantileConsistency,UniqExactness,ArgExtremum,MaterializedColumn,GroupingDecomposition,LimitRanking,WindowFrame,SemiJoinRewrite,ColumnTransformer,EngineEquivalence,CoalescingFinal,JoinGetSet,RemoteLocalEquivalence,MapTupleContainer,GeoMetamorphic,VariantSubcolumn,AggregateStateExpansion,SequenceFunnel,PartitionLifecycle,AlterModifyConsistency,TtlDeterminism,InsertDedup,TokenBf,VectorIndexRecall,SampleClause,DistributedTable,AsofJoin,CubeGroupingSets,PasteJoin,CorrelatedSubquery,BitFunction,ArrayFunction,StringFunction,AggregateFunctionColumn,TimezoneDatetime,ArrayJoinUnfold,WindowFrameGroundTruth,JoinUsing,WithFill,SettingFlip,ConcurrentMutation,LowCardinalityEquivalence,DistributedPlanEquivalence,CodecRoundtrip,PipeEquivalence,IEJoin,TupleFinalAggregation"
+# StatisticsPartPruning appended 2026-08-28: dedicated coverage for
+# `use_statistics_for_part_pruning` (ClickHouse#94140, 26.4 default-on) -- differential
+# ON/OFF over a private minmax-statistics-decorated table across disjoint-range parts,
+# plus a backfill/staleness arm (ADD STATISTICS before/after MATERIALIZE on a populated
+# table). Previously this setting only got exercised incidentally via the generic
+# session-settings randomizer.
+ALL_ORACLES="TLPWhere,TLPDistinct,TLPGroupBy,TLPAggregate,TLPHaving,NoREC,PQS,CERT,CODDTest,SEMR,SEMRMulti,EET,SetOpTLP,CombinatorTLP,QccCache,SortedUnionLimitBy,RowPolicy,SchemaRoundtrip,JoinAlgorithm,Cast,Parallelism,PartitionMirror,KeyCondition,TableFunctionIN,ViewEquivalence,AggregateStateRoundtrip,MaterializedViewConsistency,FinalMerge,ProjectionToggle,PatchPartConsistency,DictGetVsJoin,WindowEquivalence,DynamicSubcolumn,SubqueryMaterialize,MutationAnalyzer,TextIndexLike,TopK,JoinReorder,NaturalJoin,JsonSkipIndex,MaterializedCte,StatsToggle,StatisticsPartPruning,ExtendedDatetime,JoinUseNulls,QueryCache,TextIndexDirectRead,TextIndexContainer,TextIndexLifecycle,PrewhereEquivalence,ReadInOrderToggle,CountOptimization,LazyMaterializationToggle,ReplacingDedup,QuantileConsistency,UniqExactness,ArgExtremum,MaterializedColumn,GroupingDecomposition,LimitRanking,WindowFrame,SemiJoinRewrite,ColumnTransformer,EngineEquivalence,CoalescingFinal,JoinGetSet,RemoteLocalEquivalence,MapTupleContainer,GeoMetamorphic,VariantSubcolumn,AggregateStateExpansion,SequenceFunnel,PartitionLifecycle,AlterModifyConsistency,TtlDeterminism,InsertDedup,TokenBf,VectorIndexRecall,SampleClause,DistributedTable,AsofJoin,CubeGroupingSets,PasteJoin,CorrelatedSubquery,BitFunction,ArrayFunction,StringFunction,AggregateFunctionColumn,TimezoneDatetime,ArrayJoinUnfold,WindowFrameGroundTruth,JoinUsing,WithFill,SettingFlip,ConcurrentMutation,LowCardinalityEquivalence,DistributedPlanEquivalence,CodecRoundtrip,PipeEquivalence,IEJoin,TupleFinalAggregation"
 
 usage() {
   cat <<EOF

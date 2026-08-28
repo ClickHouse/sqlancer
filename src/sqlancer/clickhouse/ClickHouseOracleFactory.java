@@ -28,6 +28,7 @@ import sqlancer.clickhouse.oracle.jsonidx.ClickHouseJsonSkipIndexOracle;
 import sqlancer.clickhouse.oracle.join.ClickHouseNaturalJoinOracle;
 import sqlancer.clickhouse.oracle.mutate.ClickHouseMutationAnalyzerOracle;
 import sqlancer.clickhouse.oracle.patch.ClickHousePatchPartConsistencyOracle;
+import sqlancer.clickhouse.oracle.stats.ClickHouseStatisticsPartPruningOracle;
 import sqlancer.clickhouse.oracle.stats.ClickHouseStatsToggleOracle;
 import sqlancer.clickhouse.oracle.textindex.ClickHouseTextIndexContainerOracle;
 import sqlancer.clickhouse.oracle.textindex.ClickHouseTextIndexDirectReadOracle;
@@ -42,6 +43,7 @@ import sqlancer.clickhouse.oracle.join.ClickHouseJoinUseNullsOracle;
 import sqlancer.clickhouse.oracle.qcc.ClickHouseQueryCacheOracle;
 import sqlancer.clickhouse.oracle.qcc.ClickHouseQueryConditionCacheOracle;
 
+import sqlancer.clickhouse.oracle.rowpolicy.ClickHouseRowPolicyOracle;
 import sqlancer.clickhouse.oracle.schema.ClickHouseSchemaRoundtripOracle;
 import sqlancer.clickhouse.oracle.semr.ClickHouseSEMRMultiOracle;
 import sqlancer.clickhouse.oracle.semr.ClickHouseSEMROracle;
@@ -218,6 +220,13 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         }
     },
 
+    RowPolicy {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseRowPolicyOracle(globalState);
+        }
+    },
     SchemaRoundtrip {
 
         @Override
@@ -412,6 +421,13 @@ public enum ClickHouseOracleFactory implements OracleFactory<ClickHouseGlobalSta
         @Override
         public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
             return new ClickHouseStatsToggleOracle(globalState);
+        }
+    },
+    StatisticsPartPruning {
+
+        @Override
+        public TestOracle<ClickHouseGlobalState> create(ClickHouseGlobalState globalState) throws SQLException {
+            return new ClickHouseStatisticsPartPruningOracle(globalState);
         }
     },
     TextIndexDirectRead {
