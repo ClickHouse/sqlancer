@@ -30,7 +30,8 @@ public final class ClickHouseViewGenerator {
         if (state.getSchema().getViews().size() >= MAX_VIEWS_PER_DATABASE) {
             throw new IgnoreMeException();
         }
-        List<ClickHouseTable> tables = state.getSchema().getDatabaseTablesWithoutViews();
+        List<ClickHouseTable> tables = state.getSchema().getDatabaseTablesWithoutViews().stream()
+                .filter(ClickHouseTable::isStableForRepeatedReads).collect(Collectors.toList());
         if (tables.isEmpty()) {
             throw new IgnoreMeException();
         }

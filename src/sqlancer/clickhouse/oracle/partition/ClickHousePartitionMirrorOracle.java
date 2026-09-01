@@ -120,12 +120,11 @@ public class ClickHousePartitionMirrorOracle implements TestOracle<ClickHouseGlo
                 throw new IgnoreMeException();
             }
 
-            List<String> sourceRows;
-            try {
-                sourceRows = ComparatorHelper.getResultSetFirstColumnAsString(sourceQuery, errors, state);
-            } catch (IgnoreMeException e) {
-                throw e;
+            if (state.getOptions().logEachSelect()) {
+                state.getState().logStatement(sourceQuery);
+                state.getState().logStatement(mirrorQuery);
             }
+            List<String> sourceRows = ComparatorHelper.getResultSetFirstColumnAsString(sourceQuery, errors, state);
             List<String> mirrorRows = ComparatorHelper.getResultSetFirstColumnAsString(mirrorQuery, errors, state);
             ComparatorHelper.assumeResultSetsAreEqual(sourceRows, mirrorRows, sourceQuery, List.of(mirrorQuery), state);
         } finally {

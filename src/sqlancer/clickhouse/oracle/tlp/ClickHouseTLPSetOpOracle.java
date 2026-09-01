@@ -51,7 +51,6 @@ public class ClickHouseTLPSetOpOracle extends ClickHouseTLPBase {
         guardAgainstAggregateFetchColumns();
         constrainToSingleColumn();
         guardAgainstNonDeterministicPredicate();
-        guardAgainstFinalNonDeterminism();
 
         Mode mode = Randomly.fromOptions(Mode.values());
         switch (mode) {
@@ -256,12 +255,6 @@ public class ClickHouseTLPSetOpOracle extends ClickHouseTLPBase {
         if (select.getFetchColumns().size() > 1) {
 
             select.setFetchColumns(Arrays.asList(select.getFetchColumns().get(0)));
-        }
-    }
-
-    private void guardAgainstFinalNonDeterminism() {
-        if (select.isFinal()) {
-            throw new IgnoreMeException();
         }
     }
 

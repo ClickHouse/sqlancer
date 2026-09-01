@@ -60,14 +60,8 @@ public class ClickHouseKeyConditionOracle implements TestOracle<ClickHouseGlobal
         String noPrune = noPruneBody + " SETTINGS use_skip_indexes = 0, force_primary_key = 0,"
                 + " use_query_condition_cache = 0";
 
-        List<String> baseRows;
-        try {
-            baseRows = ComparatorHelper.getResultSetFirstColumnAsString(baseline, errors, state);
-        } catch (IgnoreMeException e) {
-
-            throw e;
-        }
-        List<String> noPruneRows = ComparatorHelper.getResultSetFirstColumnAsString(noPrune, errors, state);
+        List<String> baseRows = read(baseline);
+        List<String> noPruneRows = read(noPrune);
         ComparatorHelper.assumeResultSetsAreEqual(baseRows, noPruneRows, baseline, List.of(noPrune), state);
 
         if (state.getClickHouseOptions().indexHintEmission && Randomly.getBoolean()) {
@@ -96,9 +90,9 @@ public class ClickHouseKeyConditionOracle implements TestOracle<ClickHouseGlobal
         String bothFilters = ClickHouseToStringVisitor.asString(select) + pinned;
         select.setWhereClause(retained);
 
-        List<String> outerRows = ComparatorHelper.getResultSetFirstColumnAsString(outerOnly, errors, state);
-        List<String> hintedRows = ComparatorHelper.getResultSetFirstColumnAsString(hinted, errors, state);
-        List<String> bothRows = ComparatorHelper.getResultSetFirstColumnAsString(bothFilters, errors, state);
+        List<String> outerRows = read(outerOnly);
+        List<String> hintedRows = read(hinted);
+        List<String> bothRows = read(bothFilters);
 
         if (!isSubMultiset(bothRows, hintedRows)) {
             throw new AssertionError(String.format(
@@ -115,6 +109,13 @@ public class ClickHouseKeyConditionOracle implements TestOracle<ClickHouseGlobal
                             + "  indexHint(P) AND Q (%d rows): %s%n  Q (%d rows):                  %s",
                     hintedRows.size(), hinted, outerRows.size(), outerOnly));
         }
+    }
+
+    private List<String> read(String query) throws SQLException {
+        if (state.getOptions().logEachSelect()) {
+            state.getState().logStatement(query);
+        }
+        return ComparatorHelper.getResultSetFirstColumnAsString(query, errors, state);
     }
 
     private static boolean isSubMultiset(List<String> sub, List<String> sup) {

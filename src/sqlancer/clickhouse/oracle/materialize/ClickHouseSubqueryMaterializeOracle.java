@@ -82,10 +82,12 @@ public class ClickHouseSubqueryMaterializeOracle implements TestOracle<ClickHous
             if (state.getOptions().logEachSelect()) {
                 state.getLogger().writeCurrent(dropTmp);
                 state.getLogger().writeCurrent(createTmp);
+                state.getLogger().writeCurrent(inlineQuery);
                 state.getLogger().writeCurrent(tmpSelect);
                 state.getLogger().writeCurrent(dropTmp);
                 state.getState().logStatement(dropTmp);
                 state.getState().logStatement(createTmp);
+                state.getState().logStatement(inlineQuery);
                 state.getState().logStatement(tmpSelect);
                 state.getState().logStatement(dropTmp);
             }

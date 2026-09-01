@@ -409,7 +409,21 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
     }
 
     public ClickHouseTables getRandomTableNonEmptyTables() {
-        return new ClickHouseTables(Randomly.nonEmptySubset(getDatabaseTables()));
+        List<ClickHouseTable> stable = getTablesStableForRepeatedReads();
+        if (stable.isEmpty()) {
+            throw new IgnoreMeException();
+        }
+        return new ClickHouseTables(Randomly.nonEmptySubset(stable));
+    }
+
+    public List<ClickHouseTable> getTablesStableForRepeatedReads() {
+        List<ClickHouseTable> stable = new ArrayList<>();
+        for (ClickHouseTable t : getDatabaseTables()) {
+            if (t.isStableForRepeatedReads()) {
+                stable.add(t);
+            }
+        }
+        return stable;
     }
 
     private static ClickHouseLancerDataType getColumnType(String typeString) {
@@ -455,6 +469,10 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
             return engine.equals("ReplacingMergeTree") || engine.equals("SummingMergeTree")
                     || engine.equals("AggregatingMergeTree") || engine.equals("CollapsingMergeTree")
                     || engine.equals("VersionedCollapsingMergeTree");
+        }
+
+        public boolean isStableForRepeatedReads() {
+            return !supportsFinal();
         }
     }
 

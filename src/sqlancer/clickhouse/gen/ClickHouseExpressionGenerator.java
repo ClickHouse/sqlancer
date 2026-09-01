@@ -1767,8 +1767,14 @@ public class ClickHouseExpressionGenerator
 
     @Override
     public ClickHouseExpressionGenerator setTablesAndColumns(AbstractTables<ClickHouseTable, ClickHouseColumn> tables) {
-        this.tables = tables.getTables();
-        this.columns = tables.getColumns();
+        List<ClickHouseTable> stable = tables.getTables().stream().filter(ClickHouseTable::isStableForRepeatedReads)
+                .collect(Collectors.toList());
+        if (stable.isEmpty()) {
+            throw new IgnoreMeException();
+        }
+        AbstractTables<ClickHouseTable, ClickHouseColumn> stableTables = new AbstractTables<>(stable);
+        this.tables = stableTables.getTables();
+        this.columns = stableTables.getColumns();
         return this;
     }
 
