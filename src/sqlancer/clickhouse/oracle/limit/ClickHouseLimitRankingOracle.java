@@ -115,8 +115,8 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
         String tail = base + " ORDER BY " + ascOrder + " LIMIT -" + n;
         String head = base + " ORDER BY " + reverseOrder + " LIMIT " + n;
 
-        List<String> tailRows = ComparatorHelper.getResultSetFirstColumnAsString(tail, readErrors, state);
-        List<String> headRows = ComparatorHelper.getResultSetFirstColumnAsString(head, readErrors, state);
+        List<String> tailRows = read(tail);
+        List<String> headRows = read(head);
 
         List<String> tailSorted = sorted(tailRows);
         List<String> headSorted = sorted(headRows);
@@ -144,8 +144,8 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
         String head = "SELECT " + projection + " FROM " + tableQ + " ORDER BY " + descOrder + " LIMIT " + n + " BY "
                 + key;
 
-        List<String> tailRows = sorted(ComparatorHelper.getResultSetFirstColumnAsString(tail, readErrors, state));
-        List<String> headRows = sorted(ComparatorHelper.getResultSetFirstColumnAsString(head, readErrors, state));
+        List<String> tailRows = sorted(read(tail));
+        List<String> headRows = sorted(read(head));
 
         if (!tailRows.equals(headRows)) {
             throw new AssertionError(String.format(
@@ -163,8 +163,8 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
         String plain = base + " ORDER BY " + key + " ASC LIMIT -" + n;
         String withTies = base + " ORDER BY " + key + " ASC LIMIT -" + n + " WITH TIES";
 
-        List<String> plainRows = ComparatorHelper.getResultSetFirstColumnAsString(plain, readErrors, state);
-        List<String> tiesRows = ComparatorHelper.getResultSetFirstColumnAsString(withTies, readErrors, state);
+        List<String> plainRows = read(plain);
+        List<String> tiesRows = read(withTies);
 
         if (tiesRows.size() < plainRows.size() || !isSubMultiset(plainRows, tiesRows)) {
             throw new AssertionError(String.format(
@@ -190,8 +190,8 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
         String formA = base + " ORDER BY " + totalOrder + " LIMIT " + a + ", " + b;
         String formB = base + " ORDER BY " + totalOrder + " LIMIT " + b + " OFFSET " + a;
 
-        List<String> rowsA = ComparatorHelper.getResultSetFirstColumnAsString(formA, readErrors, state);
-        List<String> rowsB = ComparatorHelper.getResultSetFirstColumnAsString(formB, readErrors, state);
+        List<String> rowsA = read(formA);
+        List<String> rowsB = read(formB);
 
         if (!rowsA.equals(rowsB)) {
             throw new AssertionError(String.format(
@@ -207,8 +207,8 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
         String plain = base + " ORDER BY " + key + " ASC LIMIT " + n;
         String withTies = base + " ORDER BY " + key + " ASC LIMIT " + n + " WITH TIES";
 
-        List<String> plainRows = ComparatorHelper.getResultSetFirstColumnAsString(plain, readErrors, state);
-        List<String> tiesRows = ComparatorHelper.getResultSetFirstColumnAsString(withTies, readErrors, state);
+        List<String> plainRows = read(plain);
+        List<String> tiesRows = read(withTies);
 
         if (tiesRows.size() < plainRows.size()) {
             throw new AssertionError(String.format(
@@ -249,7 +249,7 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
         String query = "SELECT toString(max(cnt)) FROM (SELECT count() AS cnt FROM (" + limitByQuery + ") GROUP BY "
                 + "lb_key)";
 
-        List<String> rows = ComparatorHelper.getResultSetFirstColumnAsString(query, readErrors, state);
+        List<String> rows = read(query);
         if (rows.size() != 1 || rows.get(0) == null) {
             throw new IgnoreMeException();
         }
@@ -265,6 +265,13 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
                             + "caps it at %d.%n  Q: %s",
                     maxPerKey, n, key, n, query));
         }
+    }
+
+    private List<String> read(String query) throws SQLException {
+        if (state.getOptions().logEachSelect()) {
+            state.getState().logStatement(query);
+        }
+        return ComparatorHelper.getResultSetFirstColumnAsString(query, readErrors, state);
     }
 
     private static List<ClickHouseColumn> projectableColumns(ClickHouseTable table) {

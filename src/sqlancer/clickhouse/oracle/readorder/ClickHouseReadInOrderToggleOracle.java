@@ -72,8 +72,8 @@ public class ClickHouseReadInOrderToggleOracle implements TestOracle<ClickHouseG
         String on = base + ARM_ON;
         String off = base + ARM_OFF;
 
-        List<String> onRows = ComparatorHelper.getResultSetFirstColumnAsString(on, errors, state);
-        List<String> offRows = ComparatorHelper.getResultSetFirstColumnAsString(off, errors, state);
+        List<String> onRows = read(on);
+        List<String> offRows = read(off);
 
         if (!onRows.equals(offRows)) {
             throw new AssertionError(String.format(
@@ -114,10 +114,17 @@ public class ClickHouseReadInOrderToggleOracle implements TestOracle<ClickHouseG
         String on = base + ARM_ON;
         String off = base + ARM_OFF;
 
-        List<String> onRows = ComparatorHelper.getResultSetFirstColumnAsString(on, errors, state);
-        List<String> offRows = ComparatorHelper.getResultSetFirstColumnAsString(off, errors, state);
+        List<String> onRows = read(on);
+        List<String> offRows = read(off);
         ComparatorHelper.assumeResultSetsAreEqual(onRows, offRows, on, List.of(off), state,
                 ComparatorHelper.ComparisonMode.MULTISET);
+    }
+
+    private List<String> read(String query) throws SQLException {
+        if (state.getOptions().logEachSelect()) {
+            state.getState().logStatement(query);
+        }
+        return ComparatorHelper.getResultSetFirstColumnAsString(query, errors, state);
     }
 
     static boolean isEligibleTable(ClickHouseTable table) {

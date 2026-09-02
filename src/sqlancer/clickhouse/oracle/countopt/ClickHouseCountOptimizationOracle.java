@@ -82,13 +82,15 @@ public class ClickHouseCountOptimizationOracle implements TestOracle<ClickHouseG
             throw mismatch("count()+WHERE toggle", filteredCountSql, onFilteredCount, offFilteredCount);
         }
 
-        String countWhere = readSingleValue("SELECT toString(count())" + from + " WHERE " + pred);
-        String countIf = readSingleValue("SELECT toString(countIf(" + pred + "))" + from);
+        String countWhereSql = "SELECT toString(count())" + from + " WHERE " + pred;
+        String countIfSql = "SELECT toString(countIf(" + pred + "))" + from;
+        String countWhere = readSingleValue(countWhereSql);
+        String countIf = readSingleValue(countIfSql);
         if (!countWhere.equals(countIf)) {
             throw new AssertionError(String.format(
                     "count-optimization row-drop cross-check mismatch: predicate %s%n  count() WHERE pred = %s%n"
-                            + "  countIf(pred)      = %s%n  table: %s",
-                    pred, countWhere, countIf, table.getName()));
+                            + "  countIf(pred)      = %s%n  table: %s%n  filter query: %s%n  ground truth: %s",
+                    pred, countWhere, countIf, table.getName(), countWhereSql, countIfSql));
         }
 
         List<ClickHouseColumn> groupKeys = physicalColumns.stream()
@@ -97,8 +99,10 @@ public class ClickHouseCountOptimizationOracle implements TestOracle<ClickHouseG
             ClickHouseColumn key = Randomly.fromList(groupKeys);
             String keyName = "`" + key.getName() + "`";
             String groupSql = "SELECT toString(tuple(" + keyName + ", count()))" + from + " GROUP BY " + keyName;
+            logStmt(groupSql + COUNT_OPT_ON);
             List<String> onRows = ComparatorHelper.getResultSetFirstColumnAsString(groupSql + COUNT_OPT_ON, errors,
                     state);
+            logStmt(groupSql + COUNT_OPT_OFF);
             List<String> offRows = ComparatorHelper.getResultSetFirstColumnAsString(groupSql + COUNT_OPT_OFF, errors,
                     state);
             ComparatorHelper.assumeResultSetsAreEqual(onRows, offRows, groupSql + COUNT_OPT_ON,
@@ -113,11 +117,18 @@ public class ClickHouseCountOptimizationOracle implements TestOracle<ClickHouseG
     }
 
     private String readSingleValue(String query) throws SQLException {
+        logStmt(query);
         List<String> rows = ComparatorHelper.getResultSetFirstColumnAsString(query, errors, state);
         if (rows.size() != 1) {
             throw new IgnoreMeException();
         }
         return rows.get(0);
+    }
+
+    private void logStmt(String stmt) {
+        if (state.getOptions().logEachSelect()) {
+            state.getState().logStatement(stmt);
+        }
     }
 
     private static boolean isScalarGroupKey(ClickHouseDataType t) {
