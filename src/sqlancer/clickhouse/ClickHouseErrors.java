@@ -118,6 +118,9 @@ public final class ClickHouseErrors {
 
                 "Incompatible data types between aggregate function", "NOT_IMPLEMENTED",
 
+                "Projections are not supported for", "ILLEGAL_SYNTAX_FOR_CODEC_TYPE", "ILLEGAL_STATISTICS",
+                "is in beta and not yet recommended",
+
                 "does not support PREWHERE", "ILLEGAL_PREWHERE", "is not supported by storage View");
     }
 

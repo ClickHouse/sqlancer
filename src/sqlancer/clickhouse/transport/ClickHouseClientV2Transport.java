@@ -31,7 +31,7 @@ public final class ClickHouseClientV2Transport implements ClickHouseTransport {
         this.serverSettings = new LinkedHashMap<>(serverSettings);
         Client.Builder b = new Client.Builder().addEndpoint(Protocol.HTTP, host, port, false)
                 .setDefaultDatabase(database).setConnectTimeout(connectTimeoutMillis)
-                .setSocketTimeout(socketTimeoutMillis);
+                .setSocketTimeout(socketTimeoutMillis).compressServerResponse(false);
         if (user != null) {
             b.setUsername(user);
             b.setPassword(password == null ? "" : password);

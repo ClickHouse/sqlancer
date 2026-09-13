@@ -462,6 +462,28 @@ client-v2's `RowBinaryWithNamesAndTypesFormatReader` through the thin adapter
 `allow_experimental_analyzer`, `allow_suspicious_low_cardinality_types`) are attached per-query
 via `QuerySettings.serverSetting` so pooled connections all carry them.
 
+**Response compression is off (`compressServerResponse(false)`) and must stay off.** With
+client-v2's default `compress=1`, the server -- not the client -- picks the codec of the framed
+response, and client-v2 decodes it with `ClickHouseLZ4InputStream`, which hardcodes the LZ4
+method byte. ClickHouse [#108786](https://github.com/ClickHouse/ClickHouse/pull/108786) (merged
+2026-09-05, in 26.9+) switched the default codec from `LZ4` to `ZSTD(3)`, so from then on every
+compressed read raised `Invalid LZ4 magic byte: '-112'` (`0x90` is the ZSTD method byte), with no
+client-side or server-side knob to get `LZ4` back. See
+[clickhouse-java#3105](https://github.com/ClickHouse/clickhouse-java/issues/3105) (client-v2),
+[#3107](https://github.com/ClickHouse/clickhouse-java/issues/3107) (client-v1) and the pending
+fix [#3106](https://github.com/ClickHouse/clickhouse-java/pull/3106). Nothing here needs
+compression -- sqlancer talks to a server on the same host -- so the transport does not negotiate
+a wire codec at all. Do not re-enable it, and do not "fix" it by naming a codec: the codec of a
+`compress=1` response is not part of the request.
+
+That outage is also why `ClickHouseRowBinaryParser.parse` no longer swallows a reader
+construction failure into an empty `ResultData`. The swallow turned a dead transport into "every
+query returns 0 columns and 0 rows", which reported as 6465 `IndexOutOfBoundsException`s out of
+an empty schema plus a NaturalJoin `SELECT * exposed 0 columns`, and made every server error
+arrive as client-v2's `<Unreadable error message>` so no expected-error list could match it --
+7073 findings in one nightly, all noise, and not one real bug found in 5 hours. A broken
+transport must fail loudly per query instead.
+
 `jdbc-v2` (clickhouse-jdbc 0.9.8) was the historical transport and is dropped. Both wins from
 that move stand:
 
