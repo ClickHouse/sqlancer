@@ -12,9 +12,9 @@ import sqlancer.IgnoreMeException;
 import sqlancer.Randomly;
 import sqlancer.clickhouse.ClickHouseErrors;
 import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
-import sqlancer.clickhouse.ClickHouseType;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseColumn;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
+import sqlancer.clickhouse.ClickHouseType;
 import sqlancer.common.oracle.TestOracle;
 import sqlancer.common.query.ExpectedErrors;
 
@@ -50,9 +50,8 @@ public class ClickHouseUniqExactnessOracle implements TestOracle<ClickHouseGloba
         if (table.isView()) {
             throw new IgnoreMeException();
         }
-        List<ClickHouseColumn> eligible = table.getColumns().stream()
-                .filter(c -> !c.isAlias() && !c.isMaterialized()).filter(ClickHouseUniqExactnessOracle::isEligible)
-                .collect(Collectors.toList());
+        List<ClickHouseColumn> eligible = table.getColumns().stream().filter(c -> !c.isAlias() && !c.isMaterialized())
+                .filter(ClickHouseUniqExactnessOracle::isEligible).collect(Collectors.toList());
         if (eligible.isEmpty()) {
             throw new IgnoreMeException();
         }
@@ -63,8 +62,8 @@ public class ClickHouseUniqExactnessOracle implements TestOracle<ClickHouseGloba
 
         String singleArm = "SELECT toString(uniqExact(" + cRef + ")) AS a, toString(count(DISTINCT " + cRef
                 + ")) AS b, toString(length(groupUniqArray(" + cRef + "))) AS d FROM " + tableQ;
-        runThreeColumnAgreement(singleArm, "uniqExact(c)==count(DISTINCT c)==length(groupUniqArray(c)) col="
-                + c.getName());
+        runThreeColumnAgreement(singleArm,
+                "uniqExact(c)==count(DISTINCT c)==length(groupUniqArray(c)) col=" + c.getName());
 
         if (eligible.size() >= 2) {
             ClickHouseColumn c1 = eligible.get((int) Randomly.getNotCachedInteger(0, eligible.size()));
@@ -74,8 +73,8 @@ public class ClickHouseUniqExactnessOracle implements TestOracle<ClickHouseGloba
             } while (c2.getName().equals(c1.getName()));
             String r1 = quote(c1.getName());
             String r2 = quote(c2.getName());
-            String pairArm = "SELECT toString(uniqExact(" + r1 + ", " + r2 + ")) AS a, toString(count(DISTINCT ("
-                    + r1 + ", " + r2 + "))) AS b FROM " + tableQ;
+            String pairArm = "SELECT toString(uniqExact(" + r1 + ", " + r2 + ")) AS a, toString(count(DISTINCT (" + r1
+                    + ", " + r2 + "))) AS b FROM " + tableQ;
             runTwoColumnAgreement(pairArm,
                     "uniqExact(c1,c2)==count(DISTINCT (c1,c2)) cols=" + c1.getName() + "," + c2.getName());
         }
@@ -113,9 +112,9 @@ public class ClickHouseUniqExactnessOracle implements TestOracle<ClickHouseGloba
             String a = rs.getString(1);
             String b = rs.getString(2);
             if (!a.equals(b)) {
-                throw new AssertionError(String.format(
-                        "uniq-exactness mismatch [%s]:%n  Q: %s%n  uniqExact=%s count(DISTINCT)=%s", label, query, a,
-                        b));
+                throw new AssertionError(
+                        String.format("uniq-exactness mismatch [%s]:%n  Q: %s%n  uniqExact=%s count(DISTINCT)=%s",
+                                label, query, a, b));
             }
         } catch (SQLException ex) {
             throw maybeIgnore(ex);

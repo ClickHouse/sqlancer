@@ -16,8 +16,7 @@ public class CockroachDBAggregate implements CockroachDBExpression {
     public enum CockroachDBAggregateFunction {
         SUM(CockroachDBDataType.INT, CockroachDBDataType.FLOAT, CockroachDBDataType.DECIMAL),
         SUM_INT(CockroachDBDataType.INT),
-        AVG(CockroachDBDataType.INT, CockroachDBDataType.FLOAT, CockroachDBDataType.DECIMAL),
-        MIN() {
+        AVG(CockroachDBDataType.INT, CockroachDBDataType.FLOAT, CockroachDBDataType.DECIMAL), MIN() {
             @Override
             public boolean supportsReturnType(CockroachDBDataType returnType) {
                 return true;
@@ -45,11 +44,9 @@ public class CockroachDBAggregate implements CockroachDBExpression {
         SQRDIFF(CockroachDBDataType.INT, CockroachDBDataType.FLOAT, CockroachDBDataType.DECIMAL),
         STDDEV(CockroachDBDataType.INT, CockroachDBDataType.FLOAT, CockroachDBDataType.DECIMAL),
         VARIANCE(CockroachDBDataType.INT, CockroachDBDataType.FLOAT, CockroachDBDataType.DECIMAL),
-        XOR_AGG(CockroachDBDataType.BYTES, CockroachDBDataType.INT),
-        BIT_AND(CockroachDBDataType.INT),
-        BIT_OR(CockroachDBDataType.INT),
-        BOOL_AND(CockroachDBDataType.BOOL),
-        BOOL_OR(CockroachDBDataType.BOOL), STRING_AGG(CockroachDBDataType.STRING, CockroachDBDataType.BYTES) {
+        XOR_AGG(CockroachDBDataType.BYTES, CockroachDBDataType.INT), BIT_AND(CockroachDBDataType.INT),
+        BIT_OR(CockroachDBDataType.INT), BOOL_AND(CockroachDBDataType.BOOL), BOOL_OR(CockroachDBDataType.BOOL),
+        STRING_AGG(CockroachDBDataType.STRING, CockroachDBDataType.BYTES) {
             @Override
             public List<CockroachDBDataType> getTypes(CockroachDBDataType returnType) {
                 return Arrays.asList(returnType, returnType);

@@ -37,8 +37,7 @@ class ClickHouseJsonSkipIndexOracleTest {
     }
 
     private static List<Document> handCorpus() {
-        return List.of(
-                doc("p_int", Leaf.ofInt(7), "p_str", Leaf.ofString("val1"), "u0", Leaf.ofInt(7)),
+        return List.of(doc("p_int", Leaf.ofInt(7), "p_str", Leaf.ofString("val1"), "u0", Leaf.ofInt(7)),
                 doc("p_int", Leaf.ofInt(7), "p_str", Leaf.ofString("val2"), "u1", Leaf.ofString("w1")),
                 doc("p_int", Leaf.ofInt(9), "p_str", Leaf.ofString("val1")), doc());
     }
@@ -89,8 +88,8 @@ class ClickHouseJsonSkipIndexOracleTest {
         JsonPredicate exists = ClickHouseJsonSkipIndexOracle.pathExists("u1", corpus);
         assertEquals("has(JSONAllPaths(j), 'u1')", exists.getWhereSql());
         assertEquals(1, exists.getExpectedCount());
-        JsonPredicate phantom = ClickHouseJsonSkipIndexOracle
-                .pathExists(ClickHouseJsonDocumentGenerator.PHANTOM_PATH, corpus);
+        JsonPredicate phantom = ClickHouseJsonSkipIndexOracle.pathExists(ClickHouseJsonDocumentGenerator.PHANTOM_PATH,
+                corpus);
         assertEquals(0, phantom.getExpectedCount());
     }
 
@@ -162,15 +161,14 @@ class ClickHouseJsonSkipIndexOracleTest {
             for (Arm arm : Arm.values()) {
                 projections.add(projectionOf(ClickHouseJsonSkipIndexOracle.renderCountQuery("db.t", p, arm)));
                 projections.add(projectionOf(ClickHouseJsonSkipIndexOracle.renderKeysQuery("db.t", p, arm)));
-                projections
-                        .add(projectionOf(ClickHouseJsonSkipIndexOracle.renderTypedRowImageQuery("db.t", p, arm)));
+                projections.add(projectionOf(ClickHouseJsonSkipIndexOracle.renderTypedRowImageQuery("db.t", p, arm)));
             }
         }
 
         Pattern bareJ = Pattern.compile("\\bj\\b");
         for (String projection : projections) {
-            String stripped = projection.replace("j.p_int", "").replace("j.p_str", "")
-                    .replace("JSONAllPaths(j)", "").replace("JSONAllValues(j)", "");
+            String stripped = projection.replace("j.p_int", "").replace("j.p_str", "").replace("JSONAllPaths(j)", "")
+                    .replace("JSONAllValues(j)", "");
             assertFalse(bareJ.matcher(stripped).find(),
                     () -> "projection references raw j outside the allowed forms: " + projection);
             assertFalse(stripped.contains("j.u"), () -> "projection reads an untyped path: " + projection);

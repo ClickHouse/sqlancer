@@ -47,8 +47,7 @@ public class ClickHouseArrayFunctionOracle implements TestOracle<ClickHouseGloba
         long id = CTR.incrementAndGet();
         Randomly r = state.getRandomly();
         String table = state.getDatabaseName() + ".arrfn_" + id;
-        String create = "CREATE TABLE " + table
-                + " (k UInt32, arr Array(Int64)) ENGINE = MergeTree ORDER BY k";
+        String create = "CREATE TABLE " + table + " (k UInt32, arr Array(Int64)) ENGINE = MergeTree ORDER BY k";
 
         int rows = 25 + (int) r.getInteger(0, 26);
         List<List<Long>> model = new ArrayList<>();
@@ -114,155 +113,102 @@ public class ClickHouseArrayFunctionOracle implements TestOracle<ClickHouseGloba
     private List<Probe> buildCandidates(List<List<Long>> model, long needle, List<Long> sub, boolean anyEmpty) {
         List<Probe> all = new ArrayList<>();
 
-        all.add(new Probe(
-                "toString(has(arr, " + needle + "))",
-                mapRows(model, arr -> arr.contains(needle) ? "1" : "0"),
+        all.add(new Probe("toString(has(arr, " + needle + "))", mapRows(model, arr -> arr.contains(needle) ? "1" : "0"),
                 "has"));
 
-        all.add(new Probe(
-                "toString(indexOf(arr, " + needle + "))",
-                mapRows(model, arr -> {
-                    int idx = arr.indexOf(needle);
-                    return String.valueOf(idx < 0 ? 0 : idx + 1);
-                }),
-                "indexOf"));
+        all.add(new Probe("toString(indexOf(arr, " + needle + "))", mapRows(model, arr -> {
+            int idx = arr.indexOf(needle);
+            return String.valueOf(idx < 0 ? 0 : idx + 1);
+        }), "indexOf"));
 
-        all.add(new Probe(
-                "toString(countEqual(arr, " + needle + "))",
-                mapRows(model, arr -> String.valueOf(arr.stream().filter(x -> x == needle).count())),
-                "countEqual"));
+        all.add(new Probe("toString(countEqual(arr, " + needle + "))",
+                mapRows(model, arr -> String.valueOf(arr.stream().filter(x -> x == needle).count())), "countEqual"));
 
-        all.add(new Probe(
-                "toString(length(arr))",
-                mapRows(model, arr -> String.valueOf(arr.size())),
-                "length"));
+        all.add(new Probe("toString(length(arr))", mapRows(model, arr -> String.valueOf(arr.size())), "length"));
 
-        all.add(new Probe(
-                "toString(empty(arr))",
-                mapRows(model, arr -> arr.isEmpty() ? "1" : "0"),
-                "empty"));
+        all.add(new Probe("toString(empty(arr))", mapRows(model, arr -> arr.isEmpty() ? "1" : "0"), "empty"));
 
-        all.add(new Probe(
-                "toString(notEmpty(arr))",
-                mapRows(model, arr -> arr.isEmpty() ? "0" : "1"),
-                "notEmpty"));
+        all.add(new Probe("toString(notEmpty(arr))", mapRows(model, arr -> arr.isEmpty() ? "0" : "1"), "notEmpty"));
 
-        all.add(new Probe(
-                "toString(arraySort(arr))",
-                mapRows(model, arr -> {
-                    List<Long> s = new ArrayList<>(arr);
-                    Collections.sort(s);
-                    return renderIntArrayText(s);
-                }),
-                "arraySort"));
+        all.add(new Probe("toString(arraySort(arr))", mapRows(model, arr -> {
+            List<Long> s = new ArrayList<>(arr);
+            Collections.sort(s);
+            return renderIntArrayText(s);
+        }), "arraySort"));
 
-        all.add(new Probe(
-                "toString(arrayReverseSort(arr))",
-                mapRows(model, arr -> {
-                    List<Long> s = new ArrayList<>(arr);
-                    s.sort(Collections.reverseOrder());
-                    return renderIntArrayText(s);
-                }),
-                "arrayReverseSort"));
+        all.add(new Probe("toString(arrayReverseSort(arr))", mapRows(model, arr -> {
+            List<Long> s = new ArrayList<>(arr);
+            s.sort(Collections.reverseOrder());
+            return renderIntArrayText(s);
+        }), "arrayReverseSort"));
 
-        all.add(new Probe(
-                "toString(arrayReverse(arr))",
-                mapRows(model, arr -> {
-                    List<Long> rev = new ArrayList<>(arr);
-                    Collections.reverse(rev);
-                    return renderIntArrayText(rev);
-                }),
-                "arrayReverse"));
+        all.add(new Probe("toString(arrayReverse(arr))", mapRows(model, arr -> {
+            List<Long> rev = new ArrayList<>(arr);
+            Collections.reverse(rev);
+            return renderIntArrayText(rev);
+        }), "arrayReverse"));
 
-        all.add(new Probe(
-                "toString(arrayDistinct(arr))",
-                mapRows(model, arr -> renderIntArrayText(new ArrayList<>(new LinkedHashSet<>(arr)))),
-                "arrayDistinct"));
+        all.add(new Probe("toString(arrayDistinct(arr))",
+                mapRows(model, arr -> renderIntArrayText(new ArrayList<>(new LinkedHashSet<>(arr)))), "arrayDistinct"));
 
-        all.add(new Probe(
-                "toString(arrayCompact(arr))",
-                mapRows(model, arr -> {
-                    List<Long> compact = new ArrayList<>();
-                    for (Long v : arr) {
-                        if (compact.isEmpty() || !compact.get(compact.size() - 1).equals(v)) {
-                            compact.add(v);
-                        }
-                    }
-                    return renderIntArrayText(compact);
-                }),
-                "arrayCompact"));
+        all.add(new Probe("toString(arrayCompact(arr))", mapRows(model, arr -> {
+            List<Long> compact = new ArrayList<>();
+            for (Long v : arr) {
+                if (compact.isEmpty() || !compact.get(compact.size() - 1).equals(v)) {
+                    compact.add(v);
+                }
+            }
+            return renderIntArrayText(compact);
+        }), "arrayCompact"));
 
-        all.add(new Probe(
-                "toString(arrayConcat(arr, [" + needle + "]))",
-                mapRows(model, arr -> {
-                    List<Long> concat = new ArrayList<>(arr);
-                    concat.add(needle);
-                    return renderIntArrayText(concat);
-                }),
-                "arrayConcat"));
+        all.add(new Probe("toString(arrayConcat(arr, [" + needle + "]))", mapRows(model, arr -> {
+            List<Long> concat = new ArrayList<>(arr);
+            concat.add(needle);
+            return renderIntArrayText(concat);
+        }), "arrayConcat"));
 
-        all.add(new Probe(
-                "toString(arrayPushBack(arr, " + needle + "))",
-                mapRows(model, arr -> {
-                    List<Long> pushed = new ArrayList<>(arr);
-                    pushed.add(needle);
-                    return renderIntArrayText(pushed);
-                }),
-                "arrayPushBack"));
+        all.add(new Probe("toString(arrayPushBack(arr, " + needle + "))", mapRows(model, arr -> {
+            List<Long> pushed = new ArrayList<>(arr);
+            pushed.add(needle);
+            return renderIntArrayText(pushed);
+        }), "arrayPushBack"));
 
-        all.add(new Probe(
-                "toString(arrayPushFront(arr, " + needle + "))",
-                mapRows(model, arr -> {
-                    List<Long> pushed = new ArrayList<>(arr);
-                    pushed.add(0, needle);
-                    return renderIntArrayText(pushed);
-                }),
-                "arrayPushFront"));
+        all.add(new Probe("toString(arrayPushFront(arr, " + needle + "))", mapRows(model, arr -> {
+            List<Long> pushed = new ArrayList<>(arr);
+            pushed.add(0, needle);
+            return renderIntArrayText(pushed);
+        }), "arrayPushFront"));
 
-        all.add(new Probe(
-                "toString(arraySlice(arr, 2, 3))",
-                mapRows(model, arr -> {
-                    if (arr.size() < 2) {
-                        return renderIntArrayText(Collections.emptyList());
-                    }
-                    int end = Math.min(1 + 3, arr.size());
-                    return renderIntArrayText(arr.subList(1, end));
-                }),
-                "arraySlice"));
+        all.add(new Probe("toString(arraySlice(arr, 2, 3))", mapRows(model, arr -> {
+            if (arr.size() < 2) {
+                return renderIntArrayText(Collections.emptyList());
+            }
+            int end = Math.min(1 + 3, arr.size());
+            return renderIntArrayText(arr.subList(1, end));
+        }), "arraySlice"));
 
         String subLiteral = renderIntArrayLiteral(sub);
 
-        all.add(new Probe(
-                "toString(hasAll(arr, " + subLiteral + "))",
-                mapRows(model, arr -> arr.containsAll(sub) ? "1" : "0"),
-                "hasAll"));
+        all.add(new Probe("toString(hasAll(arr, " + subLiteral + "))",
+                mapRows(model, arr -> arr.containsAll(sub) ? "1" : "0"), "hasAll"));
 
-        all.add(new Probe(
-                "toString(hasAny(arr, " + subLiteral + "))",
-                mapRows(model, arr -> {
-                    for (Long s : sub) {
-                        if (arr.contains(s)) {
-                            return "1";
-                        }
-                    }
-                    return "0";
-                }),
-                "hasAny"));
+        all.add(new Probe("toString(hasAny(arr, " + subLiteral + "))", mapRows(model, arr -> {
+            for (Long s : sub) {
+                if (arr.contains(s)) {
+                    return "1";
+                }
+            }
+            return "0";
+        }), "hasAny"));
 
         if (!anyEmpty) {
-            all.add(new Probe(
-                    "toString(arraySum(arr))",
-                    mapRows(model, arr -> String.valueOf(arr.stream().mapToLong(Long::longValue).sum())),
-                    "arraySum"));
+            all.add(new Probe("toString(arraySum(arr))",
+                    mapRows(model, arr -> String.valueOf(arr.stream().mapToLong(Long::longValue).sum())), "arraySum"));
 
-            all.add(new Probe(
-                    "toString(arrayMin(arr))",
-                    mapRows(model, arr -> String.valueOf(Collections.min(arr))),
+            all.add(new Probe("toString(arrayMin(arr))", mapRows(model, arr -> String.valueOf(Collections.min(arr))),
                     "arrayMin"));
 
-            all.add(new Probe(
-                    "toString(arrayMax(arr))",
-                    mapRows(model, arr -> String.valueOf(Collections.max(arr))),
+            all.add(new Probe("toString(arrayMax(arr))", mapRows(model, arr -> String.valueOf(Collections.max(arr))),
                     "arrayMax"));
         }
 

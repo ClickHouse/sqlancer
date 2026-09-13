@@ -57,8 +57,7 @@ public class ClickHouseGroupingDecompositionOracle implements TestOracle<ClickHo
         if (table.isView()) {
             throw new IgnoreMeException();
         }
-        List<ClickHouseColumn> eligible = table.getColumns().stream()
-                .filter(c -> !c.isAlias() && !c.isMaterialized())
+        List<ClickHouseColumn> eligible = table.getColumns().stream().filter(c -> !c.isAlias() && !c.isMaterialized())
                 .filter(c -> isNonFloatScalarKey(c.getType().getType())).collect(Collectors.toList());
         if (eligible.isEmpty()) {
             throw new IgnoreMeException();
@@ -127,8 +126,7 @@ public class ClickHouseGroupingDecompositionOracle implements TestOracle<ClickHo
         }
     }
 
-    private void checkPerGroupCountSumEqualsGrandTotal(String tableQ, String keyRef, String label)
-            throws SQLException {
+    private void checkPerGroupCountSumEqualsGrandTotal(String tableQ, String keyRef, String label) throws SQLException {
         String perGroupSum = "SELECT toString(sum(g)) FROM (SELECT count() AS g FROM " + tableQ + " GROUP BY " + keyRef
                 + ")";
         String grand = "SELECT toString(count()) FROM " + tableQ;

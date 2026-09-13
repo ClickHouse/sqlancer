@@ -23,8 +23,8 @@ public class ClickHouseCodecRoundtripOracle implements TestOracle<ClickHouseGlob
     private static final AtomicLong CODEC_COUNTER = new AtomicLong();
 
     private static final List<String> GENERIC_CODECS = List.of("NONE", "LZ4", "LZ4HC(6)", "ZSTD(1)", "ZSTD(6)");
-    private static final List<String> INTEGRAL_CODECS = List.of("Delta(8), LZ4", "Delta(4), ZSTD(1)", "DoubleDelta, LZ4",
-            "T64, LZ4", "T64, ZSTD(1)", "Gorilla, LZ4");
+    private static final List<String> INTEGRAL_CODECS = List.of("Delta(8), LZ4", "Delta(4), ZSTD(1)",
+            "DoubleDelta, LZ4", "T64, LZ4", "T64, ZSTD(1)", "Gorilla, LZ4");
     private static final List<String> FLOAT_CODECS = List.of("Gorilla, LZ4", "FPC, LZ4", "ALP, LZ4", "ZSTD(3)");
     private static final List<String> DATETIME_CODECS = List.of("Delta(4), LZ4", "DoubleDelta, LZ4", "T64, LZ4");
 
@@ -34,8 +34,8 @@ public class ClickHouseCodecRoundtripOracle implements TestOracle<ClickHouseGlob
             "9223372036854775807", "-9223372036854775808", "42", "1000000");
     private static final List<String> FLOAT_VALUES = List.of("nan", "inf", "-inf", "0", "-0.0", "1.5", "-1.5", "3.14",
             "-3.14", "1e300", "-1e300", "5e-324");
-    private static final List<String> STRING_VALUES = List.of("''", "'a'", "'alpha'", "'0'", "'0.0'",
-            "'  spaced  '", "'zzzzzzzzzzzzzzzzzzzzzzzz'");
+    private static final List<String> STRING_VALUES = List.of("''", "'a'", "'alpha'", "'0'", "'0.0'", "'  spaced  '",
+            "'zzzzzzzzzzzzzzzzzzzzzzzz'");
     private static final List<String> DATETIME_VALUES = List.of("toDateTime('1970-01-01 00:00:00')",
             "toDateTime('2000-02-29 12:00:00')", "toDateTime('2106-02-07 06:28:15')",
             "toDateTime('2026-08-15 13:37:00')");

@@ -68,8 +68,7 @@ public class ClickHouseDistributedTableOracle implements TestOracle<ClickHouseGl
         int groups = 2 + (int) Randomly.getNotCachedInteger(0, 8);
         int rows = 100 + (int) Randomly.getNotCachedInteger(0, 900);
 
-        String createLocal = "CREATE TABLE " + local
-                + " (id UInt32, g UInt32, v Int64) ENGINE = MergeTree ORDER BY id";
+        String createLocal = "CREATE TABLE " + local + " (id UInt32, g UInt32, v Int64) ENGINE = MergeTree ORDER BY id";
         String insertLocal = "INSERT INTO " + local + " SELECT number AS id, toUInt32(number % " + groups
                 + ") AS g, toInt64(number * 7 % 100) AS v FROM numbers(" + rows + ")";
         String createDist = "CREATE TABLE " + dist + " AS " + local + " ENGINE = Distributed('default', "
@@ -156,10 +155,9 @@ public class ClickHouseDistributedTableOracle implements TestOracle<ClickHouseGl
             throw new IgnoreMeException();
         }
         if (countAfter != countBefore + added) {
-            throw new AssertionError(String.format(
-                    "distributed INSERT routing mismatch: inserted %d rows into %s, local count went %d -> %d "
-                            + "(expected %d)",
-                    added, dist, countBefore, countAfter, countBefore + added));
+            throw new AssertionError(String
+                    .format("distributed INSERT routing mismatch: inserted %d rows into %s, local count went %d -> %d "
+                            + "(expected %d)", added, dist, countBefore, countAfter, countBefore + added));
         }
     }
 

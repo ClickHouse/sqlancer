@@ -672,8 +672,7 @@ public final class PrestoTypedExpressionGenerator extends
     }
 
     public enum PrestoLikeOperator implements BinaryOperatorNode.Operator {
-        LIKE("LIKE"),
-        NOT_LIKE("NOT LIKE");
+        LIKE("LIKE"), NOT_LIKE("NOT LIKE");
 
         private final String textRepresentation;
 

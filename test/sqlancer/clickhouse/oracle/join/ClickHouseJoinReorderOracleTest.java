@@ -175,15 +175,14 @@ class ClickHouseJoinReorderOracleTest {
         assertTrue(ClickHouseJoinReorderOracle.referencesDroppedAlias(List.of(LEFT_ANTI, RIGHT_SEMI, INNER),
                 List.of(0, 0, 0)));
 
-        assertTrue(ClickHouseJoinReorderOracle.referencesDroppedAlias(List.of(LEFT, RIGHT_SEMI, FULL),
-                List.of(0, 0, 0)));
+        assertTrue(
+                ClickHouseJoinReorderOracle.referencesDroppedAlias(List.of(LEFT, RIGHT_SEMI, FULL), List.of(0, 0, 0)));
 
         assertFalse(ClickHouseJoinReorderOracle.referencesDroppedAlias(List.of(LEFT_ANTI, RIGHT_SEMI, INNER),
                 List.of(0, 0, 2)));
-        assertFalse(ClickHouseJoinReorderOracle.referencesDroppedAlias(List.of(LEFT, RIGHT_SEMI, FULL),
-                List.of(0, 1, 2)));
+        assertFalse(
+                ClickHouseJoinReorderOracle.referencesDroppedAlias(List.of(LEFT, RIGHT_SEMI, FULL), List.of(0, 1, 2)));
 
-        assertFalse(ClickHouseJoinReorderOracle.referencesDroppedAlias(List.of(INNER, LEFT, FULL),
-                List.of(0, 0, 1)));
+        assertFalse(ClickHouseJoinReorderOracle.referencesDroppedAlias(List.of(INNER, LEFT, FULL), List.of(0, 0, 1)));
     }
 }

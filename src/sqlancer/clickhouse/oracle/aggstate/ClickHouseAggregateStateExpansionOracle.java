@@ -25,17 +25,11 @@ public class ClickHouseAggregateStateExpansionOracle implements TestOracle<Click
     private static final AtomicLong CTR = new AtomicLong();
 
     enum Mode {
-        SINGLE_TABLE_IDENTITY,
-        AGGREGATING_MERGE
+        SINGLE_TABLE_IDENTITY, AGGREGATING_MERGE
     }
 
     enum Agg {
-        SUM,
-        MIN,
-        MAX,
-        UNIQ_EXACT,
-        QUANTILE_EXACT_MEDIAN,
-        GROUP_ARRAY_SORTED
+        SUM, MIN, MAX, UNIQ_EXACT, QUANTILE_EXACT_MEDIAN, GROUP_ARRAY_SORTED
     }
 
     private final ClickHouseGlobalState state;

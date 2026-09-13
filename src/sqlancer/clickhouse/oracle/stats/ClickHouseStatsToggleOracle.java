@@ -131,8 +131,8 @@ public class ClickHouseStatsToggleOracle implements TestOracle<ClickHouseGlobalS
             List<ClickHouseColumn> partnerInts = integerColumns(partner);
             List<String> leftRefs = intCols.stream().map(c -> ref("a0", c.getName())).collect(Collectors.toList());
             List<String> projection = new ArrayList<>(pickRefs(leftRefs, 2));
-            projection.add(ref("a1", partnerInts.get((int) Randomly.getNotCachedInteger(0, partnerInts.size()))
-                    .getName()));
+            projection.add(
+                    ref("a1", partnerInts.get((int) Randomly.getNotCachedInteger(0, partnerInts.size())).getName()));
             String onLeft = leftRefs.get((int) Randomly.getNotCachedInteger(0, leftRefs.size()));
             String onRight = ref("a1",
                     partnerInts.get((int) Randomly.getNotCachedInteger(0, partnerInts.size())).getName());
@@ -155,8 +155,7 @@ public class ClickHouseStatsToggleOracle implements TestOracle<ClickHouseGlobalS
                 String stmt = setup.get(i);
                 boolean isStatsDdl = i >= 2;
                 logStmt(stmt);
-                if (!new SQLQueryAdapter(stmt, isStatsDdl ? statsDdlErrors : readErrors, !isStatsDdl)
-                        .execute(state)) {
+                if (!new SQLQueryAdapter(stmt, isStatsDdl ? statsDdlErrors : readErrors, !isStatsDdl).execute(state)) {
 
                     throw new IgnoreMeException();
                 }

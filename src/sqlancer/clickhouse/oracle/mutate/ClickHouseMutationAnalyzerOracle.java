@@ -23,11 +23,7 @@ public class ClickHouseMutationAnalyzerOracle implements TestOracle<ClickHouseGl
     }
 
     private enum WhereShape {
-        JOINED_DERIVED,
-        SELF_REFERENCE,
-        PLAIN_IN,
-        ALIAS_COLUMN,
-        VIRTUAL_COLUMN
+        JOINED_DERIVED, SELF_REFERENCE, PLAIN_IN, ALIAS_COLUMN, VIRTUAL_COLUMN
     }
 
     private final ClickHouseGlobalState state;
@@ -81,10 +77,8 @@ public class ClickHouseMutationAnalyzerOracle implements TestOracle<ClickHouseGl
         boolean patchEnabled = !memoryEngine && Randomly.getBoolean();
         boolean validateMutationQuery = Randomly.getBoolean();
 
-        String engineClause = memoryEngine ? " ENGINE = Memory"
-                : " ENGINE = MergeTree ORDER BY k"
-                        + (patchEnabled ? " SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1"
-                                : "");
+        String engineClause = memoryEngine ? " ENGINE = Memory" : " ENGINE = MergeTree ORDER BY k"
+                + (patchEnabled ? " SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1" : "");
         String createA = "CREATE TABLE " + tA + " (k Int32, v Int64, marker Int64, al Int64 ALIAS (v + 7), "
                 + "mz Int64 MATERIALIZED (v * 3 + 1), df Int64 DEFAULT 42)" + engineClause;
         String createB = "CREATE TABLE " + tB + " (k Int32, v Int64) ENGINE = MergeTree ORDER BY k";
@@ -95,7 +89,8 @@ public class ClickHouseMutationAnalyzerOracle implements TestOracle<ClickHouseGl
                 + "toInt64(-1) FROM numbers(" + rowsA + ")";
 
         String seedB = "INSERT INTO " + tB + " SELECT toInt32(number * 2), toInt64(number % 7) FROM numbers(25)";
-        String seedEdges = "INSERT INTO " + tEdges + " SELECT toInt32(number * 3), toInt64(number % 5) FROM numbers(20)";
+        String seedEdges = "INSERT INTO " + tEdges
+                + " SELECT toInt32(number * 3), toInt64(number % 5) FROM numbers(20)";
 
         try {
             for (String stmt : List.of(createA, createB, createEdges)) {
@@ -185,8 +180,7 @@ public class ClickHouseMutationAnalyzerOracle implements TestOracle<ClickHouseGl
         return Randomly.fromOptions(WhereShape.values());
     }
 
-    private static String renderPredicate(WhereShape shape, String tA, String tB, String tEdges,
-            boolean patchEnabled) {
+    private static String renderPredicate(WhereShape shape, String tA, String tB, String tEdges, boolean patchEnabled) {
         String in = Randomly.getBoolean() ? " IN " : " NOT IN ";
         switch (shape) {
         case JOINED_DERIVED:
@@ -252,10 +246,9 @@ public class ClickHouseMutationAnalyzerOracle implements TestOracle<ClickHouseGl
         logStmt(mismatchQuery);
         String mismatches = readSingleValue(mismatchQuery);
         if (!"0".equals(mismatches)) {
-            throw new AssertionError(String.format(
-                    "mutation-analyzer MATERIALIZE COLUMN mismatch: %s rows diverge from the column expression "
-                            + "after %s (checked via %s)",
-                    mismatches, mutation, mismatchQuery));
+            throw new AssertionError(String
+                    .format("mutation-analyzer MATERIALIZE COLUMN mismatch: %s rows diverge from the column expression "
+                            + "after %s (checked via %s)", mismatches, mutation, mismatchQuery));
         }
     }
 

@@ -19,31 +19,16 @@ public class ClickHouseStringFunctionOracle implements TestOracle<ClickHouseGlob
 
     private static final AtomicLong CTR = new AtomicLong();
 
-    private static final List<String> WORDS = List.of(
-            "alpha", "bravo", "charlie", "delta", "echo", "foxtrot");
+    private static final List<String> WORDS = List.of("alpha", "bravo", "charlie", "delta", "echo", "foxtrot");
 
     private static final List<String> SEPARATORS = List.of("-", "_");
 
-    private static final List<String> NEEDLE_CANDIDATES = List.of(
-            "alpha", "bravo", "charlie", "delta", "echo", "foxtrot",
-            "al", "br", "ch", "de", "ec", "fo");
+    private static final List<String> NEEDLE_CANDIDATES = List.of("alpha", "bravo", "charlie", "delta", "echo",
+            "foxtrot", "al", "br", "ch", "de", "ec", "fo");
 
     enum Probe {
-        LENGTH,
-        LENGTH_UTF8,
-        LOWER,
-        UPPER,
-        REVERSE,
-        SUBSTRING_2_3,
-        POSITION,
-        COUNT_SUBSTRINGS,
-        STARTS_WITH,
-        ENDS_WITH,
-        CONCAT,
-        REPEAT_2,
-        REPLACE_ALL,
-        EMPTY,
-        NOT_EMPTY
+        LENGTH, LENGTH_UTF8, LOWER, UPPER, REVERSE, SUBSTRING_2_3, POSITION, COUNT_SUBSTRINGS, STARTS_WITH, ENDS_WITH,
+        CONCAT, REPEAT_2, REPLACE_ALL, EMPTY, NOT_EMPTY
     }
 
     private final ClickHouseGlobalState state;
@@ -81,8 +66,7 @@ public class ClickHouseStringFunctionOracle implements TestOracle<ClickHouseGlob
         long id = CTR.incrementAndGet();
         Randomly r = state.getRandomly();
         String table = state.getDatabaseName() + ".strfn_" + id;
-        String create = "CREATE TABLE " + table
-                + " (k UInt32, s String) ENGINE = MergeTree ORDER BY k";
+        String create = "CREATE TABLE " + table + " (k UInt32, s String) ENGINE = MergeTree ORDER BY k";
 
         List<String> model = new ArrayList<>();
 
@@ -133,8 +117,8 @@ public class ClickHouseStringFunctionOracle implements TestOracle<ClickHouseGlob
         }
     }
 
-    private void runProbe(Probe probe, String table, List<String> model,
-            String needle, String suffix, int rows) throws SQLException {
+    private void runProbe(Probe probe, String table, List<String> model, String needle, String suffix, int rows)
+            throws SQLException {
         switch (probe) {
         case LENGTH: {
             List<String> expected = new ArrayList<>(rows);

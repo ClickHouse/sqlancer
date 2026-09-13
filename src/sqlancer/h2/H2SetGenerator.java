@@ -14,8 +14,7 @@ public final class H2SetGenerator {
 
     private enum Option {
 
-        ALLOW_LITERALS((r) -> Randomly.fromOptions("ALL")),
-        CACHE_SIZE((r) -> Randomly.getNotCachedInteger(0, 1000000)),
+        ALLOW_LITERALS((r) -> Randomly.fromOptions("ALL")), CACHE_SIZE((r) -> Randomly.getNotCachedInteger(0, 1000000)),
         BINARY_COLLATION((r) -> Randomly.fromOptions("SIGNED", "UNSIGNED")),
         UUID_COLLATION((r) -> Randomly.fromOptions("SIGNED", "UNSIGNED")),
         BUILTIN_ALIAS_OVERRIDE((r) -> Randomly.fromOptions("TRUE", "FALSE")),

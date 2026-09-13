@@ -62,9 +62,8 @@ public class ClickHouseMaterializedColumnOracle implements TestOracle<ClickHouse
         }
         ComputedColumn picked = Randomly.fromList(computed);
 
-        String query = "SELECT toString(" + quote(picked.name) + ") AS a, toString(CAST((" + picked.expression
-                + ") AS " + picked.type + ")) AS b FROM " + quote(state.getDatabaseName()) + "."
-                + quote(table.getName());
+        String query = "SELECT toString(" + quote(picked.name) + ") AS a, toString(CAST((" + picked.expression + ") AS "
+                + picked.type + ")) AS b FROM " + quote(state.getDatabaseName()) + "." + quote(table.getName());
         if (state.getOptions().logEachSelect()) {
             state.getLogger().writeCurrent(query);
         }

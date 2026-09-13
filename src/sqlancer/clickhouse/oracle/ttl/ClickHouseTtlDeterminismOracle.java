@@ -149,10 +149,9 @@ public class ClickHouseTtlDeterminismOracle implements TestOracle<ClickHouseGlob
 
             List<String> actualSurvivors = ComparatorHelper.getResultSetFirstColumnAsString(
                     "SELECT toString(tuple(d, k, v)) FROM " + ttlTable + " ORDER BY k", readErrors, state);
-            List<String> expectedSurvivors = ComparatorHelper.getResultSetFirstColumnAsString(
-                    "SELECT toString(tuple(d, k, v)) FROM " + mirrorTable + " WHERE d >= toDate32('" + EXPIRED_BOUNDARY
-                            + "') ORDER BY k",
-                    readErrors, state);
+            List<String> expectedSurvivors = ComparatorHelper
+                    .getResultSetFirstColumnAsString("SELECT toString(tuple(d, k, v)) FROM " + mirrorTable
+                            + " WHERE d >= toDate32('" + EXPIRED_BOUNDARY + "') ORDER BY k", readErrors, state);
             if (!expectedSurvivors.equals(actualSurvivors)) {
                 throw new AssertionError(String.format(
                         "TTL determinism: survivor set mismatch: TTL-table survivors %s vs no-TTL mirror rows with "

@@ -74,8 +74,8 @@ public class StatementReducer<G extends GlobalState<O, ?, C>, O extends DBMSSpec
 
     }
 
-    private List<Query<C>> tryReduction(G state,
-            Reproducer<G> reproducer, G newGlobalState, List<Query<C>> knownToReproduceBugStatements) throws Exception {
+    private List<Query<C>> tryReduction(G state, Reproducer<G> reproducer, G newGlobalState,
+            List<Query<C>> knownToReproduceBugStatements) throws Exception {
 
         List<Query<C>> statements = knownToReproduceBugStatements;
 

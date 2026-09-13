@@ -31,8 +31,7 @@ public class QuestDBProvider extends SQLProviderAdapter<QuestDBGlobalState, Ques
     }
 
     public enum Action implements AbstractAction<QuestDBGlobalState> {
-        INSERT(QuestDBInsertGenerator::getQuery),
-        ALTER_INDEX(QuestDBAlterIndexGenerator::getQuery),
+        INSERT(QuestDBInsertGenerator::getQuery), ALTER_INDEX(QuestDBAlterIndexGenerator::getQuery),
         TRUNCATE(QuestDBTruncateGenerator::generate);
 
         private final SQLQueryProvider<QuestDBGlobalState> sqlQueryProvider;

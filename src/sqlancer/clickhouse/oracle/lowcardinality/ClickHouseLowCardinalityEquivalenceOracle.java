@@ -47,7 +47,8 @@ public class ClickHouseLowCardinalityEquivalenceOracle implements TestOracle<Cli
         String table = state.getDatabaseName() + ".lceq_" + id;
 
         String create = "CREATE TABLE " + table + " (" + "c_i Int32, l_i LowCardinality(Int32), "
-                + "c_s String, l_s LowCardinality(String), " + "c_n Nullable(Int32), l_n LowCardinality(Nullable(Int32)), "
+                + "c_s String, l_s LowCardinality(String), "
+                + "c_n Nullable(Int32), l_n LowCardinality(Nullable(Int32)), "
                 + "c_f FixedString(4), l_f LowCardinality(FixedString(4))" + ") ENGINE = MergeTree ORDER BY tuple()";
 
         try {
@@ -114,7 +115,8 @@ public class ClickHouseLowCardinalityEquivalenceOracle implements TestOracle<Cli
             }
             int vi = r.getInteger(-100, 100);
             String vs = "'k" + r.getInteger(0, 8) + "'";
-            String vn = Randomly.getBooleanWithRatherLowProbability() ? "NULL" : String.valueOf(r.getInteger(-100, 100));
+            String vn = Randomly.getBooleanWithRatherLowProbability() ? "NULL"
+                    : String.valueOf(r.getInteger(-100, 100));
             String vf = "'" + FOUR_CHARS[r.getInteger(0, FOUR_CHARS.length)] + "'";
             sb.append('(').append(vi).append(", ").append(vi).append(", ").append(vs).append(", ").append(vs)
                     .append(", ").append(vn).append(", ").append(vn).append(", ").append(vf).append(", ").append(vf)

@@ -318,7 +318,7 @@ public class MaterializeExpressionGenerator implements ExpressionGenerator<Mater
         case TEXT:
             if (Randomly.getBoolean() || MaterializeProvider.generateOnlyKnown
 
-) {
+            ) {
                 return MaterializeCompoundDataType.create(type);
             } else {
                 return MaterializeCompoundDataType.create(type, (int) Randomly.getNotCachedInteger(1, 1000));

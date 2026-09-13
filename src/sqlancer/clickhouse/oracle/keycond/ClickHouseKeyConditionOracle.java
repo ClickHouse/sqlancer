@@ -80,8 +80,8 @@ public class ClickHouseKeyConditionOracle implements TestOracle<ClickHouseGlobal
                 gen.generateConstant(hintColumn.getColumn().getType()),
                 sqlancer.clickhouse.ast.ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator
                         .getRandomOperator());
-        ClickHouseExpression hint = new sqlancer.clickhouse.ast.ClickHouseWrappedExpression("indexHint(",
-                hintArgument, ")");
+        ClickHouseExpression hint = new sqlancer.clickhouse.ast.ClickHouseWrappedExpression("indexHint(", hintArgument,
+                ")");
         select.setWhereClause(new sqlancer.clickhouse.ast.ClickHouseBinaryLogicalOperation(hint, retained,
                 sqlancer.clickhouse.ast.ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND));
         String hinted = ClickHouseToStringVisitor.asString(select) + pinned;

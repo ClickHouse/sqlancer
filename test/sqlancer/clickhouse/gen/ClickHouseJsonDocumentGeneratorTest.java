@@ -35,8 +35,7 @@ class ClickHouseJsonDocumentGeneratorTest {
                 doc("p_int", Leaf.ofInt(7), "p_str", Leaf.ofString("val1"), "u0", Leaf.ofInt(7), "u1",
                         Leaf.ofString("w1")),
                 doc("p_int", Leaf.ofInt(7), "p_str", Leaf.ofString("val2"), "u0", Leaf.ofString("w1")),
-                doc("p_int", Leaf.ofInt(9), "p_str", Leaf.ofString("val1"), "n.a.b.c", Leaf.ofString("deep1")),
-                doc(),
+                doc("p_int", Leaf.ofInt(9), "p_str", Leaf.ofString("val1"), "n.a.b.c", Leaf.ofString("deep1")), doc(),
                 doc("p_int", Leaf.ofInt(12), "p_str", Leaf.ofString("val1"), "u1", Leaf.ofString("w1"), "n.a.b.c",
                         Leaf.ofString("deep2")));
     }
@@ -148,8 +147,7 @@ class ClickHouseJsonDocumentGeneratorTest {
         for (Document d : gen.generateDocuments(300)) {
             String json = d.render();
             assertTrue(json.startsWith("{") && json.endsWith("}"), json);
-            assertEquals(json.chars().filter(c -> c == '{').count(), json.chars().filter(c -> c == '}').count(),
-                    json);
+            assertEquals(json.chars().filter(c -> c == '{').count(), json.chars().filter(c -> c == '}').count(), json);
             assertEquals(0, json.chars().filter(c -> c == '"').count() % 2, json);
             if (!d.isEmpty()) {
 

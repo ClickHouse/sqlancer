@@ -79,10 +79,8 @@ public class ClickHouseBitFunctionOracle implements TestOracle<ClickHouseGlobalS
                 if (i > 0) {
                     sb.append(", ");
                 }
-                sb.append('(').append(i).append(", ")
-                        .append(Long.toUnsignedString(a)).append(", ")
-                        .append(Long.toUnsignedString(b)).append(", ")
-                        .append(s).append(')');
+                sb.append('(').append(i).append(", ").append(Long.toUnsignedString(a)).append(", ")
+                        .append(Long.toUnsignedString(b)).append(", ").append(s).append(')');
             }
             logStmt(sb.toString());
             if (!new SQLQueryAdapter(sb.toString(), errors, true).execute(state)) {
@@ -126,8 +124,7 @@ public class ClickHouseBitFunctionOracle implements TestOracle<ClickHouseGlobalS
     }
 
     private void checkBitmap(String table) throws SQLException {
-        String create = "CREATE TABLE " + table
-                + " (k UInt32, g UInt8, a UInt32) ENGINE = MergeTree ORDER BY k";
+        String create = "CREATE TABLE " + table + " (k UInt32, g UInt8, a UInt32) ENGINE = MergeTree ORDER BY k";
         try {
             logStmt(create);
             if (!new SQLQueryAdapter(create, errors, true).execute(state)) {
@@ -191,8 +188,7 @@ public class ClickHouseBitFunctionOracle implements TestOracle<ClickHouseGlobalS
                         table, actualCard, actualUniq, expectedCardinality));
             }
             if (!actualCard.equals(expectedCardinality)) {
-                throw new AssertionError(String.format(
-                        "bitmapCardinality != Java distinct count on %s: CH=%s Java=%s",
+                throw new AssertionError(String.format("bitmapCardinality != Java distinct count on %s: CH=%s Java=%s",
                         table, actualCard, expectedCardinality));
             }
 
@@ -200,8 +196,7 @@ public class ClickHouseBitFunctionOracle implements TestOracle<ClickHouseGlobalS
             intersection.retainAll(group1);
             String expectedIntersect = Integer.toString(intersection.size());
 
-            String andCardQuery = "SELECT toString(bitmapAndCardinality("
-                    + "bitmapBuild(groupArrayIf(a, g = 0)), "
+            String andCardQuery = "SELECT toString(bitmapAndCardinality(" + "bitmapBuild(groupArrayIf(a, g = 0)), "
                     + "bitmapBuild(groupArrayIf(a, g = 1)))) FROM " + table;
             logStmt(andCardQuery);
             String actualAndCard = readSingleValue(andCardQuery);

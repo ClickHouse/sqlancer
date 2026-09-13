@@ -23,9 +23,7 @@ public class ClickHouseSemiJoinRewriteOracle implements TestOracle<ClickHouseGlo
     private static final int KEY_SPACE = 40;
 
     enum Mode {
-        SEMI,
-        ANTI,
-        ANY_CARDINALITY
+        SEMI, ANTI, ANY_CARDINALITY
     }
 
     private final ClickHouseGlobalState state;

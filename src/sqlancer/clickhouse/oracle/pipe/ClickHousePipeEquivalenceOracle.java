@@ -53,7 +53,8 @@ public class ClickHousePipeEquivalenceOracle implements TestOracle<ClickHouseGlo
             throw new IgnoreMeException();
         }
         ClickHouseTable table = Randomly.fromList(tables);
-        List<ClickHouseColumnReference> columns = table.getColumns().stream().filter(ClickHousePipeEquivalenceOracle::isReadableByStar)
+        List<ClickHouseColumnReference> columns = table.getColumns().stream()
+                .filter(ClickHousePipeEquivalenceOracle::isReadableByStar)
                 .map(c -> new ClickHouseColumnReference(c, null, "")).collect(Collectors.toList());
         if (columns.isEmpty()) {
             throw new IgnoreMeException();
@@ -95,8 +96,7 @@ public class ClickHousePipeEquivalenceOracle implements TestOracle<ClickHouseGlo
         }
         String key = quote(Randomly.fromList(keys).getName());
         List<ClickHouseColumn> ints = table.getColumns().stream()
-                .filter(c -> isExactInteger(c.getType().getType()) && isReadableByStar(c))
-                .collect(Collectors.toList());
+                .filter(c -> isExactInteger(c.getType().getType()) && isReadableByStar(c)).collect(Collectors.toList());
         String sumArg = ints.isEmpty() ? "0" : quote(Randomly.fromList(ints).getName());
 
         String classic = "SELECT toString(tuple(" + key + ", count(), sum(" + sumArg + "))) FROM " + from + " WHERE "
@@ -142,8 +142,8 @@ public class ClickHousePipeEquivalenceOracle implements TestOracle<ClickHouseGlo
         if (projectable.isEmpty()) {
             throw new IgnoreMeException();
         }
-        return "toString(tuple("
-                + projectable.stream().map(c -> quote(c.getName())).collect(Collectors.joining(", ")) + "))";
+        return "toString(tuple(" + projectable.stream().map(c -> quote(c.getName())).collect(Collectors.joining(", "))
+                + "))";
     }
 
     private static boolean isReadableByStar(ClickHouseColumn column) {

@@ -45,19 +45,14 @@ public class TiDBProvider extends SQLProviderAdapter<TiDBGlobalState, TiDBOption
     }
 
     public enum Action implements AbstractAction<TiDBGlobalState> {
-        CREATE_TABLE(TiDBTableGenerator::createRandomTableStatement),
-        CREATE_INDEX(TiDBIndexGenerator::getQuery),
-        VIEW_GENERATOR(TiDBViewGenerator::getQuery),
-        INSERT(TiDBInsertGenerator::getQuery),
+        CREATE_TABLE(TiDBTableGenerator::createRandomTableStatement), CREATE_INDEX(TiDBIndexGenerator::getQuery),
+        VIEW_GENERATOR(TiDBViewGenerator::getQuery), INSERT(TiDBInsertGenerator::getQuery),
         ALTER_TABLE(TiDBAlterTableGenerator::getQuery),
         TRUNCATE((g) -> new SQLQueryAdapter("TRUNCATE " + g.getSchema().getRandomTable(t -> !t.isView()).getName())),
-        UPDATE(TiDBUpdateGenerator::getQuery),
-        DELETE(TiDBDeleteGenerator::getQuery),
-        SET(TiDBSetGenerator::getQuery),
+        UPDATE(TiDBUpdateGenerator::getQuery), DELETE(TiDBDeleteGenerator::getQuery), SET(TiDBSetGenerator::getQuery),
         ADMIN_CHECKSUM_TABLE(
                 (g) -> new SQLQueryAdapter("ADMIN CHECKSUM TABLE " + g.getSchema().getRandomTable().getName())),
-        ANALYZE_TABLE(TiDBAnalyzeTableGenerator::getQuery),
-        DROP_TABLE(TiDBDropTableGenerator::dropTable),
+        ANALYZE_TABLE(TiDBAnalyzeTableGenerator::getQuery), DROP_TABLE(TiDBDropTableGenerator::dropTable),
         DROP_VIEW(TiDBDropViewGenerator::dropView);
 
         private final SQLQueryProvider<TiDBGlobalState> sqlQueryProvider;

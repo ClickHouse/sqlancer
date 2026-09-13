@@ -54,8 +54,7 @@ public class DatabendTableGenerator extends AbstractTableGenerator<DatabendColum
 
         if (Randomly.getBoolean() && globalState.getDbmsSpecificOptions().testDefaultValues) {
             sb.append(" DEFAULT(");
-            sb.append(DatabendToStringVisitor.asString(
-                    gen.generateConstant(column.getType().getPrimitiveDataType())));
+            sb.append(DatabendToStringVisitor.asString(gen.generateConstant(column.getType().getPrimitiveDataType())));
             sb.append(")");
         }
     }

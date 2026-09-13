@@ -38,14 +38,10 @@ public class DuckDBProvider extends SQLProviderAdapter<DuckDBGlobalState, DuckDB
 
     public enum Action implements AbstractAction<DuckDBGlobalState> {
 
-        INSERT(DuckDBInsertGenerator::getQuery),
-        CREATE_INDEX(DuckDBIndexGenerator::getQuery),
-        VACUUM((g) -> new SQLQueryAdapter("VACUUM;")),
-        ANALYZE((g) -> new SQLQueryAdapter("ANALYZE;")),
-        DELETE(DuckDBDeleteGenerator::generate),
-        UPDATE(DuckDBUpdateGenerator::getQuery),
-        CREATE_VIEW(DuckDBViewGenerator::generate),
-        EXPLAIN((g) -> {
+        INSERT(DuckDBInsertGenerator::getQuery), CREATE_INDEX(DuckDBIndexGenerator::getQuery),
+        VACUUM((g) -> new SQLQueryAdapter("VACUUM;")), ANALYZE((g) -> new SQLQueryAdapter("ANALYZE;")),
+        DELETE(DuckDBDeleteGenerator::generate), UPDATE(DuckDBUpdateGenerator::getQuery),
+        CREATE_VIEW(DuckDBViewGenerator::generate), EXPLAIN((g) -> {
             ExpectedErrors errors = new ExpectedErrors();
             DuckDBErrors.addExpressionErrors(errors);
             DuckDBErrors.addGroupByErrors(errors);

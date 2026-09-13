@@ -54,8 +54,7 @@ public class ClickHouseAggregateFunctionColumnOracle implements TestOracle<Click
     }
 
     private void setupAndVerify(String src, String agg) throws SQLException {
-        String createSrc = "CREATE TABLE " + src
-                + " (k UInt32, v Int64) ENGINE = MergeTree ORDER BY k";
+        String createSrc = "CREATE TABLE " + src + " (k UInt32, v Int64) ENGINE = MergeTree ORDER BY k";
         if (!execute(createSrc)) {
             throw new IgnoreMeException();
         }
@@ -67,33 +66,26 @@ public class ClickHouseAggregateFunctionColumnOracle implements TestOracle<Click
             throw new IgnoreMeException();
         }
 
-        String insertSrc2 = "INSERT INTO " + src + " (k, v) VALUES "
-                + "(0,-7),(1,6),(2,3),(3,-2),(4,-4),(5,11),(6,-8),"
+        String insertSrc2 = "INSERT INTO " + src + " (k, v) VALUES " + "(0,-7),(1,6),(2,3),(3,-2),(4,-4),(5,11),(6,-8),"
                 + "(0,1),(1,-3),(2,5),(3,0),(4,9),(5,-1),(6,2)";
         if (!execute(insertSrc2)) {
             throw new IgnoreMeException();
         }
 
-        String createAgg = "CREATE TABLE " + agg
-                + " (k UInt32,"
-                + " s AggregateFunction(sum, Int64),"
-                + " mn AggregateFunction(min, Int64),"
-                + " mx AggregateFunction(max, Int64),"
-                + " c AggregateFunction(count)"
-                + ") ENGINE = AggregatingMergeTree ORDER BY k";
+        String createAgg = "CREATE TABLE " + agg + " (k UInt32," + " s AggregateFunction(sum, Int64),"
+                + " mn AggregateFunction(min, Int64)," + " mx AggregateFunction(max, Int64),"
+                + " c AggregateFunction(count)" + ") ENGINE = AggregatingMergeTree ORDER BY k";
         if (!execute(createAgg)) {
             throw new IgnoreMeException();
         }
 
-        String insertAgg1 = "INSERT INTO " + agg
-                + " SELECT k, sumState(v), minState(v), maxState(v), countState()"
+        String insertAgg1 = "INSERT INTO " + agg + " SELECT k, sumState(v), minState(v), maxState(v), countState()"
                 + " FROM " + src + " WHERE v % 2 = 0 GROUP BY k";
         if (!execute(insertAgg1)) {
             throw new IgnoreMeException();
         }
 
-        String insertAgg2 = "INSERT INTO " + agg
-                + " SELECT k, sumState(v), minState(v), maxState(v), countState()"
+        String insertAgg2 = "INSERT INTO " + agg + " SELECT k, sumState(v), minState(v), maxState(v), countState()"
                 + " FROM " + src + " WHERE v % 2 != 0 GROUP BY k";
         if (!execute(insertAgg2)) {
             throw new IgnoreMeException();
@@ -106,8 +98,8 @@ public class ClickHouseAggregateFunctionColumnOracle implements TestOracle<Click
 
         String queryMerge = "SELECT toString(tuple(k, sumMerge(s), minMerge(mn), maxMerge(mx), countMerge(c)))"
                 + " FROM " + agg + " GROUP BY k ORDER BY k";
-        String queryDirect = "SELECT toString(tuple(k, sum(v), min(v), max(v), count()))"
-                + " FROM " + src + " GROUP BY k ORDER BY k";
+        String queryDirect = "SELECT toString(tuple(k, sum(v), min(v), max(v), count()))" + " FROM " + src
+                + " GROUP BY k ORDER BY k";
 
         List<String> mergeRows = ComparatorHelper.getResultSetFirstColumnAsString(queryMerge, errors, state);
         List<String> directRows = ComparatorHelper.getResultSetFirstColumnAsString(queryDirect, errors, state);
@@ -129,10 +121,9 @@ public class ClickHouseAggregateFunctionColumnOracle implements TestOracle<Click
             }
         }
         if (!diffs.isEmpty()) {
-            throw new AssertionError(String.format(
-                    "AggregateFunction column oracle: merge vs direct mismatch (first differing entries: %s).\n"
-                            + "merge query: %s\ndirect query: %s",
-                    diffs, queryMerge, queryDirect));
+            throw new AssertionError(String
+                    .format("AggregateFunction column oracle: merge vs direct mismatch (first differing entries: %s).\n"
+                            + "merge query: %s\ndirect query: %s", diffs, queryMerge, queryDirect));
         }
     }
 

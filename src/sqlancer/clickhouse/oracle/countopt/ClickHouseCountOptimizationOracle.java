@@ -93,8 +93,8 @@ public class ClickHouseCountOptimizationOracle implements TestOracle<ClickHouseG
                     pred, countWhere, countIf, table.getName(), countWhereSql, countIfSql));
         }
 
-        List<ClickHouseColumn> groupKeys = physicalColumns.stream()
-                .filter(c -> isScalarGroupKey(c.getType().getType())).collect(Collectors.toList());
+        List<ClickHouseColumn> groupKeys = physicalColumns.stream().filter(c -> isScalarGroupKey(c.getType().getType()))
+                .collect(Collectors.toList());
         if (!groupKeys.isEmpty()) {
             ClickHouseColumn key = Randomly.fromList(groupKeys);
             String keyName = "`" + key.getName() + "`";
@@ -111,9 +111,9 @@ public class ClickHouseCountOptimizationOracle implements TestOracle<ClickHouseG
     }
 
     private AssertionError mismatch(String label, String sql, String onValue, String offValue) {
-        return new AssertionError(String.format(
-                "count-optimization %s mismatch: settings-on saw %s but settings-off saw %s.%n  base: %s", label,
-                onValue, offValue, sql));
+        return new AssertionError(
+                String.format("count-optimization %s mismatch: settings-on saw %s but settings-off saw %s.%n  base: %s",
+                        label, onValue, offValue, sql));
     }
 
     private String readSingleValue(String query) throws SQLException {

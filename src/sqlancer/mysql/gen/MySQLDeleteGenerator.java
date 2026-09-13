@@ -43,11 +43,9 @@ public class MySQLDeleteGenerator extends AbstractDeleteGenerator {
             appendWhereClause(MySQLVisitor.asString(gen.generateExpression()));
             MySQLErrors.addExpressionErrors(errors);
         }
-        errors.addAll(Arrays.asList("doesn't have this option",
-                "Truncated incorrect DOUBLE value"
-
-, "Truncated incorrect INTEGER value",
-                "Truncated incorrect DECIMAL value", "Data truncated for functional index"));
+        errors.addAll(Arrays.asList("doesn't have this option", "Truncated incorrect DOUBLE value",
+                "Truncated incorrect INTEGER value", "Truncated incorrect DECIMAL value",
+                "Data truncated for functional index"));
 
     }
 

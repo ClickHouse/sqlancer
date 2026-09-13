@@ -180,8 +180,7 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
             expr = new SQLite3OrderingTerm(expr, Ordering.getRandomValue());
         }
         if (globalState.getDbmsSpecificOptions().testNullsFirstLast && Randomly.getBoolean()) {
-            expr = new SQLite3PostfixText(expr, Randomly.fromOptions(" NULLS FIRST", " NULLS LAST"),
-                    null ) {
+            expr = new SQLite3PostfixText(expr, Randomly.fromOptions(" NULLS FIRST", " NULLS LAST"), null) {
                 @Override
                 public boolean omitBracketsWhenPrinting() {
                     return true;
@@ -328,8 +327,7 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
     public SQLite3Expression getAggregateFunction(boolean asWindowFunction) {
         SQLite3AggregateFunction random = SQLite3AggregateFunction.getRandom();
         if (asWindowFunction) {
-            while (random == SQLite3AggregateFunction.MAX
-                    || random == SQLite3AggregateFunction.MIN) {
+            while (random == SQLite3AggregateFunction.MAX || random == SQLite3AggregateFunction.MIN) {
 
                 random = SQLite3AggregateFunction.getRandom();
             }
@@ -400,18 +398,10 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
     };
 
     private enum AnyFunction {
-        ABS("ABS", 1),
-        CHANGES("CHANGES", 0, Attribute.NONDETERMINISTIC),
-        CHAR("CHAR", 1, Attribute.VARIADIC),
-        COALESCE("COALESCE", 2, Attribute.VARIADIC),
-        GLOB("GLOB", 2),
-        HEX("HEX", 1),
-        IFNULL("IFNULL", 2),
-        INSTR("INSTR", 2),
-        LAST_INSERT_ROWID("LAST_INSERT_ROWID", 0, Attribute.NONDETERMINISTIC),
-        LENGTH("LENGTH", 1),
-        LIKE("LIKE", 2),
-        LIKE2("LIKE", 3) {
+        ABS("ABS", 1), CHANGES("CHANGES", 0, Attribute.NONDETERMINISTIC), CHAR("CHAR", 1, Attribute.VARIADIC),
+        COALESCE("COALESCE", 2, Attribute.VARIADIC), GLOB("GLOB", 2), HEX("HEX", 1), IFNULL("IFNULL", 2),
+        INSTR("INSTR", 2), LAST_INSERT_ROWID("LAST_INSERT_ROWID", 0, Attribute.NONDETERMINISTIC), LENGTH("LENGTH", 1),
+        LIKE("LIKE", 2), LIKE2("LIKE", 3) {
             @Override
             List<SQLite3Expression> generateArguments(int nrArgs, int depth, SQLite3ExpressionGenerator gen) {
                 List<SQLite3Expression> args = super.generateArguments(nrArgs, depth, gen);
@@ -419,46 +409,27 @@ public class SQLite3ExpressionGenerator implements ExpressionGenerator<SQLite3Ex
                 return args;
             }
         },
-        LIKELIHOOD("LIKELIHOOD", 2),
-        LIKELY("LIKELY", 1),
-        LOAD_EXTENSION("load_extension", 1),
-        LOAD_EXTENSION2("load_extension", 2, Attribute.NONDETERMINISTIC), LOWER("LOWER", 1),
-        LTRIM1("LTRIM", 1),
-        LTRIM2("LTRIM", 2),
-        MAX("MAX", 2, Attribute.VARIADIC),
-        MIN("MIN", 2, Attribute.VARIADIC),
-        NULLIF("NULLIF", 2),
-        PRINTF("PRINTF", 1, Attribute.VARIADIC),
-        QUOTE("QUOTE", 1),
-        ROUND("ROUND", 2),
-        RTRIM("RTRIM", 1),
-        SOUNDEX("soundex", 1),
-        SQLITE_COMPILEOPTION_GET("SQLITE_COMPILEOPTION_GET", 1, Attribute.NONDETERMINISTIC),
+        LIKELIHOOD("LIKELIHOOD", 2), LIKELY("LIKELY", 1), LOAD_EXTENSION("load_extension", 1),
+        LOAD_EXTENSION2("load_extension", 2, Attribute.NONDETERMINISTIC), LOWER("LOWER", 1), LTRIM1("LTRIM", 1),
+        LTRIM2("LTRIM", 2), MAX("MAX", 2, Attribute.VARIADIC), MIN("MIN", 2, Attribute.VARIADIC), NULLIF("NULLIF", 2),
+        PRINTF("PRINTF", 1, Attribute.VARIADIC), QUOTE("QUOTE", 1), ROUND("ROUND", 2), RTRIM("RTRIM", 1),
+        SOUNDEX("soundex", 1), SQLITE_COMPILEOPTION_GET("SQLITE_COMPILEOPTION_GET", 1, Attribute.NONDETERMINISTIC),
         SQLITE_COMPILEOPTION_USED("SQLITE_COMPILEOPTION_USED", 1, Attribute.NONDETERMINISTIC),
 
         SQLITE_SOURCE_ID("SQLITE_SOURCE_ID", 0, Attribute.NONDETERMINISTIC),
-        SQLITE_VERSION("SQLITE_VERSION", 0, Attribute.NONDETERMINISTIC),
-        SUBSTR("SUBSTR", 2),
-        TOTAL_CHANGES("TOTAL_CHANGES", 0, Attribute.NONDETERMINISTIC),
-        TRIM("TRIM", 1),
-        TYPEOF("TYPEOF", 1),
-        UNICODE("UNICODE", 1), UNLIKELY("UNLIKELY", 1),
-        UPPER("UPPER", 1),
+        SQLITE_VERSION("SQLITE_VERSION", 0, Attribute.NONDETERMINISTIC), SUBSTR("SUBSTR", 2),
+        TOTAL_CHANGES("TOTAL_CHANGES", 0, Attribute.NONDETERMINISTIC), TRIM("TRIM", 1), TYPEOF("TYPEOF", 1),
+        UNICODE("UNICODE", 1), UNLIKELY("UNLIKELY", 1), UPPER("UPPER", 1),
 
-        DATE("DATE", 3, Attribute.VARIADIC),
-        TIME("TIME", 3, Attribute.VARIADIC),
-        DATETIME("DATETIME", 3, Attribute.VARIADIC),
-        JULIANDAY("JULIANDAY", 3, Attribute.VARIADIC),
+        DATE("DATE", 3, Attribute.VARIADIC), TIME("TIME", 3, Attribute.VARIADIC),
+        DATETIME("DATETIME", 3, Attribute.VARIADIC), JULIANDAY("JULIANDAY", 3, Attribute.VARIADIC),
         STRFTIME("STRFTIME", 3, Attribute.VARIADIC),
 
-        JSON("json", 1),
-        JSON_ARRAY("json_array", 2, Attribute.VARIADIC), JSON_ARRAY_LENGTH("json_array_length", 1),
-        JSON_ARRAY_LENGTH2("json_array_length", 2),
-        JSON_EXTRACT("json_extract", 2, Attribute.VARIADIC), JSON_INSERT("json_insert", 3, Attribute.VARIADIC),
-        JSON_OBJECT("json_object", 2, Attribute.VARIADIC), JSON_PATCH("json_patch", 2),
-        JSON_REMOVE("json_remove", 2, Attribute.VARIADIC), JSON_TYPE("json_type", 1),
-        JSON_VALID("json_valid", 1),
-        JSON_QUOTE("json_quote", 1),
+        JSON("json", 1), JSON_ARRAY("json_array", 2, Attribute.VARIADIC), JSON_ARRAY_LENGTH("json_array_length", 1),
+        JSON_ARRAY_LENGTH2("json_array_length", 2), JSON_EXTRACT("json_extract", 2, Attribute.VARIADIC),
+        JSON_INSERT("json_insert", 3, Attribute.VARIADIC), JSON_OBJECT("json_object", 2, Attribute.VARIADIC),
+        JSON_PATCH("json_patch", 2), JSON_REMOVE("json_remove", 2, Attribute.VARIADIC), JSON_TYPE("json_type", 1),
+        JSON_VALID("json_valid", 1), JSON_QUOTE("json_quote", 1),
 
         RTREENODE("rtreenode", 2),
 

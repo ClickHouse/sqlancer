@@ -218,8 +218,8 @@ class ClickHouseTextIndexLikeOracleTest {
                     () -> p.getKind() + " computability wrong for " + p.getPattern());
         }
         for (PatternKind kind : PatternKind.values()) {
-            assertTrue(seenKinds.contains(kind.name()), () -> kind + " not picked across 400 attempts; saw "
-                    + seenKinds);
+            assertTrue(seenKinds.contains(kind.name()),
+                    () -> kind + " not picked across 400 attempts; saw " + seenKinds);
         }
     }
 

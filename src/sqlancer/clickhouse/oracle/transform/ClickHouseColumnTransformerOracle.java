@@ -20,10 +20,7 @@ import sqlancer.common.query.ExpectedErrors;
 public class ClickHouseColumnTransformerOracle implements TestOracle<ClickHouseGlobalState> {
 
     enum Mode {
-        EXCEPT,
-        APPLY,
-        COLUMNS_REGEX,
-        DISTINCT_ON
+        EXCEPT, APPLY, COLUMNS_REGEX, DISTINCT_ON
     }
 
     private final ClickHouseGlobalState state;
@@ -148,7 +145,8 @@ public class ClickHouseColumnTransformerOracle implements TestOracle<ClickHouseG
         ClickHouseColumn key = nonFloat.get((int) Randomly.getNotCachedInteger(0, nonFloat.size()));
         String keyQ = quote(key.getName());
 
-        String distinctOnSql = "SELECT toString(count()) FROM (SELECT DISTINCT ON (" + keyQ + ") * FROM " + tableQ + ")";
+        String distinctOnSql = "SELECT toString(count()) FROM (SELECT DISTINCT ON (" + keyQ + ") * FROM " + tableQ
+                + ")";
         String groupKeysSql = "SELECT toString(count()) FROM (SELECT " + keyQ + " FROM " + tableQ + " GROUP BY " + keyQ
                 + ")";
 

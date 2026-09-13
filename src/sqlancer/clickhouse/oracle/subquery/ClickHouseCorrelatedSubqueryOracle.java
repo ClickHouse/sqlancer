@@ -20,9 +20,7 @@ public class ClickHouseCorrelatedSubqueryOracle implements TestOracle<ClickHouse
     private static final String EXPERIMENTAL_SETTING = " SETTINGS allow_experimental_correlated_subqueries = 1";
 
     enum Mode {
-        EXISTS_IN,
-        NOT_EXISTS_NOT_IN,
-        EXISTS_EXTRA_PREDICATE
+        EXISTS_IN, NOT_EXISTS_NOT_IN, EXISTS_EXTRA_PREDICATE
     }
 
     private final ClickHouseGlobalState state;

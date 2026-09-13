@@ -44,8 +44,8 @@ public class ClickHouseQuantileConsistencyOracle implements TestOracle<ClickHous
         }
         ClickHouseTable table = Randomly.fromList(tables);
         List<ClickHouseColumn> integerColumns = table.getColumns().stream()
-                .filter(c -> !c.isAlias() && !c.isMaterialized()).filter(ClickHouseQuantileConsistencyOracle::isIntegerColumn)
-                .collect(Collectors.toList());
+                .filter(c -> !c.isAlias() && !c.isMaterialized())
+                .filter(ClickHouseQuantileConsistencyOracle::isIntegerColumn).collect(Collectors.toList());
         if (integerColumns.isEmpty()) {
             throw new IgnoreMeException();
         }

@@ -7,11 +7,7 @@ public class ClickHouseBinaryArithmeticOperation extends ClickHouseExpression
         implements BinaryOperation<ClickHouseExpression> {
 
     public enum ClickHouseBinaryArithmeticOperator {
-        ADD("+"),
-        MINUS("-"),
-        MULT("*"),
-        DIV("/"),
-        MODULO("%");
+        ADD("+"), MINUS("-"), MULT("*"), DIV("/"), MODULO("%");
 
         String textRepresentation;
 

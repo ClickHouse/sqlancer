@@ -18,8 +18,8 @@ public final class ClickHouseErrors {
 
                 "from String, because value is too short",
 
-                "Unknown element '",
-                "Cannot parse infinity.", "Cannot parse number with a sign character but without any numeric character",
+                "Unknown element '", "Cannot parse infinity.",
+                "Cannot parse number with a sign character but without any numeric character",
                 "Cannot parse number with multiple sign (+/-) characters or intermediate sign character",
                 "Cannot parse string", "Cannot read floating point value",
                 "Cyclic aliases: default expression and column type are incompatible", "Directory for table data",
@@ -34,11 +34,9 @@ public final class ClickHouseErrors {
                 "Positional argument out of bounds", "Sampling expression must be present in the primary key",
                 "Sorting key cannot contain constants", "There is no supertype for types", "argument of function",
                 "but its arguments considered equal according to constraints", "does not return a value of type UInt8",
-                "doesn't exist",
-                "in block. There are only columns:",
-                "invalid character class range", "invalid escape sequence",
-                "is not under aggregate function and not in GROUP BY", "is not under aggregate function",
-                "is violated at row 1. Expression:",
+                "doesn't exist", "in block. There are only columns:", "invalid character class range",
+                "invalid escape sequence", "is not under aggregate function and not in GROUP BY",
+                "is not under aggregate function", "is violated at row 1. Expression:",
                 "is violated, because it is a constant expression returning 0. It is most likely an error in table definition",
 
                 "there are only columns", "there are columns", "(NOT_FOUND_COLUMN_IN_BLOCK)", "Missing columns",
@@ -47,8 +45,7 @@ public final class ClickHouseErrors {
                 "ILLEGAL_DIVISION", "DECIMAL_OVERFLOW",
                 "Cannot convert out of range floating point value to integer type",
                 "Unexpected inf or nan to integer conversion", "No such name in Block::erase",
-                "EMPTY_LIST_OF_COLUMNS_QUERIED",
-                "EMPTY_LIST_OF_COLUMNS_PASSED",
+                "EMPTY_LIST_OF_COLUMNS_QUERIED", "EMPTY_LIST_OF_COLUMNS_PASSED",
                 "cannot get JOIN keys. (INVALID_JOIN_ON_EXPRESSION)", "AMBIGUOUS_IDENTIFIER", "CYCLIC_ALIASES",
                 "Positional argument numeric constant expression is not representable as",
                 "Positional argument must be constant with numeric type", " is out of bounds. Expected in range",
@@ -57,8 +54,7 @@ public final class ClickHouseErrors {
                 "Cannot determine join keys in", "Unsigned type must not contain",
                 "Unexpected inf or nan to integer conversion",
 
-                "MULTIPLE_EXPRESSIONS_FOR_ALIAS", "AMBIGUOUS_IDENTIFIER",
-                "AMBIGUOUS_COLUMN_NAME",
+                "MULTIPLE_EXPRESSIONS_FOR_ALIAS", "AMBIGUOUS_IDENTIFIER", "AMBIGUOUS_COLUMN_NAME",
                 "No equality condition found in JOIN ON expression", "Cannot parse number with multiple sign",
 
                 "Magic is not correct",
@@ -72,12 +68,11 @@ public final class ClickHouseErrors {
 
                 "cannot be presented as long",
 
-                "ILLEGAL_TYPE_OF_ARGUMENT",
-                "Conversion from LowCardinality", "Conversion to LowCardinality", "Nested type",
+                "ILLEGAL_TYPE_OF_ARGUMENT", "Conversion from LowCardinality", "Conversion to LowCardinality",
+                "Nested type",
 
                 "type cannot be inside Nullable type", "type cannot be inside LowCardinality",
-                "Cannot read floating point value",
-                "NULL value is not allowed",
+                "Cannot read floating point value", "NULL value is not allowed",
 
                 "(INCORRECT_RESULT_OF_SCALAR_SUBQUERY)",
 
@@ -137,11 +132,8 @@ public final class ClickHouseErrors {
     }
 
     public static List<String> getSessionSettingsErrors() {
-        return List.of("Unknown setting",
-                "is neither a builtin setting nor a custom setting",
-                "Cannot parse setting value",
-                "Setting value out of range",
-                "UNKNOWN_SETTING");
+        return List.of("Unknown setting", "is neither a builtin setting nor a custom setting",
+                "Cannot parse setting value", "Setting value out of range", "UNKNOWN_SETTING");
     }
 
     public static void addSessionSettingsErrors(ExpectedErrors errors) {
@@ -193,8 +185,8 @@ public final class ClickHouseErrors {
     public static List<String> getStatisticsErrors() {
         return List.of("Set `allow_experimental_statistics`", "allow_experimental_statistics is set to 0",
                 "Statistics is not supported", "Unknown statistic kind", "Statistics of kind",
-                "Unknown statistics type",
-                "STATISTICS_NOT_IMPLEMENTED", "Cannot create statistics", "SUPPORT_IS_DISABLED");
+                "Unknown statistics type", "STATISTICS_NOT_IMPLEMENTED", "Cannot create statistics",
+                "SUPPORT_IS_DISABLED");
     }
 
     public static void addStatisticsErrors(ExpectedErrors errors) {
@@ -214,8 +206,8 @@ public final class ClickHouseErrors {
                 "Cannot add index", "index with name", "NO_SUCH_DATA_PART", "already exists",
 
                 "Cannot drop statistics", "Statistics of type", "CANNOT_CONVERT_TYPE",
-                "is not supported: In scope _CAST", "Conversion from", "There is no column",
-                "Cannot convert type", "is not supported for specified type", "codec is not supported");
+                "is not supported: In scope _CAST", "Conversion from", "There is no column", "Cannot convert type",
+                "is not supported for specified type", "codec is not supported");
     }
 
     public static void addAlterErrors(ExpectedErrors errors) {
@@ -242,8 +234,8 @@ public final class ClickHouseErrors {
 
                 "DELETE query is not allowed", "lightweight_mutation_projection_mode",
 
-                "Lightweight update", "lightweight update", "allow_experimental_lightweight_update", "SUPPORT_IS_DISABLED",
-                "is not supported for lightweight", "Lightweight updates are not supported");
+                "Lightweight update", "lightweight update", "allow_experimental_lightweight_update",
+                "SUPPORT_IS_DISABLED", "is not supported for lightweight", "Lightweight updates are not supported");
     }
 
     public static void addMutationErrors(ExpectedErrors errors) {

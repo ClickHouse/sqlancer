@@ -115,8 +115,8 @@ public class SQLite3TableGenerator {
             addForeignKey();
         }
 
-        if (globalState.getDbmsSpecificOptions().testCheckConstraints && globalState
-                .getDbmsSpecificOptions().oracles != SQLite3OracleFactory.PQS
+        if (globalState.getDbmsSpecificOptions().testCheckConstraints
+                && globalState.getDbmsSpecificOptions().oracles != SQLite3OracleFactory.PQS
 
                 && Randomly.getBooleanWithRatherLowProbability()) {
             sb.append(SQLite3Common.getCheckConstraint(globalState, columns));

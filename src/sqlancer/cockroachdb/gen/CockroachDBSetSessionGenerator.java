@@ -25,8 +25,8 @@ public final class CockroachDBSetSessionGenerator {
         ENABLE_INSERT_FAST_PATH(CockroachDBSetSessionGenerator::onOff),
         ENABLE_ZIGZAG_JOIN(CockroachDBSetSessionGenerator::onOff),
         SERIAL_NORMALIZATION((g) -> Randomly.fromOptions("'rowid'", "'virtual_sequence'")),
-        REORDER_JOINS_LIMIT((g) -> g.getRandomly().getInteger(0, Integer.MAX_VALUE)),
-        SQL_SAFE_UPDATES((g) -> "off"), TRACING(CockroachDBSetSessionGenerator::onOff),
+        REORDER_JOINS_LIMIT((g) -> g.getRandomly().getInteger(0, Integer.MAX_VALUE)), SQL_SAFE_UPDATES((g) -> "off"),
+        TRACING(CockroachDBSetSessionGenerator::onOff),
 
         VECTORIZE((g) -> Randomly.fromOptions("on", "off"));
 

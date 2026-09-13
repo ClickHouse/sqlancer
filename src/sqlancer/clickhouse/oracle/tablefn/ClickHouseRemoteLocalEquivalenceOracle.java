@@ -95,16 +95,16 @@ public class ClickHouseRemoteLocalEquivalenceOracle implements TestOracle<ClickH
         }
 
         String local = "SELECT toString(tuple(*)) FROM " + qualified;
-        String remote = "SELECT toString(tuple(*)) FROM remote('127.0.0.1', currentDatabase(), '"
-                + esc(tableName) + "')";
+        String remote = "SELECT toString(tuple(*)) FROM remote('127.0.0.1', currentDatabase(), '" + esc(tableName)
+                + "')";
 
         List<String> localResult = ComparatorHelper.getResultSetFirstColumnAsString(local, readErrors, state);
         List<String> remoteResult = ComparatorHelper.getResultSetFirstColumnAsString(remote, readErrors, state);
         assertMultisetsEqual(localResult, remoteResult, local, remote, "remote");
 
         if (Randomly.getBoolean()) {
-            String cluster = "SELECT toString(tuple(*)) FROM cluster('default', currentDatabase(), '"
-                    + esc(tableName) + "')";
+            String cluster = "SELECT toString(tuple(*)) FROM cluster('default', currentDatabase(), '" + esc(tableName)
+                    + "')";
             List<String> clusterResult = ComparatorHelper.getResultSetFirstColumnAsString(cluster, readErrors, state);
             assertMultisetsEqual(localResult, clusterResult, local, cluster, "cluster");
         }
@@ -120,9 +120,8 @@ public class ClickHouseRemoteLocalEquivalenceOracle implements TestOracle<ClickH
             throw new IgnoreMeException();
         }
         if (!String.valueOf(n).equals(countRows.get(0))) {
-            throw new AssertionError(String.format(
-                    "numbers() count ground-truth mismatch: %s expected %d but got %s", countQuery, n,
-                    countRows.get(0)));
+            throw new AssertionError(String.format("numbers() count ground-truth mismatch: %s expected %d but got %s",
+                    countQuery, n, countRows.get(0)));
         }
 
         String setQuery = "SELECT toString(arraySort(groupArray(number))) FROM numbers(" + n + ")";
@@ -132,9 +131,9 @@ public class ClickHouseRemoteLocalEquivalenceOracle implements TestOracle<ClickH
         }
         String expected = buildSortedRangeText(n);
         if (!expected.equals(setRows.get(0))) {
-            throw new AssertionError(String.format(
-                    "numbers() value-set ground-truth mismatch: %s expected %s but got %s", setQuery, expected,
-                    setRows.get(0)));
+            throw new AssertionError(
+                    String.format("numbers() value-set ground-truth mismatch: %s expected %s but got %s", setQuery,
+                            expected, setRows.get(0)));
         }
     }
 

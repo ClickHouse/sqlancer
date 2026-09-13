@@ -145,8 +145,7 @@ public class ClickHouseTopKOracle implements TestOracle<ClickHouseGlobalState> {
     static String renderQuery(String tableName, String joinClause, List<SortKey> sortKeys, long limit, long offset,
             String settingsSuffix) {
         String qualifier = joinClause == null ? "" : tableName + ".";
-        String projection = sortKeys.stream().map(k -> qualifier + quote(k.column()))
-                .collect(Collectors.joining(", "));
+        String projection = sortKeys.stream().map(k -> qualifier + quote(k.column())).collect(Collectors.joining(", "));
         String orderBy = sortKeys.stream().map(k -> {
             StringBuilder sb = new StringBuilder(qualifier).append(quote(k.column()));
             sb.append(k.ascending() ? " ASC" : " DESC");

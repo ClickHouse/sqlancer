@@ -53,8 +53,7 @@ public class ClickHouseJsonSkipIndexOracle implements TestOracle<ClickHouseGloba
     }
 
     enum Arm {
-        DEFAULT(""),
-        INDEX_IGNORED(" SETTINGS ignore_data_skipping_indices = '" + INDEX_NAME + "'");
+        DEFAULT(""), INDEX_IGNORED(" SETTINGS ignore_data_skipping_indices = '" + INDEX_NAME + "'");
 
         private final String settingsSuffix;
 
@@ -68,13 +67,7 @@ public class ClickHouseJsonSkipIndexOracle implements TestOracle<ClickHouseGloba
     }
 
     enum PredicateKind {
-        TYPED_INT_EQ,
-        TYPED_STR_EQ,
-        TYPED_INT_IN,
-        UNTYPED_EQ,
-        TYPED_STR_IS_NOT_NULL,
-        UNTYPED_IS_NOT_NULL,
-        PATH_EXISTS
+        TYPED_INT_EQ, TYPED_STR_EQ, TYPED_INT_IN, UNTYPED_EQ, TYPED_STR_IS_NOT_NULL, UNTYPED_IS_NOT_NULL, PATH_EXISTS
     }
 
     static final class JsonPredicate {
@@ -217,8 +210,7 @@ public class ClickHouseJsonSkipIndexOracle implements TestOracle<ClickHouseGloba
                             "JSON skip-index key-list mismatch: predicate %s (kind %s, index %s): arm %s keys %s vs "
                                     + "arm %s keys %s. DDL: %s",
                             predicate.getWhereSql(), predicate.getKind(), variant, arms[0],
-                            truncateForMessage(keyLists.get(0)), arms[i], truncateForMessage(keyLists.get(i)),
-                            create));
+                            truncateForMessage(keyLists.get(0)), arms[i], truncateForMessage(keyLists.get(i)), create));
                 }
                 if (!rowImages.get(0).equals(rowImages.get(i))) {
                     throw new AssertionError(String.format(
@@ -307,8 +299,7 @@ public class ClickHouseJsonSkipIndexOracle implements TestOracle<ClickHouseGloba
     }
 
     static String renderCountQuery(String table, JsonPredicate predicate, Arm arm) {
-        return "SELECT toString(count()) FROM " + table + " WHERE " + predicate.getWhereSql()
-                + arm.getSettingsSuffix();
+        return "SELECT toString(count()) FROM " + table + " WHERE " + predicate.getWhereSql() + arm.getSettingsSuffix();
     }
 
     static String renderKeysQuery(String table, JsonPredicate predicate, Arm arm) {
@@ -319,8 +310,8 @@ public class ClickHouseJsonSkipIndexOracle implements TestOracle<ClickHouseGloba
     static String renderTypedRowImageQuery(String table, JsonPredicate predicate, Arm arm) {
         return "SELECT concat(toString(k), '|', toString(j." + ClickHouseJsonDocumentGenerator.TYPED_INT_PATH
                 + "), '|', toString(j." + ClickHouseJsonDocumentGenerator.TYPED_STR_PATH
-                + "), '|', arrayStringConcat(JSONAllPaths(j), ';')) FROM " + table + " WHERE "
-                + predicate.getWhereSql() + " ORDER BY k" + arm.getSettingsSuffix();
+                + "), '|', arrayStringConcat(JSONAllPaths(j), ';')) FROM " + table + " WHERE " + predicate.getWhereSql()
+                + " ORDER BY k" + arm.getSettingsSuffix();
     }
 
     static String renderProbePredicate(IndexVariant variant, List<Document> corpus) {
@@ -421,8 +412,8 @@ public class ClickHouseJsonSkipIndexOracle implements TestOracle<ClickHouseGloba
     }
 
     static JsonPredicate pathExists(String path, List<Document> corpus) {
-        return new JsonPredicate("has(JSONAllPaths(j), '" + escapeStringLiteral(path) + "')",
-                PredicateKind.PATH_EXISTS, ClickHouseJsonDocumentGenerator.countWherePathExists(corpus, path));
+        return new JsonPredicate("has(JSONAllPaths(j), '" + escapeStringLiteral(path) + "')", PredicateKind.PATH_EXISTS,
+                ClickHouseJsonDocumentGenerator.countWherePathExists(corpus, path));
     }
 
     static long pickTypedIntValue(Randomly r, List<Document> corpus) {

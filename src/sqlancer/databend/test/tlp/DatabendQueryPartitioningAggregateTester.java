@@ -46,8 +46,7 @@ public class DatabendQueryPartitioningAggregateTester extends DatabendQueryParti
         super.check();
         List<DatabendAggregateFunction> aggregateFunctions = new ArrayList<>(
                 List.of(DatabendAggregateFunction.MAX, DatabendAggregateFunction.MIN, DatabendAggregateFunction.SUM,
-                        DatabendAggregateFunction.COUNT, DatabendAggregateFunction.AVG
-                ));
+                        DatabendAggregateFunction.COUNT, DatabendAggregateFunction.AVG));
         DatabendAggregateFunction aggregateFunction = Randomly.fromList(aggregateFunctions);
         DatabendFunctionOperation<DatabendAggregateFunction> aggregate = (DatabendAggregateOperation) gen
                 .generateArgsForAggregate(aggregateFunction);

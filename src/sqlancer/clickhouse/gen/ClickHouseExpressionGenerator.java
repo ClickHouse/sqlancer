@@ -259,7 +259,8 @@ public class ClickHouseExpressionGenerator
         YEAR_TO_MONTH("YEAR TO MONTH", "YEAR", "MONTH"), DAY_TO_HOUR("DAY TO HOUR", "DAY", "HOUR"),
         DAY_TO_MINUTE("DAY TO MINUTE", "DAY", "HOUR", "MINUTE"),
         DAY_TO_SECOND("DAY TO SECOND", "DAY", "HOUR", "MINUTE", "SECOND"),
-        HOUR_TO_MINUTE("HOUR TO MINUTE", "HOUR", "MINUTE"), HOUR_TO_SECOND("HOUR TO SECOND", "HOUR", "MINUTE", "SECOND"),
+        HOUR_TO_MINUTE("HOUR TO MINUTE", "HOUR", "MINUTE"),
+        HOUR_TO_SECOND("HOUR TO SECOND", "HOUR", "MINUTE", "SECOND"),
         MINUTE_TO_SECOND("MINUTE TO SECOND", "MINUTE", "SECOND");
 
         private final String sqlKindPair;
@@ -572,8 +573,7 @@ public class ClickHouseExpressionGenerator
                 op + "'" + pattern + "' ESCAPE '#'", null);
     }
 
-    private static final List<String> LIKE_CHAIN_PATTERNS = List.of("a%", "b%", "%c", "%d%", "e_f%", "%1%", "%0",
-            "9%");
+    private static final List<String> LIKE_CHAIN_PATTERNS = List.of("a%", "b%", "%c", "%d%", "e_f%", "%1%", "%0", "9%");
 
     public ClickHouseExpression generateComparisonChain(List<ClickHouseColumnReference> columns) {
         List<ClickHouseColumnReference> stringCols = columns.stream()
@@ -597,9 +597,8 @@ public class ClickHouseExpressionGenerator
         for (int i = 0; i < links; i++) {
             ClickHouseExpression link = new ClickHouseExpression.ClickHousePostfixText(col,
                     op + Randomly.fromList(LIKE_CHAIN_PATTERNS) + "'", null);
-            chain = chain == null ? link
-                    : new ClickHouseBinaryLogicalOperation(chain, link,
-                            ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.OR);
+            chain = chain == null ? link : new ClickHouseBinaryLogicalOperation(chain, link,
+                    ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.OR);
         }
         return chain;
     }
@@ -611,9 +610,8 @@ public class ClickHouseExpressionGenerator
             ClickHouseExpression link = new ClickHouseBinaryComparisonOperation(col,
                     ClickHouseCreateConstant.createInt32Constant(Randomly.getNotCachedInteger(-20, 20)),
                     ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.NOT_EQUALS);
-            chain = chain == null ? link
-                    : new ClickHouseBinaryLogicalOperation(chain, link,
-                            ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
+            chain = chain == null ? link : new ClickHouseBinaryLogicalOperation(chain, link,
+                    ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
         }
         long bound = Randomly.getNotCachedInteger(-20, 20);
         chain = new ClickHouseBinaryLogicalOperation(chain,
@@ -623,8 +621,7 @@ public class ClickHouseExpressionGenerator
         if (Randomly.getBoolean()) {
             chain = new ClickHouseBinaryLogicalOperation(chain,
                     new ClickHouseBinaryComparisonOperation(col,
-                            ClickHouseCreateConstant
-                                    .createInt32Constant(bound + Randomly.getNotCachedInteger(1, 40)),
+                            ClickHouseCreateConstant.createInt32Constant(bound + Randomly.getNotCachedInteger(1, 40)),
                             ClickHouseBinaryComparisonOperation.ClickHouseBinaryComparisonOperator.GREATER),
                     ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
         }
@@ -1583,9 +1580,8 @@ public class ClickHouseExpressionGenerator
                 && Randomly.getBooleanWithRatherLowProbability()) {
             ClickHouseExpression truthPred = generateTruthValuePredicate(columnRefs);
             if (truthPred != null) {
-                return Randomly.getBoolean() ? truthPred
-                        : new ClickHouseBinaryLogicalOperation(base, truthPred,
-                                ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
+                return Randomly.getBoolean() ? truthPred : new ClickHouseBinaryLogicalOperation(base, truthPred,
+                        ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
             }
         }
 
@@ -1593,9 +1589,8 @@ public class ClickHouseExpressionGenerator
                 && Randomly.getBooleanWithSmallProbability()) {
             ClickHouseExpression likePred = generateLikeEscapePredicate(columnRefs);
             if (likePred != null) {
-                return Randomly.getBoolean() ? likePred
-                        : new ClickHouseBinaryLogicalOperation(base, likePred,
-                                ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
+                return Randomly.getBoolean() ? likePred : new ClickHouseBinaryLogicalOperation(base, likePred,
+                        ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
             }
         }
 
@@ -1603,9 +1598,8 @@ public class ClickHouseExpressionGenerator
                 && Randomly.getBooleanWithSmallProbability()) {
             ClickHouseExpression textPred = generateTextSearchPredicate(columnRefs);
             if (textPred != null) {
-                return Randomly.getBoolean() ? textPred
-                        : new ClickHouseBinaryLogicalOperation(base, textPred,
-                                ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
+                return Randomly.getBoolean() ? textPred : new ClickHouseBinaryLogicalOperation(base, textPred,
+                        ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
             }
         }
 
@@ -1613,9 +1607,8 @@ public class ClickHouseExpressionGenerator
                 && Randomly.getBooleanWithRatherLowProbability()) {
             ClickHouseExpression chain = generateComparisonChain(columnRefs);
             if (chain != null) {
-                return Randomly.getBoolean() ? chain
-                        : new ClickHouseBinaryLogicalOperation(base, chain,
-                                ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
+                return Randomly.getBoolean() ? chain : new ClickHouseBinaryLogicalOperation(base, chain,
+                        ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
             }
         }
 
@@ -1627,9 +1620,8 @@ public class ClickHouseExpressionGenerator
                     .map(c -> "toString(" + ClickHouseToStringVisitor.asString(c) + ")").collect(Collectors.toList());
             ClickHouseExpression variantPred = new sqlancer.clickhouse.ast.ClickHouseRawText(
                     ClickHouseVariantPredicateFactory.renderRandomFragment(intExprs, strExprs));
-            return Randomly.getBoolean() ? variantPred
-                    : new ClickHouseBinaryLogicalOperation(base, variantPred,
-                            ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
+            return Randomly.getBoolean() ? variantPred : new ClickHouseBinaryLogicalOperation(base, variantPred,
+                    ClickHouseBinaryLogicalOperation.ClickHouseBinaryLogicalOperator.AND);
         }
         return base;
     }
@@ -1702,8 +1694,8 @@ public class ClickHouseExpressionGenerator
         String k = joinCols.get(0).getName();
         StringBuilder sb = new StringBuilder("(SELECT a.").append(k).append(" FROM ");
         if (firstDerived) {
-            sb.append("(SELECT ").append(k).append(" FROM ").append(db).append(".")
-                    .append(sources.get(0).getName()).append(") AS a");
+            sb.append("(SELECT ").append(k).append(" FROM ").append(db).append(".").append(sources.get(0).getName())
+                    .append(") AS a");
         } else {
             sb.append(db).append(".").append(sources.get(0).getName()).append(" AS a");
         }
@@ -1722,9 +1714,9 @@ public class ClickHouseExpressionGenerator
                         .append(k).append(" = ").append(prevHandle);
             } else {
                 String alias = isLast ? "b" : "e" + (i - 1);
-                sb.append(" JOIN ").append(db).append(".").append(sources.get(i).getName()).append(" AS ")
-                        .append(alias).append(" ON ").append(alias).append(".").append(joinCols.get(i).getName())
-                        .append(" = ").append(prevHandle);
+                sb.append(" JOIN ").append(db).append(".").append(sources.get(i).getName()).append(" AS ").append(alias)
+                        .append(" ON ").append(alias).append(".").append(joinCols.get(i).getName()).append(" = ")
+                        .append(prevHandle);
 
                 prevHandle = alias + "." + joinCols.get(i).getName();
             }

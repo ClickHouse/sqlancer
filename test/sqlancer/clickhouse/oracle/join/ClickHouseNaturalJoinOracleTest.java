@@ -37,10 +37,8 @@ class ClickHouseNaturalJoinOracleTest {
         assertEquals("SELECT toString(tuple(sh0, pa0, pb0)) FROM db.natj_1_a JOIN db.natj_1_b USING (sh0)",
                 ClickHouseNaturalJoinOracle.renderUsingForm(spec, TA, TB));
         assertTrue(ClickHouseNaturalJoinOracle.onFormApplicable(JoinVariant.INNER));
-        assertEquals(
-                "SELECT toString(tuple(a.sh0, a.pa0, b.pb0)) FROM db.natj_1_a AS a JOIN db.natj_1_b AS b "
-                        + "ON a.sh0 = b.sh0",
-                ClickHouseNaturalJoinOracle.renderOnForm(spec, TA, TB));
+        assertEquals("SELECT toString(tuple(a.sh0, a.pa0, b.pb0)) FROM db.natj_1_a AS a JOIN db.natj_1_b AS b "
+                + "ON a.sh0 = b.sh0", ClickHouseNaturalJoinOracle.renderOnForm(spec, TA, TB));
     }
 
     @Test
@@ -49,8 +47,7 @@ class ClickHouseNaturalJoinOracleTest {
                 List.of());
         assertEquals("SELECT toString(tuple(sh0, sh1, pa0)) FROM db.natj_1_a NATURAL FULL JOIN db.natj_1_b",
                 ClickHouseNaturalJoinOracle.renderNaturalForm(spec, TA, TB));
-        assertEquals(
-                "SELECT toString(tuple(sh0, sh1, pa0)) FROM db.natj_1_a FULL JOIN db.natj_1_b USING (sh0, sh1)",
+        assertEquals("SELECT toString(tuple(sh0, sh1, pa0)) FROM db.natj_1_a FULL JOIN db.natj_1_b USING (sh0, sh1)",
                 ClickHouseNaturalJoinOracle.renderUsingForm(spec, TA, TB));
 
         assertFalse(ClickHouseNaturalJoinOracle.onFormApplicable(JoinVariant.FULL));
@@ -69,10 +66,8 @@ class ClickHouseNaturalJoinOracleTest {
     @Test
     void rightVariantOnFormExposesBSideSharedColumns() {
         JoinSpec spec = new JoinSpec(JoinVariant.RIGHT, List.of("String"), List.of("Int32"), List.of("Int32"));
-        assertEquals(
-                "SELECT toString(tuple(b.sh0, a.pa0, b.pb0)) FROM db.natj_1_a AS a RIGHT JOIN db.natj_1_b AS b "
-                        + "ON a.sh0 = b.sh0",
-                ClickHouseNaturalJoinOracle.renderOnForm(spec, TA, TB));
+        assertEquals("SELECT toString(tuple(b.sh0, a.pa0, b.pb0)) FROM db.natj_1_a AS a RIGHT JOIN db.natj_1_b AS b "
+                + "ON a.sh0 = b.sh0", ClickHouseNaturalJoinOracle.renderOnForm(spec, TA, TB));
         assertEquals("SELECT toString(tuple(sh0, pa0, pb0)) FROM db.natj_1_a NATURAL RIGHT JOIN db.natj_1_b",
                 ClickHouseNaturalJoinOracle.renderNaturalForm(spec, TA, TB));
     }
@@ -80,10 +75,8 @@ class ClickHouseNaturalJoinOracleTest {
     @Test
     void leftVariantOnFormExposesASideSharedColumns() {
         JoinSpec spec = new JoinSpec(JoinVariant.LEFT, List.of("Int32", "Int32"), List.of(), List.of("String"));
-        assertEquals(
-                "SELECT toString(tuple(a.sh0, a.sh1, b.pb0)) FROM db.natj_1_a AS a LEFT JOIN db.natj_1_b AS b "
-                        + "ON a.sh0 = b.sh0 AND a.sh1 = b.sh1",
-                ClickHouseNaturalJoinOracle.renderOnForm(spec, TA, TB));
+        assertEquals("SELECT toString(tuple(a.sh0, a.sh1, b.pb0)) FROM db.natj_1_a AS a LEFT JOIN db.natj_1_b AS b "
+                + "ON a.sh0 = b.sh0 AND a.sh1 = b.sh1", ClickHouseNaturalJoinOracle.renderOnForm(spec, TA, TB));
     }
 
     @Test

@@ -28,8 +28,9 @@ class ClickHouseVariantWhereEmissionTest {
 
     @Test
     void variantEqualityRendersExactly() {
-        assertEquals("(CAST((toInt64(t0.c0)) AS Variant(Int64, String)) = "
-                + "CAST((toInt64(t0.c2)) AS Variant(Int64, String)))",
+        assertEquals(
+                "(CAST((toInt64(t0.c0)) AS Variant(Int64, String)) = "
+                        + "CAST((toInt64(t0.c2)) AS Variant(Int64, String)))",
                 ClickHouseVariantPredicateFactory.renderVariantEquality("toInt64(t0.c0)", "toInt64(t0.c2)"));
     }
 
@@ -87,14 +88,13 @@ class ClickHouseVariantWhereEmissionTest {
         boolean allowedTopLevel = fragment.startsWith("(variantElement(CAST(")
                 || fragment.startsWith("(variantType(CAST(")
                 || fragment.startsWith("(CAST((") && fragment.contains(") = CAST((");
-        assertTrue(allowedTopLevel, "top-level function must be variantElement/variantType/Variant equality: "
-                + fragment);
+        assertTrue(allowedTopLevel,
+                "top-level function must be variantElement/variantType/Variant equality: " + fragment);
 
         assertTrue(fragment.contains(" = ") || fragment.endsWith(" IS NULL)"),
                 "must be Boolean-valued (comparison or IS NULL): " + fragment);
 
-        assertEquals(countOccurrences(fragment, "Variant("),
-                countOccurrences(fragment, "AS Variant(Int64, String))"),
+        assertEquals(countOccurrences(fragment, "Variant("), countOccurrences(fragment, "AS Variant(Int64, String))"),
                 "every Variant( must be a CAST target inside the predicate: " + fragment);
         assertTrue(countOccurrences(fragment, "Variant(") > 0, "must exercise Variant at all: " + fragment);
     }

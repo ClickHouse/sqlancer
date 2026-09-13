@@ -324,30 +324,18 @@ public class YSQLProvider extends SQLProviderAdapter<YSQLGlobalState, YSQLOption
                 query = new SQLQueryAdapter("ROLLBACK", true);
             }
             return query;
-        }),
-        DELETE(YSQLDeleteGenerator::create),
-        DISCARD(YSQLDiscardGenerator::create),
-        DROP_INDEX(YSQLDropIndexGenerator::create),
-        CREATE_INDEX(YSQLIndexGenerator::generate),
-        INSERT(YSQLInsertGenerator::insert),
-        UPDATE(YSQLUpdateGenerator::create),
-        TRUNCATE(YSQLTruncateGenerator::create),
-        TABLEGROUP(YSQLTableGroupGenerator::create),
-        VACUUM(YSQLVacuumGenerator::create),
-        SET(YSQLSetGenerator::create),
-        SET_CONSTRAINTS((g) -> {
+        }), DELETE(YSQLDeleteGenerator::create), DISCARD(YSQLDiscardGenerator::create),
+        DROP_INDEX(YSQLDropIndexGenerator::create), CREATE_INDEX(YSQLIndexGenerator::generate),
+        INSERT(YSQLInsertGenerator::insert), UPDATE(YSQLUpdateGenerator::create),
+        TRUNCATE(YSQLTruncateGenerator::create), TABLEGROUP(YSQLTableGroupGenerator::create),
+        VACUUM(YSQLVacuumGenerator::create), SET(YSQLSetGenerator::create), SET_CONSTRAINTS((g) -> {
             String sb = "SET CONSTRAINTS ALL " + Randomly.fromOptions("DEFERRED", "IMMEDIATE");
             return new SQLQueryAdapter(sb);
-        }),
-        RESET_ROLE((g) -> new SQLQueryAdapter("RESET ROLE")),
-        COMMENT_ON(YSQLCommentGenerator::generate),
+        }), RESET_ROLE((g) -> new SQLQueryAdapter("RESET ROLE")), COMMENT_ON(YSQLCommentGenerator::generate),
         RESET((g) -> new SQLQueryAdapter("RESET ALL")
 
-),
-        NOTIFY(YSQLNotifyGenerator::createNotify),
-        LISTEN((g) -> YSQLNotifyGenerator.createListen()),
-        UNLISTEN((g) -> YSQLNotifyGenerator.createUnlisten()),
-        CREATE_SEQUENCE(YSQLSequenceGenerator::createSequence),
+        ), NOTIFY(YSQLNotifyGenerator::createNotify), LISTEN((g) -> YSQLNotifyGenerator.createListen()),
+        UNLISTEN((g) -> YSQLNotifyGenerator.createUnlisten()), CREATE_SEQUENCE(YSQLSequenceGenerator::createSequence),
         CREATE_VIEW(YSQLViewGenerator::create);
 
         private final SQLQueryProvider<YSQLGlobalState> sqlQueryProvider;

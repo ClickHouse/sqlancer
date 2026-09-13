@@ -30,8 +30,7 @@ public enum CockroachDBOracleFactory implements OracleFactory<CockroachDBProvide
             ExpectedErrors errors = ExpectedErrors.newErrors().with(CockroachDBErrors.getExpressionErrors())
                     .with(CockroachDBErrors.getTransactionErrors()).with("unable to vectorize execution plan")
 
-                    .with(" mismatched physical types at index")
-                    .build();
+                    .with(" mismatched physical types at index").build();
             return new NoRECOracle<>(globalState, gen, errors);
         }
     },

@@ -45,8 +45,7 @@ public class ClickHouseWindowFrameOracle implements TestOracle<ClickHouseGlobalS
         long id = CTR.incrementAndGet();
         String table = state.getDatabaseName() + ".winf_" + id + "_t";
         Randomly r = state.getRandomly();
-        String create = "CREATE TABLE " + table
-                + " (p Int32, k Int64, x Int64) ENGINE = MergeTree ORDER BY (p, k)";
+        String create = "CREATE TABLE " + table + " (p Int32, k Int64, x Int64) ENGINE = MergeTree ORDER BY (p, k)";
         try {
             logStmt(create);
             if (!new SQLQueryAdapter(create, errors, true).execute(state)) {
@@ -104,9 +103,9 @@ public class ClickHouseWindowFrameOracle implements TestOracle<ClickHouseGlobalS
         String rowNumber = "row_number() OVER (PARTITION BY p ORDER BY k)";
 
         String query = "SELECT toString(p) AS gp, toString(k) AS gk, toString(" + defaultFrame + ") AS va, toString("
-                + rangeFrame + ") AS vb, toString(" + rowsFrame + ") AS vc, toString(" + lagFrame
-                + ") AS vd, isNull(" + prevFrame + ") AS ve_null, toString(" + prevFrame + ") AS ve_val, toUInt8(("
-                + rowNumber + ") > 1) AS not_first FROM " + table + " ORDER BY p, k, x";
+                + rangeFrame + ") AS vb, toString(" + rowsFrame + ") AS vc, toString(" + lagFrame + ") AS vd, isNull("
+                + prevFrame + ") AS ve_null, toString(" + prevFrame + ") AS ve_val, toUInt8((" + rowNumber
+                + ") > 1) AS not_first FROM " + table + " ORDER BY p, k, x";
 
         logStmt(query);
 
@@ -158,9 +157,9 @@ public class ClickHouseWindowFrameOracle implements TestOracle<ClickHouseGlobalS
 
     private static AssertionError mismatch(String label, String query, String p, String k, long rowIdx, String left,
             String right) {
-        return new AssertionError(String.format(
-                "window-frame mismatch [%s] at row %d (p=%s, k=%s):%n  Q: %s%n  left=%s%n  right=%s", label, rowIdx, p,
-                k, query, left, right));
+        return new AssertionError(
+                String.format("window-frame mismatch [%s] at row %d (p=%s, k=%s):%n  Q: %s%n  left=%s%n  right=%s",
+                        label, rowIdx, p, k, query, left, right));
     }
 
     private void dropQuietly(String table) {

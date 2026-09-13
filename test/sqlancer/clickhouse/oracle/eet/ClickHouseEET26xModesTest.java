@@ -64,8 +64,8 @@ class ClickHouseEET26xModesTest {
     void compoundLiteralRejectsComponentCountMismatch() {
         assertThrows(AssertionError.class, () -> ClickHouseExpressionGenerator
                 .renderCompoundIntervalLiteral(CompoundIntervalKind.DAY_TO_SECOND, new int[] { 5, 12 }));
-        assertThrows(AssertionError.class, () -> ClickHouseExpressionGenerator
-                .renderDecomposedIntervalArith("d", "+", CompoundIntervalKind.YEAR_TO_MONTH, new int[] { 1 }));
+        assertThrows(AssertionError.class, () -> ClickHouseExpressionGenerator.renderDecomposedIntervalArith("d", "+",
+                CompoundIntervalKind.YEAR_TO_MONTH, new int[] { 1 }));
     }
 
     @Test
@@ -120,7 +120,8 @@ class ClickHouseEET26xModesTest {
 
     @Test
     void overlayFormsParallelFromOnly() {
-        assertEquals("OVERLAY(t.s PLACING 'ab' FROM 3)", ClickHouseEETOracle.overlayKeywordForm("t.s", "'ab'", 3, null));
+        assertEquals("OVERLAY(t.s PLACING 'ab' FROM 3)",
+                ClickHouseEETOracle.overlayKeywordForm("t.s", "'ab'", 3, null));
         assertEquals("overlay(t.s, 'ab', 3)", ClickHouseEETOracle.overlayFunctionForm("t.s", "'ab'", 3, null));
     }
 
@@ -134,7 +135,8 @@ class ClickHouseEET26xModesTest {
     @Test
     void overlayFormsCarryNegativeAndZeroPositionsIdentically() {
 
-        assertEquals("OVERLAY(t.s PLACING '' FROM -2 FOR -1)", ClickHouseEETOracle.overlayKeywordForm("t.s", "''", -2, -1));
+        assertEquals("OVERLAY(t.s PLACING '' FROM -2 FOR -1)",
+                ClickHouseEETOracle.overlayKeywordForm("t.s", "''", -2, -1));
         assertEquals("overlay(t.s, '', -2, -1)", ClickHouseEETOracle.overlayFunctionForm("t.s", "''", -2, -1));
         assertEquals("OVERLAY(t.s PLACING 'x' FROM 0)", ClickHouseEETOracle.overlayKeywordForm("t.s", "'x'", 0, null));
         assertEquals("overlay(t.s, 'x', 0)", ClickHouseEETOracle.overlayFunctionForm("t.s", "'x'", 0, null));
@@ -213,8 +215,7 @@ class ClickHouseEET26xModesTest {
                     assertTrue(c >= ' ' && c <= '~', () -> "non-ASCII char in " + s);
 
                     if (c == '0' && k + 1 < s.length() && Character.isDigit(s.charAt(k + 1))) {
-                        assertTrue(k > 0 && Character.isDigit(s.charAt(k - 1)),
-                                () -> "leading-zero digit run in " + s);
+                        assertTrue(k > 0 && Character.isDigit(s.charAt(k - 1)), () -> "leading-zero digit run in " + s);
                     }
                 }
             }

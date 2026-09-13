@@ -23,8 +23,7 @@ public class ClickHouseJoinGetSetOracle implements TestOracle<ClickHouseGlobalSt
     private static final int PROBE_SPACE = 20;
 
     enum Mode {
-        SET_MEMBERSHIP,
-        JOIN_GET
+        SET_MEMBERSHIP, JOIN_GET
     }
 
     private final ClickHouseGlobalState state;
@@ -77,7 +76,8 @@ public class ClickHouseJoinGetSetOracle implements TestOracle<ClickHouseGlobalSt
         String setTable = state.getDatabaseName() + ".jgs_set_" + id;
         Randomly r = state.getRandomly();
         try {
-            if (!execute("CREATE TABLE " + src + " (k Int32, v Int64) ENGINE = MergeTree ORDER BY tuple()", ddlErrors)) {
+            if (!execute("CREATE TABLE " + src + " (k Int32, v Int64) ENGINE = MergeTree ORDER BY tuple()",
+                    ddlErrors)) {
                 throw new IgnoreMeException();
             }
             String values = renderSourceValues(r, PROBE_SPACE);
@@ -91,17 +91,17 @@ public class ClickHouseJoinGetSetOracle implements TestOracle<ClickHouseGlobalSt
                 throw new IgnoreMeException();
             }
 
-            String viaSet = readSingleValue("SELECT toString(arraySort(groupArray(x))) FROM (SELECT number AS x FROM numbers("
-                    + PROBE_SPACE + ") WHERE x IN " + setTable + ")");
+            String viaSet = readSingleValue(
+                    "SELECT toString(arraySort(groupArray(x))) FROM (SELECT number AS x FROM numbers(" + PROBE_SPACE
+                            + ") WHERE x IN " + setTable + ")");
             String viaSubquery = readSingleValue(
                     "SELECT toString(arraySort(groupArray(x))) FROM (SELECT number AS x FROM numbers(" + PROBE_SPACE
                             + ") WHERE x IN (SELECT k FROM " + src + "))");
 
             if (!viaSet.equals(viaSubquery)) {
-                throw new AssertionError(String.format(
-                        "Set-engine membership mismatch: x IN %s gave %s but x IN (SELECT k FROM %s) gave %s. "
-                                + "Source values: %s",
-                        setTable, viaSet, src, viaSubquery, values));
+                throw new AssertionError(String
+                        .format("Set-engine membership mismatch: x IN %s gave %s but x IN (SELECT k FROM %s) gave %s. "
+                                + "Source values: %s", setTable, viaSet, src, viaSubquery, values));
             }
         } finally {
             dropQuietly(setTable);
@@ -145,18 +145,16 @@ public class ClickHouseJoinGetSetOracle implements TestOracle<ClickHouseGlobalSt
             List<String> viaJoinGet = new ArrayList<>(probeKeys.size());
             List<String> viaLookup = new ArrayList<>(probeKeys.size());
             for (int k : probeKeys) {
-                viaJoinGet.add(readSingleValue(
-                        "SELECT toString(joinGet('" + join + "', 'v', toInt32(" + k + ")))"));
-                viaLookup.add(readSingleValue(
-                        "SELECT toString(any(v)) FROM " + join + " WHERE k = toInt32(" + k + ")"));
+                viaJoinGet.add(readSingleValue("SELECT toString(joinGet('" + join + "', 'v', toInt32(" + k + ")))"));
+                viaLookup
+                        .add(readSingleValue("SELECT toString(any(v)) FROM " + join + " WHERE k = toInt32(" + k + ")"));
             }
 
             List<String> diff = orderedDiff(viaJoinGet, viaLookup, probeKeys, DIFF_LIMIT);
             if (!diff.isEmpty()) {
-                throw new AssertionError(String.format(
-                        "joinGet vs ANY LEFT JOIN lookup mismatch on %s: probe keys %s, joinGet %s, lookup %s. "
-                                + "first differing entries: %s",
-                        join, probeKeys, viaJoinGet, viaLookup, diff));
+                throw new AssertionError(String
+                        .format("joinGet vs ANY LEFT JOIN lookup mismatch on %s: probe keys %s, joinGet %s, lookup %s. "
+                                + "first differing entries: %s", join, probeKeys, viaJoinGet, viaLookup, diff));
             }
         } finally {
             dropQuietly(join);

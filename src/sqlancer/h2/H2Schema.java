@@ -113,7 +113,7 @@ public class H2Schema extends AbstractSchema<H2GlobalState, H2Table> {
                     throw new AssertionError(size);
                 }
             case VARCHAR:
-                return  Randomly.fromOptions("VARCHAR", "VARCHAR_IGNORECASE");
+                return Randomly.fromOptions("VARCHAR", "VARCHAR_IGNORECASE");
 
             case BINARY:
                 return "BINARY";
@@ -192,8 +192,7 @@ public class H2Schema extends AbstractSchema<H2GlobalState, H2Table> {
                     String columnName = rs.getString("COLUMN_NAME");
                     String columnType = rs.getString("TYPE");
                     H2DataType primitiveType = getColumnType(columnType);
-                    H2Column c = new H2Column(columnName,
-                            new H2CompositeDataType(primitiveType, -1, -1 ));
+                    H2Column c = new H2Column(columnName, new H2CompositeDataType(primitiveType, -1, -1));
                     columns.add(c);
                 }
             }

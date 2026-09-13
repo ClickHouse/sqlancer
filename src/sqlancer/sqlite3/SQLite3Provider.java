@@ -59,30 +59,21 @@ public class SQLite3Provider extends SQLProviderAdapter<SQLite3GlobalState, SQLi
     }
 
     public enum Action implements AbstractAction<SQLite3GlobalState> {
-        PRAGMA(SQLite3PragmaGenerator::insertPragma),
-        CREATE_INDEX(SQLite3IndexGenerator::insertIndex),
-        CREATE_VIEW(SQLite3ViewGenerator::generate),
-        CREATE_TRIGGER(SQLite3CreateTriggerGenerator::create),
+        PRAGMA(SQLite3PragmaGenerator::insertPragma), CREATE_INDEX(SQLite3IndexGenerator::insertIndex),
+        CREATE_VIEW(SQLite3ViewGenerator::generate), CREATE_TRIGGER(SQLite3CreateTriggerGenerator::create),
         CREATE_TABLE(SQLite3TableGenerator::createRandomTableStatement),
         CREATE_VIRTUALTABLE(SQLite3CreateVirtualFTSTableGenerator::createRandomTableStatement),
         CREATE_RTREETABLE(SQLite3CreateVirtualRtreeTabelGenerator::createRandomTableStatement),
-        INSERT(SQLite3InsertGenerator::insertRow),
-        DELETE(SQLite3DeleteGenerator::deleteContent),
-        ALTER(SQLite3AlterTable::alterTable),
-        UPDATE(SQLite3UpdateGenerator::updateRow),
-        DROP_INDEX(SQLite3DropIndexGenerator::dropIndex),
-        DROP_TABLE(SQLite3DropTableGenerator::dropTable),
-        DROP_VIEW(SQLite3ViewGenerator::dropView),
-        VACUUM(SQLite3VacuumGenerator::executeVacuum),
-        REINDEX(SQLite3ReindexGenerator::executeReindex),
-        ANALYZE(SQLite3AnalyzeGenerator::generateAnalyze),
-        EXPLAIN(SQLite3ExplainGenerator::explain),
-        CHECK_RTREE_TABLE((g) -> {
+        INSERT(SQLite3InsertGenerator::insertRow), DELETE(SQLite3DeleteGenerator::deleteContent),
+        ALTER(SQLite3AlterTable::alterTable), UPDATE(SQLite3UpdateGenerator::updateRow),
+        DROP_INDEX(SQLite3DropIndexGenerator::dropIndex), DROP_TABLE(SQLite3DropTableGenerator::dropTable),
+        DROP_VIEW(SQLite3ViewGenerator::dropView), VACUUM(SQLite3VacuumGenerator::executeVacuum),
+        REINDEX(SQLite3ReindexGenerator::executeReindex), ANALYZE(SQLite3AnalyzeGenerator::generateAnalyze),
+        EXPLAIN(SQLite3ExplainGenerator::explain), CHECK_RTREE_TABLE((g) -> {
             SQLite3Table table = g.getSchema().getRandomTableOrBailout(t -> t.getName().startsWith("r"));
             String format = String.format("SELECT rtreecheck('%s');", table.getName());
             return new SQLQueryAdapter(format, ExpectedErrors.from("The database file is locked"));
-        }),
-        VIRTUAL_TABLE_ACTION(SQLite3VirtualFTSTableCommandGenerator::create),
+        }), VIRTUAL_TABLE_ACTION(SQLite3VirtualFTSTableCommandGenerator::create),
         MANIPULATE_STAT_TABLE(SQLite3StatTableGenerator::getQuery),
         TRANSACTION_START(SQLite3TransactionGenerator::generateBeginTransaction) {
             @Override
