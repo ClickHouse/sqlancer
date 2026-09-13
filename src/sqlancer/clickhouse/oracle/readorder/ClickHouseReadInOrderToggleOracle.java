@@ -84,8 +84,8 @@ public class ClickHouseReadInOrderToggleOracle implements TestOracle<ClickHouseG
     }
 
     private void checkGroupByArm(ClickHouseTable table) throws SQLException {
-        List<ClickHouseColumn> keyCols = table.getColumns().stream().filter(c -> isScalarGroupKey(c.getType().getType()))
-                .collect(Collectors.toList());
+        List<ClickHouseColumn> keyCols = table.getColumns().stream()
+                .filter(c -> isScalarGroupKey(c.getType().getType())).collect(Collectors.toList());
         if (keyCols.isEmpty()) {
             throw new IgnoreMeException();
         }
@@ -98,8 +98,8 @@ public class ClickHouseReadInOrderToggleOracle implements TestOracle<ClickHouseG
             }
         }
 
-        List<ClickHouseColumn> intCols = table.getColumns().stream()
-                .filter(c -> isExactInteger(c.getType().getType())).collect(Collectors.toList());
+        List<ClickHouseColumn> intCols = table.getColumns().stream().filter(c -> isExactInteger(c.getType().getType()))
+                .collect(Collectors.toList());
         String sumArg = intCols.isEmpty() ? "0"
                 : ref(intCols.get((int) Randomly.getNotCachedInteger(0, intCols.size())).getName());
 
@@ -107,9 +107,9 @@ public class ClickHouseReadInOrderToggleOracle implements TestOracle<ClickHouseG
         String projection = "toString(tuple(" + keyRefs + ", count(), sum(" + sumArg + ")))";
         String base = "SELECT " + projection + " FROM " + table.getName() + " GROUP BY " + keyRefs;
         if (Randomly.getBoolean()) {
-            base += " ORDER BY " + groupKeys.stream()
-                    .map(c -> ref(c.getName()) + (Randomly.getBoolean() ? " DESC" : " ASC"))
-                    .collect(Collectors.joining(", "));
+            base += " ORDER BY "
+                    + groupKeys.stream().map(c -> ref(c.getName()) + (Randomly.getBoolean() ? " DESC" : " ASC"))
+                            .collect(Collectors.joining(", "));
         }
         String on = base + ARM_ON;
         String off = base + ARM_OFF;

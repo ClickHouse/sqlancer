@@ -35,11 +35,7 @@ public class SQLite3CreateVirtualFTSTableGenerator {
     }
 
     private enum Fts5Options {
-        PREFIX,
-        TOKENIZE,
-        COLUMNSIZE,
-        DETAIL,
-        CONTENTLESS,
+        PREFIX, TOKENIZE, COLUMNSIZE, DETAIL, CONTENTLESS,
     };
 
     private enum Fts4Options {

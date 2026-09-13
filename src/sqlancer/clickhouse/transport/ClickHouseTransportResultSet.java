@@ -397,7 +397,7 @@ final class ClickHouseTransportResultSet implements ResultSet {
 
     @Override
     public void clearWarnings() {
-         }
+    }
 
     @Override
     public String getCursorName() {
@@ -502,7 +502,7 @@ final class ClickHouseTransportResultSet implements ResultSet {
 
     @Override
     public void setFetchDirection(int d) {
-         }
+    }
 
     @Override
     public int getFetchDirection() {
@@ -511,7 +511,7 @@ final class ClickHouseTransportResultSet implements ResultSet {
 
     @Override
     public void setFetchSize(int rows) {
-         }
+    }
 
     @Override
     public int getFetchSize() {

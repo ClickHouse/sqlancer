@@ -122,8 +122,7 @@ public class ClickHouseSettingFlipOracle implements TestOracle<ClickHouseGlobalS
             { "optimize_and_compare_chain", "1", "0" }, { "convert_query_to_cnf", "1", "0" } };
 
     private String[] pickFlip(String whereClause) {
-        if (!whereClause.isEmpty() && state.getClickHouseOptions().comparisonChainEmission
-                && Randomly.getBoolean()) {
+        if (!whereClause.isEmpty() && state.getClickHouseOptions().comparisonChainEmission && Randomly.getBoolean()) {
             return CHAIN_REWRITE_SETTINGS[(int) Randomly.getNotCachedInteger(0, CHAIN_REWRITE_SETTINGS.length)];
         }
         return NEUTRAL_SETTINGS[(int) Randomly.getNotCachedInteger(0, NEUTRAL_SETTINGS.length)];

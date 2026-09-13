@@ -9,10 +9,7 @@ public class TiDBRegexOperation extends BinaryOperatorNode<TiDBExpression, TiDBR
         implements TiDBExpression {
 
     public enum TiDBRegexOperator implements Operator {
-        LIKE("LIKE"),
-        NOT_LIKE("NOT LIKE"),
-        ILIKE("REGEXP"),
-        NOT_REGEXP("NOT REGEXP");
+        LIKE("LIKE"), NOT_LIKE("NOT LIKE"), ILIKE("REGEXP"), NOT_REGEXP("NOT REGEXP");
 
         private String textRepr;
 

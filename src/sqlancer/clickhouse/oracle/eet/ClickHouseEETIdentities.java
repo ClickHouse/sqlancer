@@ -39,8 +39,7 @@ public final class ClickHouseEETIdentities {
             new Identity("base64_roundtrip", "base64Decode(base64Encode(%s))", t -> isPlainStringKind(t)),
             new Identity("try_base64_roundtrip", "tryBase64Decode(base64Encode(%s))", t -> isPlainStringKind(t)),
 
-            new Identity("ipv4_num_string_roundtrip", "toIPv4(IPv4NumToString(toUInt32(%s)))",
-                    t -> isIPv4Kind(t)),
+            new Identity("ipv4_num_string_roundtrip", "toIPv4(IPv4NumToString(toUInt32(%s)))", t -> isIPv4Kind(t)),
             new Identity("ipv6_num_string_roundtrip", "toIPv6(IPv6NumToString(%s))", t -> isIPv6Kind(t)));
 
     public static Optional<Identity> pickIdentityForType(Randomly r, String typeName) {

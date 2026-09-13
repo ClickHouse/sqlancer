@@ -43,10 +43,10 @@ public final class H2Errors {
         errors.add("Unclosed group near index");
         errors.add("Error in LIKE ESCAPE");
 
-        errors.add("Invalid value" );
+        errors.add("Invalid value");
 
         errors.add("String format error");
-        errors.add( "must be between");
+        errors.add("must be between");
         errors.add("Cannot parse \"TIMESTAMP\" constant");
         errors.add("Invalid parameter count for \"TRUNC\", expected count: \"1\"");
         return errors;

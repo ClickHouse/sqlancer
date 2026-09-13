@@ -96,9 +96,9 @@ public class ClickHouseCubeGroupingSetsOracle implements TestOracle<ClickHouseGl
         String grandSumValue = readSingleValue(grandSum);
         String emptySetSumValue = readSingleValue(emptySetSum);
         if (!grandSumValue.equals(emptySetSumValue)) {
-            throw new AssertionError(String.format(
-                    "CUBE subtotal sum mismatch:%n  grand: %s -> %s%n  empty-set: %s -> %s%n  values: %s",
-                    grandSum, grandSumValue, emptySetSum, emptySetSumValue, values));
+            throw new AssertionError(
+                    String.format("CUBE subtotal sum mismatch:%n  grand: %s -> %s%n  empty-set: %s -> %s%n  values: %s",
+                            grandSum, grandSumValue, emptySetSum, emptySetSumValue, values));
         }
 
         String grandCount = "SELECT toString(count()) FROM " + table;
@@ -107,8 +107,8 @@ public class ClickHouseCubeGroupingSetsOracle implements TestOracle<ClickHouseGl
         String emptySetCountValue = readSingleValue(emptySetCount);
         if (!grandCountValue.equals(emptySetCountValue)) {
             throw new AssertionError(String.format(
-                    "CUBE subtotal count mismatch:%n  grand: %s -> %s%n  empty-set: %s -> %s%n  values: %s",
-                    grandCount, grandCountValue, emptySetCount, emptySetCountValue, values));
+                    "CUBE subtotal count mismatch:%n  grand: %s -> %s%n  empty-set: %s -> %s%n  values: %s", grandCount,
+                    grandCountValue, emptySetCount, emptySetCountValue, values));
         }
     }
 

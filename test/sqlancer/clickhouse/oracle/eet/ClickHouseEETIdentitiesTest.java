@@ -119,9 +119,8 @@ class ClickHouseEETIdentitiesTest {
                 Optional<ClickHouseEETIdentities.Identity> picked = ClickHouseEETIdentities
                         .pickIdentityForType(new Randomly(617L + i), typeName);
                 if (picked.isPresent()) {
-                    assertFalse(stringOnly.contains(picked.get().name()),
-                            () -> typeName + " must not pick an encoding roundtrip identity; got "
-                                    + picked.get().name());
+                    assertFalse(stringOnly.contains(picked.get().name()), () -> typeName
+                            + " must not pick an encoding roundtrip identity; got " + picked.get().name());
                 }
             }
         }

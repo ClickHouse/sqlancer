@@ -23,8 +23,7 @@ public class ClickHouseTextIndexContainerOracle implements TestOracle<ClickHouse
     static final List<String> VOCAB = ClickHouseTextIndexLikeOracle.TOKEN_VOCABULARY;
 
     enum Mode {
-        ARRAY,
-        MAP
+        ARRAY, MAP
     }
 
     private final ClickHouseGlobalState state;
@@ -173,8 +172,8 @@ public class ClickHouseTextIndexContainerOracle implements TestOracle<ClickHouse
                 predicate = "mapContainsValue(m, '" + esc(w) + "')";
                 expected = corpus.stream().filter(m -> m.containsValue(w)).count();
             }
-            assertArmsAndGroundTruth(table, predicate, "mkidx,mvidx", expected, onKeys ? "mapContainsKey" : "mapContainsValue",
-                    create);
+            assertArmsAndGroundTruth(table, predicate, "mkidx,mvidx", expected,
+                    onKeys ? "mapContainsKey" : "mapContainsValue", create);
         } finally {
             dropQuietly(table);
         }
@@ -189,8 +188,7 @@ public class ClickHouseTextIndexContainerOracle implements TestOracle<ClickHouse
         String[] counts = new String[suffixes.length];
         List<List<String>> keyLists = new ArrayList<>(suffixes.length);
         for (int i = 0; i < suffixes.length; i++) {
-            counts[i] = readSingleValue(
-                    "SELECT toString(count()) FROM " + table + " WHERE " + predicate + suffixes[i]);
+            counts[i] = readSingleValue("SELECT toString(count()) FROM " + table + " WHERE " + predicate + suffixes[i]);
             keyLists.add(ComparatorHelper.getResultSetFirstColumnAsString(
                     "SELECT toString(k) FROM " + table + " WHERE " + predicate + " ORDER BY k" + suffixes[i],
                     readErrors, state));

@@ -21,17 +21,8 @@ final class ClickHouseRowBinaryParser {
     static ClickHouseTransport.ResultData parse(InputStream body) throws IOException {
 
         QuerySettings qs = new QuerySettings().setUseTimeZone("UTC");
-        RowBinaryWithNamesAndTypesFormatReader reader;
-        try {
-            reader = new RowBinaryWithNamesAndTypesFormatReader(body, qs,
-                    new BinaryStreamReader.DefaultByteBufferAllocator());
-        } catch (Exception e) {
-            if (e instanceof IOException) {
-                throw (IOException) e;
-            }
-
-            return new ClickHouseTransport.ResultData(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
-        }
+        RowBinaryWithNamesAndTypesFormatReader reader = new RowBinaryWithNamesAndTypesFormatReader(body, qs,
+                new BinaryStreamReader.DefaultByteBufferAllocator());
 
         TableSchema schema = reader.getSchema();
         List<ClickHouseColumn> cols = schema.getColumns();

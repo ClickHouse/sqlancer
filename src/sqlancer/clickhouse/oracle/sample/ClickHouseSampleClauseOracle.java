@@ -78,8 +78,7 @@ public class ClickHouseSampleClauseOracle implements TestOracle<ClickHouseGlobal
         long id = SAMPLE_COUNTER.incrementAndGet();
         String name = state.getDatabaseName() + ".samp_" + id;
         int rows = 100 + (int) Randomly.getNotCachedInteger(0, 1900);
-        String create = "CREATE TABLE " + name
-                + " (id UInt32, v Int64) ENGINE = MergeTree ORDER BY id SAMPLE BY id";
+        String create = "CREATE TABLE " + name + " (id UInt32, v Int64) ENGINE = MergeTree ORDER BY id SAMPLE BY id";
         String insert = "INSERT INTO " + name + " SELECT number AS id, toInt64(number * 7 % 100) AS v FROM numbers("
                 + rows + ")";
         logStatements(create, insert);
@@ -137,9 +136,9 @@ public class ClickHouseSampleClauseOracle implements TestOracle<ClickHouseGlobal
             throw new IgnoreMeException();
         }
         if (reconstructed < fullCount / 5L || reconstructed > fullCount * 5L) {
-            throw new AssertionError(String.format(
-                    "_sample_factor reconstruction far off: %s gave %d but full count is %d", sql, reconstructed,
-                    fullCount));
+            throw new AssertionError(
+                    String.format("_sample_factor reconstruction far off: %s gave %d but full count is %d", sql,
+                            reconstructed, fullCount));
         }
     }
 

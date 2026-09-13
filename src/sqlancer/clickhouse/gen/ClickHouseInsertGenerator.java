@@ -40,7 +40,7 @@ public class ClickHouseInsertGenerator extends AbstractInsertGenerator<ClickHous
 
     @Override
     public void buildStatement() {
-        ClickHouseTable table = globalState.getSchema().getRandomTable(t -> !t.isView());
+        ClickHouseTable table = globalState.getSchema().getRandomTableOrBailout(t -> !t.isView());
         String engine = table.getEngine();
         signConstrained = "CollapsingMergeTree".equals(engine) || "VersionedCollapsingMergeTree".equals(engine);
         List<ClickHouseColumn> columns = Collections.emptyList();

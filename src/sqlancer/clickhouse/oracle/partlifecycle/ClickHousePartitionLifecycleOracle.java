@@ -21,10 +21,7 @@ public class ClickHousePartitionLifecycleOracle implements TestOracle<ClickHouse
     private static final int[] PARTITION_VALUES = { 0, 1, 2, 3 };
 
     enum Invariant {
-        DETACH_ATTACH,
-        DROP_PARTITION,
-        REPLACE_PARTITION,
-        MOVE_PARTITION
+        DETACH_ATTACH, DROP_PARTITION, REPLACE_PARTITION, MOVE_PARTITION
     }
 
     private final ClickHouseGlobalState state;
@@ -153,8 +150,8 @@ public class ClickHousePartitionLifecycleOracle implements TestOracle<ClickHouse
                 throw new IgnoreMeException();
             }
             List<String> after = wholeTableMultiset(table);
-            assertEqual(before, after,
-                    "REPLACE PARTITION " + p + " FROM an identical copy changed the table multiset", table);
+            assertEqual(before, after, "REPLACE PARTITION " + p + " FROM an identical copy changed the table multiset",
+                    table);
         } finally {
             startMergesQuietly(table);
             startMergesQuietly(copy);

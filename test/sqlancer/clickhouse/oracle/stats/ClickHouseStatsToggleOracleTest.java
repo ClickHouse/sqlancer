@@ -99,8 +99,9 @@ class ClickHouseStatsToggleOracleTest {
 
         assertEquals("ALTER TABLE db.stats_2_t DELETE WHERE k % 2 = 0 SETTINGS mutations_sync = 1",
                 ClickHouseStatsToggleOracle.renderStaleDelete("db.stats_2_t"));
-        assertEquals("INSERT INTO db.stats_2_t SELECT toInt32(1000000 + number), toInt64(number % 5) "
-                + "FROM numbers(900)", ClickHouseStatsToggleOracle.renderStaleInsert("db.stats_2_t", 900));
+        assertEquals(
+                "INSERT INTO db.stats_2_t SELECT toInt32(1000000 + number), toInt64(number % 5) " + "FROM numbers(900)",
+                ClickHouseStatsToggleOracle.renderStaleInsert("db.stats_2_t", 900));
     }
 
     @Test
@@ -178,8 +179,7 @@ class ClickHouseStatsToggleOracleTest {
         String offSql = "SELECT 1 SETTINGS use_statistics = 0, allow_statistics_optimize = 0";
         AssertionError e = assertThrows(AssertionError.class, () -> ClickHouseStatsToggleOracle
                 .assertMultisetsEqual(List.of("(1)", "(2)"), List.of("(1)"), onSql, offSql));
-        assertTrue(e.getMessage().contains("2 rows with statistics on vs 1 rows with statistics off"),
-                e.getMessage());
+        assertTrue(e.getMessage().contains("2 rows with statistics on vs 1 rows with statistics off"), e.getMessage());
         assertTrue(e.getMessage().contains(onSql), e.getMessage());
         assertTrue(e.getMessage().contains(offSql), e.getMessage());
         assertTrue(e.getMessage().contains("(2) (+1 on)"), e.getMessage());

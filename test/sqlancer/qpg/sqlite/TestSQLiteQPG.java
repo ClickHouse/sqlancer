@@ -14,8 +14,7 @@ public class TestSQLiteQPG {
         assertEquals(0,
                 Main.executeMain(new String[] { "--random-seed", "0", "--timeout-seconds", TestConfig.SECONDS,
                         "--num-threads", "1", "--num-queries", TestConfig.NUM_QUERIES, "--random-string-generation",
-                        "ALPHANUMERIC_SPECIALCHAR", "--database-prefix",
-                        "pqsdb" , "--qpg-enable", "true", "sqlite3",
+                        "ALPHANUMERIC_SPECIALCHAR", "--database-prefix", "pqsdb", "--qpg-enable", "true", "sqlite3",
                         "--oracle", "NoREC", "--test-fts", "false", "--test-rtree", "false", "--test-check-constraints",
                         "false", "--test-in-operator", "false" }));
     }

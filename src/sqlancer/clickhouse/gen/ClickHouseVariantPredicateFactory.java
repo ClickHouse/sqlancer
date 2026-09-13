@@ -39,8 +39,7 @@ public final class ClickHouseVariantPredicateFactory {
             return renderVariantElementEquals(intExpr, String.valueOf(Randomly.getNotCachedInteger(-128, 128)));
         case 1:
             boolean strArm = !strExprs.isEmpty() && Randomly.getBoolean();
-            return renderVariantTypeEquals(strArm ? Randomly.fromList(strExprs) : intExpr,
-                    strArm ? "String" : "Int64");
+            return renderVariantTypeEquals(strArm ? Randomly.fromList(strExprs) : intExpr, strArm ? "String" : "Int64");
         case 2:
             return renderVariantEquality(intExpr, intExprs.isEmpty() ? fallback : Randomly.fromList(intExprs));
         default:

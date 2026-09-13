@@ -19,11 +19,7 @@ public class ClickHouseAlterModifyConsistencyOracle implements TestOracle<ClickH
     private static final AtomicLong CTR = new AtomicLong();
 
     enum Alter {
-        WIDEN_COLUMN_TYPE,
-        COLUMN_CODEC_ZSTD,
-        STRING_CODEC_LZ4,
-        MODIFY_TTL_FAR_FUTURE,
-        MODIFY_SETTING_MERGE_TTL_TIMEOUT,
+        WIDEN_COLUMN_TYPE, COLUMN_CODEC_ZSTD, STRING_CODEC_LZ4, MODIFY_TTL_FAR_FUTURE, MODIFY_SETTING_MERGE_TTL_TIMEOUT,
         MATERIALIZE_COLUMN
     }
 
@@ -94,8 +90,8 @@ public class ClickHouseAlterModifyConsistencyOracle implements TestOracle<ClickH
                         sb.append(", ");
                     }
                     int cVal = r.getInteger(Integer.MIN_VALUE / 2, Integer.MAX_VALUE / 2);
-                    sb.append('(').append(nextKey).append(", ").append(cVal).append(", '")
-                            .append(esc(randomString(r))).append("')");
+                    sb.append('(').append(nextKey).append(", ").append(cVal).append(", '").append(esc(randomString(r)))
+                            .append("')");
                     nextKey++;
                 }
                 logStmt(sb.toString());

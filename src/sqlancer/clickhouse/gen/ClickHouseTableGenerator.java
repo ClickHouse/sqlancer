@@ -407,9 +407,8 @@ public class ClickHouseTableGenerator {
         }
         if (globalState.getClickHouseOptions().sparseColumnEmission ? Randomly.getBoolean()
                 : Randomly.getBooleanWithSmallProbability()) {
-            settings.add(
-                    "ratio_of_defaults_for_sparse_serialization=" + Randomly.fromOptions(0.0, 0.1, 0.3, 0.5, 0.95,
-                            1.0));
+            settings.add("ratio_of_defaults_for_sparse_serialization="
+                    + Randomly.fromOptions(0.0, 0.1, 0.3, 0.5, 0.95, 1.0));
         }
         if (Randomly.getBooleanWithSmallProbability()) {
             settings.add("min_compress_block_size=" + Randomly.fromOptions(0L, 65536L));
@@ -526,9 +525,9 @@ public class ClickHouseTableGenerator {
     }
 
     private String pickTokenizer() {
-        List<String> tokenizers = new ArrayList<>(List.of("'splitByNonAlpha'", "ngrams(2)", "ngrams(3)", "ngrams(4)",
-                "'array'", "'asciiCJK'", "splitByString([' '])", "splitByString([' ', '-', '::'])",
-                "sparseGrams(3, 5)"));
+        List<String> tokenizers = new ArrayList<>(
+                List.of("'splitByNonAlpha'", "ngrams(2)", "ngrams(3)", "ngrams(4)", "'array'", "'asciiCJK'",
+                        "splitByString([' '])", "splitByString([' ', '-', '::'])", "sparseGrams(3, 5)"));
         if (globalState.getClickHouseOptions().textIndexSecondWave) {
             tokenizers.add("icu('en')");
             tokenizers.add("icu('de')");
@@ -692,8 +691,8 @@ public class ClickHouseTableGenerator {
 
     private String firstBareUnsignedIntIn(java.util.List<String> pkColumnNames) {
         return columns.stream().filter(c -> pkColumnNames.contains(c.getName()))
-                .map(ClickHouseTableGenerator::bareUnsignedIntColumnName).filter(java.util.Objects::nonNull)
-                .findFirst().orElse(null);
+                .map(ClickHouseTableGenerator::bareUnsignedIntColumnName).filter(java.util.Objects::nonNull).findFirst()
+                .orElse(null);
     }
 
     private String fallbackSampleColumn(boolean engineRequiresNonEmptyOrderBy) {

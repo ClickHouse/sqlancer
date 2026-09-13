@@ -29,20 +29,13 @@ public class ClickHouseTextIndexLikeOracle implements TestOracle<ClickHouseGloba
             "golf42", "hotel", "india", "juliet", "kilo9", "lima77", "mike", "november", "oscar", "papa8");
 
     enum PatternKind {
-        TOKEN,
-        MID_TOKEN_SUBSTRING,
-        BOUNDARY_SPAN,
-        ILIKE_CASE_FLIP,
-        SHORT_FRAGMENT,
-        UNDERSCORE_WILDCARD
+        TOKEN, MID_TOKEN_SUBSTRING, BOUNDARY_SPAN, ILIKE_CASE_FLIP, SHORT_FRAGMENT, UNDERSCORE_WILDCARD
     }
 
     enum Arm {
-        DEFAULT(""),
-        INDEX_IGNORED(" SETTINGS ignore_data_skipping_indices = '" + INDEX_NAME + "'"),
+        DEFAULT(""), INDEX_IGNORED(" SETTINGS ignore_data_skipping_indices = '" + INDEX_NAME + "'"),
         DICTIONARY_SCAN_FLIPPED(" SETTINGS use_text_index_like_evaluation_by_dictionary_scan = 0"),
-        DIRECT_READ_OFF(
-                " SETTINGS query_plan_direct_read_from_text_index = 0, query_plan_text_index_add_hint = 0");
+        DIRECT_READ_OFF(" SETTINGS query_plan_direct_read_from_text_index = 0, query_plan_text_index_add_hint = 0");
 
         private final String settingsSuffix;
 
@@ -163,7 +156,8 @@ public class ClickHouseTextIndexLikeOracle implements TestOracle<ClickHouseGloba
                         deletedKeys.add(r.getInteger(0, corpus.size()));
                     }
                     String del = "DELETE FROM " + table + " WHERE k IN ("
-                            + deletedKeys.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(", "))
+                            + deletedKeys.stream().map(String::valueOf)
+                                    .collect(java.util.stream.Collectors.joining(", "))
                             + ") SETTINGS lightweight_deletes_sync = 2";
                     logStmt(del);
                     if (new SQLQueryAdapter(del, readErrors, true).execute(state)) {
@@ -204,16 +198,16 @@ public class ClickHouseTextIndexLikeOracle implements TestOracle<ClickHouseGloba
                     throw new AssertionError(String.format(
                             "text-index LIKE count mismatch: pattern %s (%s, kind %s): arm %s saw %s rows but arm %s "
                                     + "saw %s. topology %s. DDL: %s",
-                            pattern.getPattern(), pattern.isIlike() ? "ILIKE" : "LIKE", pattern.getKind(),
-                            arms[0], counts[0], arms[i], counts[i], topology, create));
+                            pattern.getPattern(), pattern.isIlike() ? "ILIKE" : "LIKE", pattern.getKind(), arms[0],
+                            counts[0], arms[i], counts[i], topology, create));
                 }
                 if (!keyLists.get(0).equals(keyLists.get(i))) {
                     throw new AssertionError(String.format(
                             "text-index LIKE key-list mismatch: pattern %s (%s, kind %s): arm %s keys %s vs arm %s "
                                     + "keys %s. topology %s. DDL: %s",
                             pattern.getPattern(), pattern.isIlike() ? "ILIKE" : "LIKE", pattern.getKind(), arms[0],
-                            truncateForMessage(keyLists.get(0)), arms[i], truncateForMessage(keyLists.get(i)),
-                            topology, create));
+                            truncateForMessage(keyLists.get(0)), arms[i], truncateForMessage(keyLists.get(i)), topology,
+                            create));
                 }
             }
 
@@ -352,8 +346,7 @@ public class ClickHouseTextIndexLikeOracle implements TestOracle<ClickHouseGloba
         }
         int len = r.getInteger(4, token.length());
         int start = r.getInteger(0, token.length() - len + 1);
-        return new LikePattern("%" + token.substring(start, start + len) + "%", false,
-                PatternKind.MID_TOKEN_SUBSTRING);
+        return new LikePattern("%" + token.substring(start, start + len) + "%", false, PatternKind.MID_TOKEN_SUBSTRING);
     }
 
     static LikePattern boundarySpanFragment(Randomly r, String rowString) {

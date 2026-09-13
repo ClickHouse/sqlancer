@@ -64,11 +64,9 @@ public class CitusProvider extends PostgresProvider {
     }
 
     public enum Action implements AbstractAction<PostgresGlobalState> {
-        ANALYZE(PostgresAnalyzeGenerator::create),
-        ALTER_TABLE(g -> CitusAlterTableGenerator.create(g.getSchema().getRandomTable(t -> !t.isView()), g,
-                generateOnlyKnown)),
-        CLUSTER(PostgresClusterGenerator::create),
-        COMMIT(g -> {
+        ANALYZE(PostgresAnalyzeGenerator::create), ALTER_TABLE(g -> CitusAlterTableGenerator
+                .create(g.getSchema().getRandomTable(t -> !t.isView()), g, generateOnlyKnown)),
+        CLUSTER(PostgresClusterGenerator::create), COMMIT(g -> {
             SQLQueryAdapter query;
             if (Randomly.getBoolean()) {
                 query = new SQLQueryAdapter("COMMIT", true);
@@ -78,35 +76,23 @@ public class CitusProvider extends PostgresProvider {
                 query = new SQLQueryAdapter("ROLLBACK", true);
             }
             return query;
-        }),
-        CREATE_STATISTICS(PostgresStatisticsGenerator::insert),
-        DROP_STATISTICS(PostgresStatisticsGenerator::remove),
-        DELETE(CitusDeleteGenerator::create),
-        DISCARD(CitusDiscardGenerator::create),
-        DROP_INDEX(PostgresDropIndexGenerator::create),
-        INSERT(CitusInsertGenerator::insert),
-        UPDATE(CitusUpdateGenerator::create),
-        TRUNCATE(CitusTruncateGenerator::create),
-        VACUUM(CitusVacuumGenerator::create),
-        REINDEX(CitusReindexGenerator::create),
-        SET(CitusSetGenerator::create),
-        CREATE_INDEX(CitusIndexGenerator::generate),
-        SET_CONSTRAINTS((g) -> {
+        }), CREATE_STATISTICS(PostgresStatisticsGenerator::insert),
+        DROP_STATISTICS(PostgresStatisticsGenerator::remove), DELETE(CitusDeleteGenerator::create),
+        DISCARD(CitusDiscardGenerator::create), DROP_INDEX(PostgresDropIndexGenerator::create),
+        INSERT(CitusInsertGenerator::insert), UPDATE(CitusUpdateGenerator::create),
+        TRUNCATE(CitusTruncateGenerator::create), VACUUM(CitusVacuumGenerator::create),
+        REINDEX(CitusReindexGenerator::create), SET(CitusSetGenerator::create),
+        CREATE_INDEX(CitusIndexGenerator::generate), SET_CONSTRAINTS((g) -> {
             StringBuilder sb = new StringBuilder();
             sb.append("SET CONSTRAINTS ALL ");
             sb.append(Randomly.fromOptions("DEFERRED", "IMMEDIATE"));
             return new SQLQueryAdapter(sb.toString());
-        }),
-        RESET_ROLE((g) -> new SQLQueryAdapter("RESET ROLE")),
-        COMMENT_ON(PostgresCommentGenerator::generate),
+        }), RESET_ROLE((g) -> new SQLQueryAdapter("RESET ROLE")), COMMENT_ON(PostgresCommentGenerator::generate),
         RESET((g) -> new SQLQueryAdapter("RESET ALL")
 
-),
-        NOTIFY(PostgresNotifyGenerator::createNotify),
-        LISTEN((g) -> PostgresNotifyGenerator.createListen()),
+        ), NOTIFY(PostgresNotifyGenerator::createNotify), LISTEN((g) -> PostgresNotifyGenerator.createListen()),
         UNLISTEN((g) -> PostgresNotifyGenerator.createUnlisten()),
-        CREATE_SEQUENCE(PostgresSequenceGenerator::createSequence),
-        CREATE_VIEW(CitusViewGenerator::create);
+        CREATE_SEQUENCE(PostgresSequenceGenerator::createSequence), CREATE_VIEW(CitusViewGenerator::create);
 
         private final SQLQueryProvider<PostgresGlobalState> sqlQueryProvider;
 

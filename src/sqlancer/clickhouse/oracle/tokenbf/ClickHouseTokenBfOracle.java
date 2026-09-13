@@ -22,9 +22,7 @@ public class ClickHouseTokenBfOracle implements TestOracle<ClickHouseGlobalState
             "hotel", "india", "juliet", "kilo9", "lima77", "mike", "november", "oscar", "papa8");
 
     enum Probe {
-        HAS_TOKEN,
-        EQUALITY,
-        IN_SET
+        HAS_TOKEN, EQUALITY, IN_SET
     }
 
     private final ClickHouseGlobalState state;

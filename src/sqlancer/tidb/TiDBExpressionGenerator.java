@@ -49,11 +49,8 @@ public class TiDBExpressionGenerator extends UntypedExpressionGenerator<TiDBExpr
         CERTGenerator<TiDBSelect, TiDBJoin, TiDBExpression, TiDBTable, TiDBColumn> {
 
     private enum Gen {
-        UNARY_PREFIX,
-        UNARY_POSTFIX,
-        CONSTANT,
-        COLUMN,
-        COMPARISON, REGEX, FUNCTION, BINARY_LOGICAL, BINARY_BIT, CAST, DEFAULT, CASE
+        UNARY_PREFIX, UNARY_POSTFIX, CONSTANT, COLUMN, COMPARISON, REGEX, FUNCTION, BINARY_LOGICAL, BINARY_BIT, CAST,
+        DEFAULT, CASE
 
     }
 
@@ -227,9 +224,8 @@ public class TiDBExpressionGenerator extends UntypedExpressionGenerator<TiDBExpr
             return new TiDBBinaryLogicalOperation(generateExpression(depth + 1), generateExpression(depth + 1),
                     TiDBBinaryLogicalOperator.getRandom());
         case CAST:
-            return new TiDBCastOperation(generateExpression(depth + 1), Randomly.fromOptions("BINARY",
-                    "CHAR", "DATE", "DATETIME", "TIME",
-                    "DECIMAL", "SIGNED", "UNSIGNED" ));
+            return new TiDBCastOperation(generateExpression(depth + 1), Randomly.fromOptions("BINARY", "CHAR", "DATE",
+                    "DATETIME", "TIME", "DECIMAL", "SIGNED", "UNSIGNED"));
         case CASE:
             int nr = Randomly.fromOptions(1, 2);
             return new TiDBCase(generateExpression(depth + 1), generateExpressions(nr, depth + 1),

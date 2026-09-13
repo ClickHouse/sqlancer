@@ -264,10 +264,9 @@ public class ClickHouseSequenceFunnelOracle implements TestOracle<ClickHouseGlob
             long v2 = Long.parseLong(l2.get(i));
             long v3 = Long.parseLong(l3.get(i));
             if (!(v3 <= v2 && v2 <= v1)) {
-                throw new AssertionError(String.format(
-                        "windowFunnel monotonicity violated for uid %d: 1-step=%d, 2-step=%d, 3-step=%d "
-                                + "(expected 3 <= 2 <= 1). DDL: %s",
-                        i, v1, v2, v3, create));
+                throw new AssertionError(
+                        String.format("windowFunnel monotonicity violated for uid %d: 1-step=%d, 2-step=%d, 3-step=%d "
+                                + "(expected 3 <= 2 <= 1). DDL: %s", i, v1, v2, v3, create));
             }
         }
     }
@@ -337,10 +336,11 @@ public class ClickHouseSequenceFunnelOracle implements TestOracle<ClickHouseGlob
         }
         for (int i = 0; i < expected.size(); i++) {
             if (!String.valueOf(expected.get(i)).equals(observed.get(i))) {
-                throw new AssertionError(String.format(
-                        "%s ground-truth mismatch for uid %d: Java expects %d but ClickHouse returned %s. "
-                                + "Query: %s. DDL: %s",
-                        label, i, expected.get(i), observed.get(i), query, create));
+                throw new AssertionError(
+                        String.format(
+                                "%s ground-truth mismatch for uid %d: Java expects %d but ClickHouse returned %s. "
+                                        + "Query: %s. DDL: %s",
+                                label, i, expected.get(i), observed.get(i), query, create));
             }
         }
     }

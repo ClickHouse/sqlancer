@@ -19,16 +19,12 @@ public class ClickHouseTextIndexDirectReadOracle implements TestOracle<ClickHous
 
     private static final AtomicLong CTR = new AtomicLong();
 
-    static final List<String> CJK_DOCS = List.of("我来自北京邮电大学", "北京大学计算机", "上海交通大学", "清华大学软件学院",
-            "深圳腾讯科技公司");
+    static final List<String> CJK_DOCS = List.of("我来自北京邮电大学", "北京大学计算机", "上海交通大学", "清华大学软件学院", "深圳腾讯科技公司");
 
     enum Scenario {
-        SPLIT_CONTROL("text(tokenizer = 'splitByNonAlpha')"),
-        ASCII_CJK("text(tokenizer = 'asciiCJK')"),
-        ARRAY("text(tokenizer = array)"),
-        NGRAMS("text(tokenizer = ngrams(3))"),
-        SPARSEGRAMS("text(tokenizer = sparseGrams(3, 5))"),
-        SPLIT_BY_STRING("text(tokenizer = splitByString([' ']))"),
+        SPLIT_CONTROL("text(tokenizer = 'splitByNonAlpha')"), ASCII_CJK("text(tokenizer = 'asciiCJK')"),
+        ARRAY("text(tokenizer = array)"), NGRAMS("text(tokenizer = ngrams(3))"),
+        SPARSEGRAMS("text(tokenizer = sparseGrams(3, 5))"), SPLIT_BY_STRING("text(tokenizer = splitByString([' ']))"),
         ICU("text(tokenizer = icu('en'))"),
         PREPROCESSOR_LOWER("text(tokenizer = 'splitByNonAlpha', preprocessor = lower(s))");
 

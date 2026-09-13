@@ -363,8 +363,8 @@ public class ClickHouseNaturalJoinOracle implements TestOracle<ClickHouseGlobalS
             }
         } catch (SQLException e) {
 
-            if (e.getMessage() != null
-                    && (naturalSyntaxErrors.errorIsExpected(e.getMessage()) || readErrors.errorIsExpected(e.getMessage()))) {
+            if (e.getMessage() != null && (naturalSyntaxErrors.errorIsExpected(e.getMessage())
+                    || readErrors.errorIsExpected(e.getMessage()))) {
                 throw new IgnoreMeException();
             }
             throw e;

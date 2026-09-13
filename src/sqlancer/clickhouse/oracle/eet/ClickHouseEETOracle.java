@@ -121,8 +121,8 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         List<Mode> modes = new ArrayList<>(List.of(Mode.WHERE_INJECT, Mode.HAVING_INJECT, Mode.EXPR_REWRITE,
                 Mode.ALGEBRAIC_ID, Mode.MULTIIF_EQUIV));
         if (enable26xModes) {
-            modes.addAll(List.of(Mode.COMPOUND_INTERVAL, Mode.OVERLAY_EQUIV, Mode.OVERLAY_SPLICE,
-                    Mode.NATURAL_SORT_KEY));
+            modes.addAll(
+                    List.of(Mode.COMPOUND_INTERVAL, Mode.OVERLAY_EQUIV, Mode.OVERLAY_SPLICE, Mode.NATURAL_SORT_KEY));
         }
         return modes;
     }
@@ -454,8 +454,7 @@ public class ClickHouseEETOracle extends CODDTestBase<ClickHouseGlobalState>
         int shape = (int) Randomly.getNotCachedInteger(0, 5);
         switch (shape) {
         case 0:
-            return new String[] {
-                    "v" + Randomly.getNotCachedInteger(0, 31) + "." + Randomly.getNotCachedInteger(0, 31),
+            return new String[] { "v" + Randomly.getNotCachedInteger(0, 31) + "." + Randomly.getNotCachedInteger(0, 31),
                     "v" + Randomly.getNotCachedInteger(0, 31) + "." + Randomly.getNotCachedInteger(0, 31) };
         case 1:
             return new String[] { "file" + Randomly.getNotCachedInteger(0, 201),

@@ -78,8 +78,8 @@ public final class ClickHouseSessionSettings {
             "query_plan_push_limit_by_into_sort",
 
             "query_plan_convert_outer_join_to_inner_join", "query_plan_convert_any_join_to_semi_or_anti_join",
-            "query_plan_merge_filter_into_join_condition",
-            "query_plan_read_in_order_through_join", "query_plan_join_shard_by_pk_ranges",
+            "query_plan_merge_filter_into_join_condition", "query_plan_read_in_order_through_join",
+            "query_plan_join_shard_by_pk_ranges",
 
             "use_join_disjunctions_push_down", "use_hash_table_stats_for_join_reordering",
             "allow_general_join_planning",
@@ -93,9 +93,8 @@ public final class ClickHouseSessionSettings {
             "optimize_injective_functions_inside_uniq", "optimize_group_by_function_keys",
             "optimize_group_by_constant_keys", "optimize_aggregation_in_order", "optimize_distinct_in_order",
             "optimize_redundant_functions_in_order_by", "optimize_respect_aliases",
-            "optimize_extract_common_expressions", "optimize_and_compare_chain",
-            "optimize_rewrite_like_perfect_affix", "optimize_or_like_chain",
-            "optimize_sorting_by_input_stream_properties",
+            "optimize_extract_common_expressions", "optimize_and_compare_chain", "optimize_rewrite_like_perfect_affix",
+            "optimize_or_like_chain", "optimize_sorting_by_input_stream_properties",
 
             "optimize_time_filter_with_preimage",
 

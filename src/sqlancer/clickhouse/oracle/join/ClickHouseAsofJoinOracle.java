@@ -77,7 +77,8 @@ public class ClickHouseAsofJoinOracle implements TestOracle<ClickHouseGlobalStat
                     ddlErrors)) {
                 throw new IgnoreMeException();
             }
-            if (!execute("CREATE TABLE " + right + " (k Int32, ts Int64, val Int64) ENGINE = MergeTree ORDER BY tuple()",
+            if (!execute(
+                    "CREATE TABLE " + right + " (k Int32, ts Int64, val Int64) ENGINE = MergeTree ORDER BY tuple()",
                     ddlErrors)) {
                 throw new IgnoreMeException();
             }
@@ -98,7 +99,7 @@ public class ClickHouseAsofJoinOracle implements TestOracle<ClickHouseGlobalStat
                 throw new IgnoreMeException();
             }
 
-            leftRows.sort(Comparator.<Row>comparingInt(row -> row.k).thenComparingLong(row -> row.ts));
+            leftRows.sort(Comparator.comparingInt((Row row) -> row.k).thenComparingLong(row -> row.ts));
 
             List<String> expected = new ArrayList<>(leftRows.size());
             for (Row l : leftRows) {

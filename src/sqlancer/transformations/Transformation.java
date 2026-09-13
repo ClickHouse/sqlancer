@@ -65,8 +65,7 @@ public class Transformation {
         return true;
     }
 
-    public <P, T> void tryRemoveElms(P parent, List<T> elms,
-            BiConsumer<P, List<T>> setter) {
+    public <P, T> void tryRemoveElms(P parent, List<T> elms, BiConsumer<P, List<T>> setter) {
         boolean observeChange;
         do {
             observeChange = false;

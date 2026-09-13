@@ -112,11 +112,11 @@ final class ClickHouseTransportStatement implements PreparedStatement {
 
     @Override
     public void setMaxRows(int max) {
-         }
+    }
 
     @Override
     public void setMaxFieldSize(int max) {
-         }
+    }
 
     @Override
     public int getMaxFieldSize() {
@@ -130,15 +130,15 @@ final class ClickHouseTransportStatement implements PreparedStatement {
 
     @Override
     public void setQueryTimeout(int sec) {
-         }
+    }
 
     @Override
     public void setEscapeProcessing(boolean enable) {
-         }
+    }
 
     @Override
     public void cancel() {
-         }
+    }
 
     @Override
     public SQLWarning getWarnings() {
@@ -147,15 +147,15 @@ final class ClickHouseTransportStatement implements PreparedStatement {
 
     @Override
     public void clearWarnings() {
-         }
+    }
 
     @Override
     public void setCursorName(String name) {
-         }
+    }
 
     @Override
     public void setFetchDirection(int dir) {
-         }
+    }
 
     @Override
     public int getFetchDirection() {
@@ -164,7 +164,7 @@ final class ClickHouseTransportStatement implements PreparedStatement {
 
     @Override
     public void setFetchSize(int rows) {
-         }
+    }
 
     @Override
     public int getFetchSize() {
@@ -213,11 +213,11 @@ final class ClickHouseTransportStatement implements PreparedStatement {
 
     @Override
     public void setPoolable(boolean p) {
-         }
+    }
 
     @Override
     public void closeOnCompletion() {
-         }
+    }
 
     @Override
     public boolean isCloseOnCompletion() {

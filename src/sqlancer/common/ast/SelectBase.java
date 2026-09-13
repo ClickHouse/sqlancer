@@ -30,7 +30,7 @@ public class SelectBase<T> {
     }
 
     public void setFromList(List<T> fromList) {
-        if (fromList == null ) {
+        if (fromList == null) {
             throw new IllegalArgumentException();
         }
         this.fromList = fromList;

@@ -95,10 +95,10 @@ public class ClickHouseVectorIndexRecallOracle implements TestOracle<ClickHouseG
 
             long top1 = uniqueNearest(vectors, query);
 
-            String indexTop1 = readSingleValue("SELECT toString(id) FROM " + table + " ORDER BY "
-                    + l2Expr(query) + " ASC, id ASC LIMIT 1" + HIGH_RECALL_SETTINGS);
-            String scanTop1 = readSingleValue("SELECT toString(id) FROM " + table + " ORDER BY "
-                    + l2Expr(query) + " ASC, id ASC LIMIT 1" + EXACT_SCAN_SETTINGS);
+            String indexTop1 = readSingleValue("SELECT toString(id) FROM " + table + " ORDER BY " + l2Expr(query)
+                    + " ASC, id ASC LIMIT 1" + HIGH_RECALL_SETTINGS);
+            String scanTop1 = readSingleValue("SELECT toString(id) FROM " + table + " ORDER BY " + l2Expr(query)
+                    + " ASC, id ASC LIMIT 1" + EXACT_SCAN_SETTINGS);
 
             if (!scanTop1.equals(String.valueOf(top1))) {
                 throw new IgnoreMeException();

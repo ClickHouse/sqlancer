@@ -145,9 +145,8 @@ public class ClickHouseJsonDocumentGenerator {
     }
 
     public static long countWhereTypedIntIn(List<Document> corpus, Collection<Long> values) {
-        return corpus.stream()
-                .filter(d -> values.stream().anyMatch(v -> leafEquals(d, TYPED_INT_PATH, LeafKind.INT,
-                        String.valueOf(v))))
+        return corpus.stream().filter(
+                d -> values.stream().anyMatch(v -> leafEquals(d, TYPED_INT_PATH, LeafKind.INT, String.valueOf(v))))
                 .count();
     }
 
@@ -214,8 +213,8 @@ public class ClickHouseJsonDocumentGenerator {
             for (int i = 0; i < segments.length - 1; i++) {
                 Object child = node.computeIfAbsent(segments[i], k -> new LinkedHashMap<String, Object>());
                 if (!(child instanceof LinkedHashMap)) {
-                    throw new IllegalArgumentException("path " + entry.getKey() + " collides with a leaf at segment "
-                            + segments[i]);
+                    throw new IllegalArgumentException(
+                            "path " + entry.getKey() + " collides with a leaf at segment " + segments[i]);
                 }
                 @SuppressWarnings("unchecked")
                 LinkedHashMap<String, Object> childMap = (LinkedHashMap<String, Object>) child;

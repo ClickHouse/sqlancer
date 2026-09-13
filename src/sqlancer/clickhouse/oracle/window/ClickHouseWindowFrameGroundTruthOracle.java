@@ -44,7 +44,8 @@ public class ClickHouseWindowFrameGroundTruthOracle implements TestOracle<ClickH
         TRAILING_COUNT("count() OVER (PARTITION BY p ORDER BY ord ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)"),
         NEIGHBOR_MIN("min(v) OVER (PARTITION BY p ORDER BY ord ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)"),
         NEIGHBOR_MAX("max(v) OVER (PARTITION BY p ORDER BY ord ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)"),
-        FIRST_VALUE("first_value(v) OVER (PARTITION BY p ORDER BY ord ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)"),
+        FIRST_VALUE(
+                "first_value(v) OVER (PARTITION BY p ORDER BY ord ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)"),
         LAST_VALUE("last_value(v) OVER (PARTITION BY p ORDER BY ord ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)"),
         SUFFIX_SUM("sum(v) OVER (PARTITION BY p ORDER BY ord ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING)"),
         LAG("lagInFrame(v, 1) OVER (PARTITION BY p ORDER BY ord ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)"),
@@ -65,7 +66,8 @@ public class ClickHouseWindowFrameGroundTruthOracle implements TestOracle<ClickH
         long id = CTR.incrementAndGet();
         Randomly r = state.getRandomly();
         String table = state.getDatabaseName() + ".winf_" + id;
-        String create = "CREATE TABLE " + table + " (p UInt32, ord Int64, v Int64) ENGINE = MergeTree ORDER BY (p, ord)";
+        String create = "CREATE TABLE " + table
+                + " (p UInt32, ord Int64, v Int64) ENGINE = MergeTree ORDER BY (p, ord)";
 
         int partitions = 2 + r.getInteger(0, 2);
         List<List<Long>> model = new ArrayList<>();

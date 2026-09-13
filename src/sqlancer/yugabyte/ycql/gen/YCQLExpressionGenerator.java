@@ -141,13 +141,7 @@ public final class YCQLExpressionGenerator extends UntypedExpressionGenerator<YC
 
     public enum DBFunction {
 
-        BLOB(1),
-        TIMEUUID(1),
-        DATE(0),
-        TIME(0),
-        TIMESTAMP(0),
-        BIGINT(1),
-        UUID(0);
+        BLOB(1), TIMEUUID(1), DATE(0), TIME(0), TIMESTAMP(0), BIGINT(1), UUID(0);
 
         private final int nrArgs;
         private final boolean isVariadic;

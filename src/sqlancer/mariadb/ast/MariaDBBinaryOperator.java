@@ -9,8 +9,7 @@ public class MariaDBBinaryOperator implements MariaDBExpression {
     private MariaDBBinaryComparisonOperator op;
 
     public enum MariaDBBinaryComparisonOperator {
-        NOT_EQUAL("!="), LESS_THAN("<"),  GREATER_THAN(">"),
-        GREATER_THAN_EQUAL(">="),
+        NOT_EQUAL("!="), LESS_THAN("<"), GREATER_THAN(">"), GREATER_THAN_EQUAL(">="),
 
         LIKE("LIKE"), RLIKE("RLIKE"), REGEXP("REGEXP"),
 

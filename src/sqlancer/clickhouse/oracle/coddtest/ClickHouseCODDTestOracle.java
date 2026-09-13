@@ -97,7 +97,7 @@ public class ClickHouseCODDTestOracle extends CODDTestBase<ClickHouseGlobalState
         if (literal == null) {
             return null;
         }
-        return new Phi(phiSql, "(" + literal + ")", aux,  eval.typeName);
+        return new Phi(phiSql, "(" + literal + ")", aux, eval.typeName);
     }
 
     private Phi buildScalarSubqueryPhi(ClickHouseTable table, List<ClickHouseColumn> columns) throws SQLException {

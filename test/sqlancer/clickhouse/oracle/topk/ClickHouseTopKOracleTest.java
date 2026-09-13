@@ -18,16 +18,16 @@ class ClickHouseTopKOracleTest {
 
     @Test
     void rendersSingleIntKeyAscWithLimit() {
-        String sql = ClickHouseTopKOracle.renderQuery("t0", null,
-                List.of(new SortKey("c0", true, NullsOrder.DEFAULT)), 10, -1, "");
+        String sql = ClickHouseTopKOracle.renderQuery("t0", null, List.of(new SortKey("c0", true, NullsOrder.DEFAULT)),
+                10, -1, "");
         assertEquals("SELECT `c0` FROM t0 ORDER BY `c0` ASC LIMIT 10", sql);
     }
 
     @Test
     void rendersMultiKeyMixedDirectionsWithNullsAndOffset() {
-        String sql = ClickHouseTopKOracle.renderQuery("t1", null,
-                List.of(new SortKey("c0", true, NullsOrder.FIRST), new SortKey("c1", false, NullsOrder.LAST),
-                        new SortKey("c2", false, NullsOrder.DEFAULT)),
+        String sql = ClickHouseTopKOracle.renderQuery(
+                "t1", null, List.of(new SortKey("c0", true, NullsOrder.FIRST),
+                        new SortKey("c1", false, NullsOrder.LAST), new SortKey("c2", false, NullsOrder.DEFAULT)),
                 5, 2, "");
         assertEquals("SELECT `c0`, `c1`, `c2` FROM t1 ORDER BY `c0` ASC NULLS FIRST, `c1` DESC NULLS LAST,"
                 + " `c2` DESC LIMIT 5 OFFSET 2", sql);
@@ -35,17 +35,16 @@ class ClickHouseTopKOracleTest {
 
     @Test
     void rendersOffArmSettingsSuffixVerbatim() {
-        String sql = ClickHouseTopKOracle.renderQuery("t0", null,
-                List.of(new SortKey("c0", false, NullsOrder.DEFAULT)), 0, -1, ClickHouseTopKOracle.OFF_SETTINGS);
+        String sql = ClickHouseTopKOracle.renderQuery("t0", null, List.of(new SortKey("c0", false, NullsOrder.DEFAULT)),
+                0, -1, ClickHouseTopKOracle.OFF_SETTINGS);
         assertEquals("SELECT `c0` FROM t0 ORDER BY `c0` DESC LIMIT 0 SETTINGS use_top_k_dynamic_filtering = 0,"
                 + " use_skip_indexes_for_top_k = 0, query_plan_top_k_through_join = 0", sql);
     }
 
     @Test
     void rendersVarLengthOptInSuffix() {
-        String sql = ClickHouseTopKOracle.renderQuery("t0", null,
-                List.of(new SortKey("c3", true, NullsOrder.DEFAULT)), 1, -1,
-                ClickHouseTopKOracle.VAR_LENGTH_OPT_IN_SETTINGS);
+        String sql = ClickHouseTopKOracle.renderQuery("t0", null, List.of(new SortKey("c3", true, NullsOrder.DEFAULT)),
+                1, -1, ClickHouseTopKOracle.VAR_LENGTH_OPT_IN_SETTINGS);
         assertEquals("SELECT `c3` FROM t0 ORDER BY `c3` ASC LIMIT 1"
                 + " SETTINGS use_top_k_dynamic_filtering_for_variable_length_types = 1", sql);
     }
@@ -71,8 +70,8 @@ class ClickHouseTopKOracleTest {
     void projectionIsExactlyTheOrderByColumnsInOrder() {
 
         String sql = ClickHouseTopKOracle.renderQuery("t0", null,
-                List.of(new SortKey("b", false, NullsOrder.DEFAULT), new SortKey("a", true, NullsOrder.DEFAULT)), 3,
-                -1, "");
+                List.of(new SortKey("b", false, NullsOrder.DEFAULT), new SortKey("a", true, NullsOrder.DEFAULT)), 3, -1,
+                "");
         assertEquals("SELECT `b`, `a` FROM t0 ORDER BY `b` DESC, `a` ASC LIMIT 3", sql);
     }
 
@@ -88,8 +87,8 @@ class ClickHouseTopKOracleTest {
     @Test
     void scalarFixedRenderTypesAreEligible() {
         for (String t : new String[] { "Int8", "Int64", "Int256", "UInt8", "UInt64", "UInt256", "Date", "Date32",
-                "DateTime", "DateTime64(3)", "String", "FixedString(16)", "Nullable(Int32)",
-                "LowCardinality(String)", "LowCardinality(Nullable(String))", "Nullable(DateTime)" }) {
+                "DateTime", "DateTime64(3)", "String", "FixedString(16)", "Nullable(Int32)", "LowCardinality(String)",
+                "LowCardinality(Nullable(String))", "Nullable(DateTime)" }) {
             assertTrue(ClickHouseTopKOracle.isEligibleSortKey(new ClickHouseLancerDataType(t)),
                     () -> t + " should be an eligible sort key");
         }

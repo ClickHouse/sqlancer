@@ -17,12 +17,8 @@ public class ClickHouseGeoMetamorphicOracle implements TestOracle<ClickHouseGlob
     private static final double TOLERANCE = 1e-6;
 
     enum Mode {
-        DISTANCE_SAME_POINT,
-        POLYGON_AREA_NONNEGATIVE,
-        UNIT_SQUARE_AREA,
-        POINT_IN_POLYGON_INTERIOR,
-        POINT_IN_POLYGON_OUTSIDE,
-        SELF_INTERSECTION_AREA
+        DISTANCE_SAME_POINT, POLYGON_AREA_NONNEGATIVE, UNIT_SQUARE_AREA, POINT_IN_POLYGON_INTERIOR,
+        POINT_IN_POLYGON_OUTSIDE, SELF_INTERSECTION_AREA
     }
 
     private final ClickHouseGlobalState state;
@@ -97,8 +93,8 @@ public class ClickHouseGeoMetamorphicOracle implements TestOracle<ClickHouseGlob
         String expr = "polygonAreaCartesian(" + polygon + ")";
         double observed = readDouble("SELECT toString(" + expr + ")");
         if (observed < -TOLERANCE) {
-            throw new AssertionError(String.format(
-                    "geo polygonAreaCartesian negative: expr %s expected >= 0 but got %s", expr, observed));
+            throw new AssertionError(String
+                    .format("geo polygonAreaCartesian negative: expr %s expected >= 0 but got %s", expr, observed));
         }
     }
 
@@ -169,9 +165,9 @@ public class ClickHouseGeoMetamorphicOracle implements TestOracle<ClickHouseGlob
 
     private void assertWithinTolerance(String expr, double expected, double observed) {
         if (Math.abs(expected - observed) > TOLERANCE) {
-            throw new AssertionError(String.format(
-                    "geo metamorphic mismatch: expr %s expected %s but got %s (tolerance %s)", expr, expected, observed,
-                    TOLERANCE));
+            throw new AssertionError(
+                    String.format("geo metamorphic mismatch: expr %s expected %s but got %s (tolerance %s)", expr,
+                            expected, observed, TOLERANCE));
         }
     }
 

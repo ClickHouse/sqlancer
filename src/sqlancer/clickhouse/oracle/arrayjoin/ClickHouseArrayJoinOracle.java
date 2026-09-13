@@ -53,8 +53,7 @@ public class ClickHouseArrayJoinOracle implements TestOracle<ClickHouseGlobalSta
     }
 
     private void runCheck(String table) throws SQLException {
-        String create = "CREATE TABLE " + table
-                + " (k UInt32, arr Array(Int64)) ENGINE = MergeTree ORDER BY k";
+        String create = "CREATE TABLE " + table + " (k UInt32, arr Array(Int64)) ENGINE = MergeTree ORDER BY k";
         logStmt(create);
         if (!new SQLQueryAdapter(create, errors, true).execute(state)) {
             throw new IgnoreMeException();

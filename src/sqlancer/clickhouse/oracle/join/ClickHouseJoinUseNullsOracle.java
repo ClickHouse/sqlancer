@@ -35,8 +35,7 @@ public class ClickHouseJoinUseNullsOracle extends ClickHouseTLPBase {
         select.setWhereClause(null);
 
         List<ClickHouseColumnReference> intCols = columns.stream()
-                .filter(c -> ClickHouseTypeFilters.isExactIntegerFamily(c.getColumn()))
-                .collect(Collectors.toList());
+                .filter(c -> ClickHouseTypeFilters.isExactIntegerFamily(c.getColumn())).collect(Collectors.toList());
 
         String inner;
         String outerProjection;

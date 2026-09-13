@@ -12,8 +12,7 @@ public final class CockroachDBShowGenerator {
     }
 
     private enum Option {
-        EXPERIMENTAL_FINGERPRINTS,
-        DATABASES, JOBS, RANGES, LOCALITY, SEQUENCES, TRACE_FOR_SESSION
+        EXPERIMENTAL_FINGERPRINTS, DATABASES, JOBS, RANGES, LOCALITY, SEQUENCES, TRACE_FOR_SESSION
     }
 
     public static SQLQueryAdapter show(CockroachDBGlobalState globalState) {

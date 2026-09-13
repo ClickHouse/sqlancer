@@ -51,18 +51,12 @@ public class CockroachDBProvider extends SQLProviderAdapter<CockroachDBGlobalSta
     public enum Action {
         CREATE_TABLE(CockroachDBTableGenerator::generate), CREATE_INDEX(CockroachDBIndexGenerator::create),
         CREATE_VIEW(CockroachDBViewGenerator::generate),
-        CREATE_STATISTICS(CockroachDBCreateStatisticsGenerator::create),
-        INSERT(CockroachDBInsertGenerator::insert),
-        UPDATE(CockroachDBUpdateGenerator::gen),
-        SET_SESSION(CockroachDBSetSessionGenerator::create),
-        SET_CLUSTER_SETTING(CockroachDBSetClusterSettingGenerator::create),
-        DELETE(CockroachDBDeleteGenerator::delete),
-        TRUNCATE(CockroachDBTruncateGenerator::truncate),
-        DROP_TABLE(CockroachDBDropTableGenerator::drop),
-        DROP_VIEW(CockroachDBDropViewGenerator::drop),
-        COMMENT_ON(CockroachDBCommentOnGenerator::comment),
-        SHOW(CockroachDBShowGenerator::show),
-        TRANSACTION((g) -> {
+        CREATE_STATISTICS(CockroachDBCreateStatisticsGenerator::create), INSERT(CockroachDBInsertGenerator::insert),
+        UPDATE(CockroachDBUpdateGenerator::gen), SET_SESSION(CockroachDBSetSessionGenerator::create),
+        SET_CLUSTER_SETTING(CockroachDBSetClusterSettingGenerator::create), DELETE(CockroachDBDeleteGenerator::delete),
+        TRUNCATE(CockroachDBTruncateGenerator::truncate), DROP_TABLE(CockroachDBDropTableGenerator::drop),
+        DROP_VIEW(CockroachDBDropViewGenerator::drop), COMMENT_ON(CockroachDBCommentOnGenerator::comment),
+        SHOW(CockroachDBShowGenerator::show), TRANSACTION((g) -> {
             String s = Randomly.fromOptions("BEGIN", "ROLLBACK", "COMMIT");
             return new SQLQueryAdapter(s, ExpectedErrors.from("there is no transaction in progress",
                     "there is already a transaction in progress", "current transaction is aborted"));
@@ -88,20 +82,19 @@ public class CockroachDBProvider extends SQLProviderAdapter<CockroachDBGlobalSta
                 ExpectedErrors.from("scrub-fk: column \"t.rowid\" does not exist",
                         "check-constraint: cannot access temporary tables of other sessions"
 
-))),
-        SPLIT((g) -> {
-            StringBuilder sb = new StringBuilder("ALTER INDEX ");
-            CockroachDBTable randomTable = g.getSchema().getRandomTable();
-            sb.append(randomTable.getName());
-            sb.append("@");
-            sb.append(randomTable.getRandomIndex());
-            if (Randomly.getBoolean()) {
-                sb.append(" SPLIT AT VALUES (true), (false);");
-            } else {
-                sb.append(" SPLIT AT VALUES (NULL);");
-            }
-            return new SQLQueryAdapter(sb.toString(), ExpectedErrors.from("must be of type"));
-        });
+                ))), SPLIT((g) -> {
+                    StringBuilder sb = new StringBuilder("ALTER INDEX ");
+                    CockroachDBTable randomTable = g.getSchema().getRandomTable();
+                    sb.append(randomTable.getName());
+                    sb.append("@");
+                    sb.append(randomTable.getRandomIndex());
+                    if (Randomly.getBoolean()) {
+                        sb.append(" SPLIT AT VALUES (true), (false);");
+                    } else {
+                        sb.append(" SPLIT AT VALUES (NULL);");
+                    }
+                    return new SQLQueryAdapter(sb.toString(), ExpectedErrors.from("must be of type"));
+                });
 
         private final SQLQueryProvider<CockroachDBGlobalState> sqlQueryProvider;
 

@@ -170,7 +170,6 @@ public class ClickHouseOptions implements DBMSSpecificOptions<ClickHouseOracleFa
     @Parameter(names = "--distributed-table-oracle", description = "DistributedTable oracle: a Distributed('default', db, local) wrapper over a local MergeTree must answer reads identically to the underlying table (multiset), route INSERTs through to the local table, and agree on exact-integer aggregates / non-float GROUP BY. Single-node, self-contained fixture.", arity = 1)
     public boolean distributedTableOracle = true;
 
-
     @Parameter(names = "--codec-roundtrip-oracle", description = "CodecRoundtrip oracle: a table whose columns carry random per-type CODEC(...) declarations and a CODEC(NONE) mirror holding the same inserted rows (including NaN, +/-inf, -0.0 and denormals) must answer the same read identically, still after OPTIMIZE ... FINAL, and still after an ALTER TABLE ... MODIFY COLUMN ... CODEC mutation. Lossy codecs are excluded from the equality arm by an explicit allowlist and only have their row count and NULL mask asserted.", arity = 1)
     public boolean codecRoundtripOracle = true;
 

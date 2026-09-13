@@ -590,8 +590,7 @@ public class SQLite3CODDTestOracle extends CODDTestBase<SQLite3GlobalState> impl
             expr = new SQLite3OrderingTerm(expr, Ordering.getRandomValue());
         }
         if (state.getDbmsSpecificOptions().testNullsFirstLast && Randomly.getBoolean()) {
-            expr = new SQLite3PostfixText(expr, Randomly.fromOptions(" NULLS FIRST", " NULLS LAST"),
-                    null ) {
+            expr = new SQLite3PostfixText(expr, Randomly.fromOptions(" NULLS FIRST", " NULLS LAST"), null) {
                 @Override
                 public boolean omitBracketsWhenPrinting() {
                     return true;

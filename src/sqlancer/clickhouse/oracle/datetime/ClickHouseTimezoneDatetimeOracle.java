@@ -15,22 +15,17 @@ import sqlancer.common.query.ExpectedErrors;
 
 public class ClickHouseTimezoneDatetimeOracle implements TestOracle<ClickHouseGlobalState> {
 
-    private static final String GEN_SUBQUERY =
-            "(SELECT toDateTime('1990-01-01 00:00:00') + toIntervalHour(number * 37) AS d, "
+    private static final String GEN_SUBQUERY = "(SELECT toDateTime('1990-01-01 00:00:00') + toIntervalHour(number * 37) AS d, "
             + "toDate32('1955-01-01') + toIntervalDay(number * 11) AS d32 FROM numbers(300))";
 
-    private static final List<String> IDENTITIES = List.of(
-            "toStartOfInterval(d, INTERVAL 1 MONTH) = toStartOfMonth(d)",
+    private static final List<String> IDENTITIES = List.of("toStartOfInterval(d, INTERVAL 1 MONTH) = toStartOfMonth(d)",
             "toStartOfInterval(d, INTERVAL 1 YEAR) = toStartOfYear(d)",
             "toStartOfInterval(d, INTERVAL 1 DAY) = toStartOfDay(d)",
-            "toStartOfInterval(d, INTERVAL 1 HOUR) = toStartOfHour(d)",
-            "dateDiff('day', d, d) = 0",
-            "dateDiff('second', d, d + INTERVAL 1 HOUR) = 3600",
-            "dateDiff('day', d32, d32 + toIntervalDay(5)) = 5",
+            "toStartOfInterval(d, INTERVAL 1 HOUR) = toStartOfHour(d)", "dateDiff('day', d, d) = 0",
+            "dateDiff('second', d, d + INTERVAL 1 HOUR) = 3600", "dateDiff('day', d32, d32 + toIntervalDay(5)) = 5",
             "toTimeZone(toTimeZone(d, 'UTC'), 'UTC') = toTimeZone(d, 'UTC')",
             "dateDiff('hour', d, d + toIntervalHour(5)) = 5",
-            "toStartOfMonth(d) <= d AND toStartOfYear(d) <= toStartOfMonth(d)"
-    );
+            "toStartOfMonth(d) <= d AND toStartOfYear(d) <= toStartOfMonth(d)");
 
     private final ClickHouseGlobalState state;
     private final ExpectedErrors errors = new ExpectedErrors();
@@ -67,9 +62,9 @@ public class ClickHouseTimezoneDatetimeOracle implements TestOracle<ClickHouseGl
             logStmt(wrapper);
             String result = readSingleValue(wrapper);
             if (result == null || !"0".equals(result)) {
-                throw new AssertionError(String.format(
-                        "timezone-datetime identity violated: [%s] — violation count: %s — query: %s",
-                        identity, result, wrapper));
+                throw new AssertionError(
+                        String.format("timezone-datetime identity violated: [%s] — violation count: %s — query: %s",
+                                identity, result, wrapper));
             }
         }
     }

@@ -29,26 +29,16 @@ public class MySQLAlterTable {
     }
 
     private enum Action {
-        ALGORITHM,
-        CHECKSUM,
-        COMPRESSION,
-        DISABLE_ENABLE_KEYS("Data truncated for functional index"),
+        ALGORITHM, CHECKSUM, COMPRESSION, DISABLE_ENABLE_KEYS("Data truncated for functional index"),
         DROP_COLUMN("Cannot drop column", "ALGORITHM=INPLACE is not supported.", "ALGORITHM=INSTANT is not supported.",
                 "Duplicate entry", "has a partitioning function dependency and cannot be dropped or renamed.",
-                "A primary key index cannot be invisible"
-
-,
+                "A primary key index cannot be invisible",
                 "Field in list of fields for partition function not found in table", "in 'partition function'",
                 "has a functional index dependency and cannot be dropped or renamed."),
         FORCE,
 
-        DELAY_KEY_WRITE,
-        INSERT_METHOD,
-        ROW_FORMAT,
-        STATS_AUTO_RECALC,
-        STATS_PERSISTENT,
-        PACK_KEYS, RENAME("doesn't exist", "already exists"),
-        DROP_PRIMARY_KEY(
+        DELAY_KEY_WRITE, INSERT_METHOD, ROW_FORMAT, STATS_AUTO_RECALC, STATS_PERSISTENT, PACK_KEYS,
+        RENAME("doesn't exist", "already exists"), DROP_PRIMARY_KEY(
                 "ALGORITHM=INSTANT is not supported. Reason: Dropping a primary key is not allowed without also adding a new primary key. Try ALGORITHM=COPY/INPLACE.");
 
         private String[] potentialErrors;

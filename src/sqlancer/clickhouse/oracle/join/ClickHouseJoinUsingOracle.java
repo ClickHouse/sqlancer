@@ -18,9 +18,7 @@ public class ClickHouseJoinUsingOracle implements TestOracle<ClickHouseGlobalSta
     private static final AtomicLong CTR = new AtomicLong();
 
     enum Arm {
-        INNER,
-        LEFT,
-        CHAIN
+        INNER, LEFT, CHAIN
     }
 
     private final ClickHouseGlobalState state;
@@ -55,7 +53,8 @@ public class ClickHouseJoinUsingOracle implements TestOracle<ClickHouseGlobalSta
         String tableB = state.getDatabaseName() + ".using_b_" + id;
         String tableC = state.getDatabaseName() + ".using_c_" + id;
         try {
-            if (!execute("CREATE TABLE " + tableA + " (k Int32, x Int64) ENGINE = MergeTree ORDER BY tuple()", ddlErrors)
+            if (!execute("CREATE TABLE " + tableA + " (k Int32, x Int64) ENGINE = MergeTree ORDER BY tuple()",
+                    ddlErrors)
                     || !execute("CREATE TABLE " + tableB + " (k Int32, y Int64) ENGINE = MergeTree ORDER BY tuple()",
                             ddlErrors)
                     || !execute("CREATE TABLE " + tableC + " (k Int32, z Int64) ENGINE = MergeTree ORDER BY tuple()",
@@ -79,6 +78,8 @@ public class ClickHouseJoinUsingOracle implements TestOracle<ClickHouseGlobalSta
             case CHAIN:
                 checkChain(tableA, tableB, tableC);
                 break;
+            default:
+                throw new AssertionError(arm);
             }
         } finally {
             dropQuietly(tableA);
@@ -88,44 +89,44 @@ public class ClickHouseJoinUsingOracle implements TestOracle<ClickHouseGlobalSta
     }
 
     private void checkInner(String a, String b) throws SQLException {
-        String usingQ = "SELECT toString(arraySort(groupArray((k, x, y)))) FROM " + a
-                + " AS a INNER JOIN " + b + " AS b USING(k)";
-        String onQ = "SELECT toString(arraySort(groupArray((a.k, x, y)))) FROM " + a
-                + " AS a INNER JOIN " + b + " AS b ON a.k = b.k";
+        String usingQ = "SELECT toString(arraySort(groupArray((k, x, y)))) FROM " + a + " AS a INNER JOIN " + b
+                + " AS b USING(k)";
+        String onQ = "SELECT toString(arraySort(groupArray((a.k, x, y)))) FROM " + a + " AS a INNER JOIN " + b
+                + " AS b ON a.k = b.k";
         String usingVal = readSingleValue(usingQ);
         String onVal = readSingleValue(onQ);
         if (!usingVal.equals(onVal)) {
-            throw new AssertionError(String.format(
-                    "JOIN USING(k) vs ON a.k=b.k INNER mismatch:%n  USING: %s -> %s%n  ON:    %s -> %s",
-                    usingQ, usingVal, onQ, onVal));
+            throw new AssertionError(
+                    String.format("JOIN USING(k) vs ON a.k=b.k INNER mismatch:%n  USING: %s -> %s%n  ON:    %s -> %s",
+                            usingQ, usingVal, onQ, onVal));
         }
     }
 
     private void checkLeft(String a, String b) throws SQLException {
-        String usingQ = "SELECT toString(arraySort(groupArray((k, x, y)))) FROM " + a
-                + " AS a LEFT JOIN " + b + " AS b USING(k)";
-        String onQ = "SELECT toString(arraySort(groupArray((a.k, x, y)))) FROM " + a
-                + " AS a LEFT JOIN " + b + " AS b ON a.k = b.k";
+        String usingQ = "SELECT toString(arraySort(groupArray((k, x, y)))) FROM " + a + " AS a LEFT JOIN " + b
+                + " AS b USING(k)";
+        String onQ = "SELECT toString(arraySort(groupArray((a.k, x, y)))) FROM " + a + " AS a LEFT JOIN " + b
+                + " AS b ON a.k = b.k";
         String usingVal = readSingleValue(usingQ);
         String onVal = readSingleValue(onQ);
         if (!usingVal.equals(onVal)) {
-            throw new AssertionError(String.format(
-                    "JOIN USING(k) vs ON a.k=b.k LEFT mismatch:%n  USING: %s -> %s%n  ON:    %s -> %s",
-                    usingQ, usingVal, onQ, onVal));
+            throw new AssertionError(
+                    String.format("JOIN USING(k) vs ON a.k=b.k LEFT mismatch:%n  USING: %s -> %s%n  ON:    %s -> %s",
+                            usingQ, usingVal, onQ, onVal));
         }
     }
 
     private void checkChain(String a, String b, String c) throws SQLException {
-        String usingQ = "SELECT toString(tuple(sum(x), sum(y), sum(z), count())) FROM " + a
-                + " AS a JOIN " + b + " AS b USING(k) JOIN " + c + " AS c USING(k)";
-        String onQ = "SELECT toString(tuple(sum(x), sum(y), sum(z), count())) FROM " + a
-                + " AS a JOIN " + b + " AS b ON a.k = b.k JOIN " + c + " AS c ON a.k = c.k";
+        String usingQ = "SELECT toString(tuple(sum(x), sum(y), sum(z), count())) FROM " + a + " AS a JOIN " + b
+                + " AS b USING(k) JOIN " + c + " AS c USING(k)";
+        String onQ = "SELECT toString(tuple(sum(x), sum(y), sum(z), count())) FROM " + a + " AS a JOIN " + b
+                + " AS b ON a.k = b.k JOIN " + c + " AS c ON a.k = c.k";
         String usingVal = readSingleValue(usingQ);
         String onVal = readSingleValue(onQ);
         if (!usingVal.equals(onVal)) {
-            throw new AssertionError(String.format(
-                    "3-table JOIN USING(k) vs ON chain mismatch:%n  USING: %s -> %s%n  ON:    %s -> %s",
-                    usingQ, usingVal, onQ, onVal));
+            throw new AssertionError(
+                    String.format("3-table JOIN USING(k) vs ON chain mismatch:%n  USING: %s -> %s%n  ON:    %s -> %s",
+                            usingQ, usingVal, onQ, onVal));
         }
     }
 

@@ -186,7 +186,7 @@ public class MySQLSchema extends AbstractSchema<MySQLGlobalState, MySQLTable> {
         private final MySQLEngine engine;
 
         public MySQLTable(String tableName, List<MySQLColumn> columns, List<MySQLIndex> indexes, MySQLEngine engine) {
-            super(tableName, columns, indexes, false );
+            super(tableName, columns, indexes, false);
             this.engine = engine;
         }
 

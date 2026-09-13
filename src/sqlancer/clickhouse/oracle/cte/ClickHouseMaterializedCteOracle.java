@@ -30,17 +30,11 @@ public class ClickHouseMaterializedCteOracle implements TestOracle<ClickHouseGlo
     private static volatile int probeState = UNPROBED;
 
     enum BodyShape {
-        GROUP_COUNT,
-        DISTINCT_FILTER,
-        PLAIN_FILTER
+        GROUP_COUNT, DISTINCT_FILTER, PLAIN_FILTER
     }
 
     enum OuterShape {
-        SINGLE_REF,
-        SELF_JOIN,
-        SCALAR_SUBQUERY,
-        UNION_ALL,
-        CHAINED
+        SINGLE_REF, SELF_JOIN, SCALAR_SUBQUERY, UNION_ALL, CHAINED
     }
 
     private final ClickHouseGlobalState state;
@@ -76,8 +70,8 @@ public class ClickHouseMaterializedCteOracle implements TestOracle<ClickHouseGlo
         if (table.isView()) {
             throw new IgnoreMeException();
         }
-        List<ClickHouseColumn> intCols = table.getColumns().stream()
-                .filter(c -> isExactInteger(c.getType().getType())).collect(Collectors.toList());
+        List<ClickHouseColumn> intCols = table.getColumns().stream().filter(c -> isExactInteger(c.getType().getType()))
+                .collect(Collectors.toList());
         if (intCols.isEmpty()) {
             throw new IgnoreMeException();
         }
@@ -154,8 +148,7 @@ public class ClickHouseMaterializedCteOracle implements TestOracle<ClickHouseGlo
                     + ")) FROM mcte_x AS x1 JOIN mcte_x AS x2 ON x1.c = x2.c";
         case SCALAR_SUBQUERY:
 
-            return "SELECT toString(tuple(" + (hasN ? "c, n, " : "c, ")
-                    + "(SELECT max(c) FROM mcte_x))) FROM mcte_x";
+            return "SELECT toString(tuple(" + (hasN ? "c, n, " : "c, ") + "(SELECT max(c) FROM mcte_x))) FROM mcte_x";
         case UNION_ALL: {
 
             String branch = "SELECT toString(tuple(" + (hasN ? "c, n" : "c") + ")) AS r FROM mcte_x";
@@ -170,8 +163,8 @@ public class ClickHouseMaterializedCteOracle implements TestOracle<ClickHouseGlo
         }
     }
 
-    static String renderStatement(OuterShape shape, BodyShape body, String tableName, String columnName, long k,
-            long m, boolean materialized) {
+    static String renderStatement(OuterShape shape, BodyShape body, String tableName, String columnName, long k, long m,
+            boolean materialized) {
         String as = materialized ? " AS MATERIALIZED (" : " AS (";
         String bodySql = renderBody(body, tableName, columnName, k, m);
         StringBuilder sb = new StringBuilder("WITH ");

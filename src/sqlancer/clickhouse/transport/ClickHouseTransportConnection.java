@@ -129,7 +129,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void setAutoCommit(boolean a) {
-         }
+    }
 
     @Override
     public boolean getAutoCommit() {
@@ -138,7 +138,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void commit() {
-         }
+    }
 
     @Override
     public void rollback() {
@@ -167,7 +167,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void setReadOnly(boolean r) {
-         }
+    }
 
     @Override
     public boolean isReadOnly() {
@@ -176,7 +176,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void setCatalog(String c) {
-         }
+    }
 
     @Override
     public String getCatalog() {
@@ -185,7 +185,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void setTransactionIsolation(int level) {
-         }
+    }
 
     @Override
     public int getTransactionIsolation() {
@@ -199,7 +199,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void clearWarnings() {
-         }
+    }
 
     @Override
     public java.util.Map<String, Class<?>> getTypeMap() {
@@ -208,11 +208,11 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void setTypeMap(java.util.Map<String, Class<?>> m) {
-         }
+    }
 
     @Override
     public void setHoldability(int h) {
-         }
+    }
 
     @Override
     public int getHoldability() {
@@ -246,11 +246,11 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void setClientInfo(String n, String v) {
-         }
+    }
 
     @Override
     public void setClientInfo(Properties p) {
-         }
+    }
 
     @Override
     public String getClientInfo(String n) {
@@ -274,7 +274,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void setSchema(String s) {
-         }
+    }
 
     @Override
     public String getSchema() {
@@ -288,7 +288,7 @@ public final class ClickHouseTransportConnection implements Connection {
 
     @Override
     public void setNetworkTimeout(Executor e, int ms) {
-         }
+    }
 
     @Override
     public int getNetworkTimeout() {

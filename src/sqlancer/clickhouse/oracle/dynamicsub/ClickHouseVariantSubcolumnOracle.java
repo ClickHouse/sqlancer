@@ -21,8 +21,7 @@ public class ClickHouseVariantSubcolumnOracle implements TestOracle<ClickHouseGl
     private static final AtomicLong CTR = new AtomicLong();
 
     enum Mode {
-        VARIANT,
-        JSON
+        VARIANT, JSON
     }
 
     private static final class Row {
@@ -93,9 +92,8 @@ public class ClickHouseVariantSubcolumnOracle implements TestOracle<ClickHouseGl
     }
 
     private void enableExperimentalTypes() {
-        for (String s : List.of("SET allow_experimental_variant_type = 1",
-                "SET allow_experimental_dynamic_type = 1", "SET allow_experimental_json_type = 1",
-                "SET use_variant_as_common_type = 1")) {
+        for (String s : List.of("SET allow_experimental_variant_type = 1", "SET allow_experimental_dynamic_type = 1",
+                "SET allow_experimental_json_type = 1", "SET use_variant_as_common_type = 1")) {
             try {
                 logStmt(s);
                 new SQLQueryAdapter(s, createErrors, true).execute(state);

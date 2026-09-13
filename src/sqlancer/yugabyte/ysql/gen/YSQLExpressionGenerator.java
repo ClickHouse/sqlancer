@@ -89,10 +89,9 @@ public class YSQLExpressionGenerator implements ExpressionGenerator<YSQLExpressi
             return YSQLCompoundDataType.create(type);
         case TEXT:
         case BIT:
-            if (Randomly.getBoolean()
-                    || YSQLProvider.generateOnlyKnown
+            if (Randomly.getBoolean() || YSQLProvider.generateOnlyKnown
 
-) {
+            ) {
                 return YSQLCompoundDataType.create(type);
             } else {
                 return YSQLCompoundDataType.create(type, (int) Randomly.getNotCachedInteger(1, 1000));

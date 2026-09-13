@@ -60,8 +60,7 @@ public class ClickHouseCoalescingFinalOracle implements TestOracle<ClickHouseGlo
         String table = state.getDatabaseName() + ".coal_" + id;
         Randomly r = state.getRandomly();
 
-        String create = "CREATE TABLE " + table
-                + " (k Int32, v1 Nullable(Int64), v2 Nullable(Int64), seq UInt64) "
+        String create = "CREATE TABLE " + table + " (k Int32, v1 Nullable(Int64), v2 Nullable(Int64), seq UInt64) "
                 + "ENGINE = CoalescingMergeTree ORDER BY k";
 
         try {
@@ -78,8 +77,7 @@ public class ClickHouseCoalescingFinalOracle implements TestOracle<ClickHouseGlo
 
             for (int b = 0; b < blocks; b++) {
                 int rows = 4 + r.getInteger(0, 9);
-                StringBuilder sb = new StringBuilder("INSERT INTO ").append(table)
-                        .append(" (k, v1, v2, seq) VALUES ");
+                StringBuilder sb = new StringBuilder("INSERT INTO ").append(table).append(" (k, v1, v2, seq) VALUES ");
                 for (int i = 0; i < rows; i++) {
                     int k = r.getInteger(0, keyCount);
                     long seq = SEQ_COUNTER.incrementAndGet();
@@ -94,8 +92,8 @@ public class ClickHouseCoalescingFinalOracle implements TestOracle<ClickHouseGlo
                     if (i > 0) {
                         sb.append(", ");
                     }
-                    sb.append('(').append(k).append(", ").append(v1).append(", ").append(v2).append(", ")
-                            .append(seq).append(')');
+                    sb.append('(').append(k).append(", ").append(v1).append(", ").append(v2).append(", ").append(seq)
+                            .append(')');
                 }
                 logStmt(sb.toString());
                 if (!new SQLQueryAdapter(sb.toString(), readErrors, true).execute(state)) {

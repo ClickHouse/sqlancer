@@ -189,9 +189,8 @@ public class ClickHouseJoinReorderOracle implements TestOracle<ClickHouseGlobalS
             List<Integer> onLeft = new ArrayList<>();
             for (int i = 0; i < numJoins; i++) {
 
-                List<Integer> candidates = allowDroppedKeyRef
-                        ? java.util.stream.IntStream.rangeClosed(0, i).boxed().collect(java.util.stream.Collectors.toList())
-                        : liveAliasesBeforeJoin(kinds.subList(0, i));
+                List<Integer> candidates = allowDroppedKeyRef ? java.util.stream.IntStream.rangeClosed(0, i).boxed()
+                        .collect(java.util.stream.Collectors.toList()) : liveAliasesBeforeJoin(kinds.subList(0, i));
                 onLeft.add(Randomly.fromList(candidates));
             }
             List<Integer> det = deterministicTables(kinds);

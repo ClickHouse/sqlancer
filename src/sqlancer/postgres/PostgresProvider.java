@@ -78,11 +78,9 @@ public class PostgresProvider extends SQLProviderAdapter<PostgresGlobalState, Po
     }
 
     public enum Action implements AbstractAction<PostgresGlobalState> {
-        ANALYZE(PostgresAnalyzeGenerator::create),
-        ALTER_TABLE(g -> PostgresAlterTableGenerator.create(g.getSchema().getRandomTable(t -> !t.isView()), g,
-                generateOnlyKnown)),
-        CLUSTER(PostgresClusterGenerator::create),
-        COMMIT(g -> {
+        ANALYZE(PostgresAnalyzeGenerator::create), ALTER_TABLE(g -> PostgresAlterTableGenerator
+                .create(g.getSchema().getRandomTable(t -> !t.isView()), g, generateOnlyKnown)),
+        CLUSTER(PostgresClusterGenerator::create), COMMIT(g -> {
             SQLQueryAdapter query;
             if (Randomly.getBoolean()) {
                 query = new SQLQueryAdapter("COMMIT", true);
@@ -92,38 +90,24 @@ public class PostgresProvider extends SQLProviderAdapter<PostgresGlobalState, Po
                 query = new SQLQueryAdapter("ROLLBACK", true);
             }
             return query;
-        }),
-        CREATE_STATISTICS(PostgresStatisticsGenerator::insert),
-        DROP_STATISTICS(PostgresStatisticsGenerator::remove),
-        ALTER_STATISTICS(PostgresStatisticsGenerator::alter),
-        DELETE(PostgresDeleteGenerator::create),
-        DISCARD(PostgresDiscardGenerator::create),
-        DROP_INDEX(PostgresDropIndexGenerator::create),
-        INSERT(PostgresInsertGenerator::insert),
-        UPDATE(PostgresUpdateGenerator::create),
-        TRUNCATE(PostgresTruncateGenerator::create),
-        VACUUM(PostgresVacuumGenerator::create),
-        REINDEX(PostgresReindexGenerator::create),
-        SET(PostgresSetGenerator::create),
-        CREATE_INDEX(PostgresIndexGenerator::generate),
-        SET_CONSTRAINTS((g) -> {
+        }), CREATE_STATISTICS(PostgresStatisticsGenerator::insert),
+        DROP_STATISTICS(PostgresStatisticsGenerator::remove), ALTER_STATISTICS(PostgresStatisticsGenerator::alter),
+        DELETE(PostgresDeleteGenerator::create), DISCARD(PostgresDiscardGenerator::create),
+        DROP_INDEX(PostgresDropIndexGenerator::create), INSERT(PostgresInsertGenerator::insert),
+        UPDATE(PostgresUpdateGenerator::create), TRUNCATE(PostgresTruncateGenerator::create),
+        VACUUM(PostgresVacuumGenerator::create), REINDEX(PostgresReindexGenerator::create),
+        SET(PostgresSetGenerator::create), CREATE_INDEX(PostgresIndexGenerator::generate), SET_CONSTRAINTS((g) -> {
             StringBuilder sb = new StringBuilder();
             sb.append("SET CONSTRAINTS ALL ");
             sb.append(Randomly.fromOptions("DEFERRED", "IMMEDIATE"));
             return new SQLQueryAdapter(sb.toString());
-        }),
-        RESET_ROLE((g) -> new SQLQueryAdapter("RESET ROLE")),
-        COMMENT_ON(PostgresCommentGenerator::generate),
+        }), RESET_ROLE((g) -> new SQLQueryAdapter("RESET ROLE")), COMMENT_ON(PostgresCommentGenerator::generate),
         RESET((g) -> new SQLQueryAdapter("RESET ALL")
 
-),
-        NOTIFY(PostgresNotifyGenerator::createNotify),
-        LISTEN((g) -> PostgresNotifyGenerator.createListen()),
+        ), NOTIFY(PostgresNotifyGenerator::createNotify), LISTEN((g) -> PostgresNotifyGenerator.createListen()),
         UNLISTEN((g) -> PostgresNotifyGenerator.createUnlisten()),
-        CREATE_SEQUENCE(PostgresSequenceGenerator::createSequence),
-        EXPLAIN(PostgresExplainGenerator::create),
-        CREATE_VIEW(PostgresViewGenerator::create),
-        CREATE_TABLESPACE(PostgresTableSpaceGenerator::generate);
+        CREATE_SEQUENCE(PostgresSequenceGenerator::createSequence), EXPLAIN(PostgresExplainGenerator::create),
+        CREATE_VIEW(PostgresViewGenerator::create), CREATE_TABLESPACE(PostgresTableSpaceGenerator::generate);
 
         private final SQLQueryProvider<PostgresGlobalState> sqlQueryProvider;
 

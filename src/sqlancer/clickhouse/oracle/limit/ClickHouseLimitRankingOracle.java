@@ -20,11 +20,7 @@ import sqlancer.common.query.ExpectedErrors;
 public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobalState> {
 
     enum Mode {
-        OFFSET_FORM_EQUIVALENCE,
-        WITH_TIES_SUPERSET,
-        LIMIT_BY_CAP,
-        NEGATIVE_LIMIT_TAIL,
-        NEGATIVE_LIMIT_BY_REVERSAL,
+        OFFSET_FORM_EQUIVALENCE, WITH_TIES_SUPERSET, LIMIT_BY_CAP, NEGATIVE_LIMIT_TAIL, NEGATIVE_LIMIT_BY_REVERSAL,
         NEGATIVE_WITH_TIES_SUPERSET
     }
 
@@ -71,8 +67,8 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
         }
 
         String tableQ = quote(table.getName());
-        String projection = "toString(tuple(" + columns.stream().map(c -> quote(c.getName()))
-                .collect(Collectors.joining(", ")) + "))";
+        String projection = "toString(tuple("
+                + columns.stream().map(c -> quote(c.getName())).collect(Collectors.joining(", ")) + "))";
         String totalOrder = columns.stream().map(c -> quote(c.getName()) + " ASC").collect(Collectors.joining(", "));
         String base = "SELECT " + projection + " FROM " + tableQ;
 
@@ -131,8 +127,8 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
 
     private void checkNegativeLimitByReversal(String tableQ, List<ClickHouseColumn> columns) throws SQLException {
         String key = quote(Randomly.fromList(columns).getName());
-        String projection = "toString(tuple(" + columns.stream().map(c -> quote(c.getName()))
-                .collect(Collectors.joining(", ")) + "))";
+        String projection = "toString(tuple("
+                + columns.stream().map(c -> quote(c.getName())).collect(Collectors.joining(", ")) + "))";
         String ascOrder = columns.stream().map(c -> quote(c.getName()) + " ASC NULLS LAST")
                 .collect(Collectors.joining(", "));
         String descOrder = columns.stream().map(c -> quote(c.getName()) + " DESC NULLS FIRST")

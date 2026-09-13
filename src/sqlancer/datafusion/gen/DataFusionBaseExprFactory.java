@@ -177,20 +177,17 @@ public final class DataFusionBaseExprFactory {
             return new DataFusionBaseExpr("AND", 2, DataFusionBaseExprCategory.BINARY,
                     Arrays.asList(DataFusionDataType.BOOLEAN),
                     Arrays.asList(new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BOOLEAN))),
-                            new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BOOLEAN)))
-                    ));
+                            new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BOOLEAN)))));
         case OR:
             return new DataFusionBaseExpr("OR", 2, DataFusionBaseExprCategory.BINARY,
                     Arrays.asList(DataFusionDataType.BOOLEAN),
                     Arrays.asList(new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BOOLEAN))),
-                            new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BOOLEAN)))
-                    ));
+                            new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BOOLEAN)))));
         case ADD:
             return new DataFusionBaseExpr("+", 2, DataFusionBaseExprCategory.BINARY,
                     Arrays.asList(DataFusionDataType.BIGINT),
                     Arrays.asList(new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BIGINT))),
-                            new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BIGINT)))
-                    ));
+                            new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BIGINT)))));
         case SUB:
             return new DataFusionBaseExpr("-", 2, DataFusionBaseExprCategory.BINARY,
                     Arrays.asList(DataFusionDataType.BIGINT, DataFusionDataType.DOUBLE),
@@ -198,8 +195,7 @@ public final class DataFusionBaseExprFactory {
                             new ArgumentType.Fixed(new ArrayList<>(
                                     Arrays.asList(DataFusionDataType.BIGINT, DataFusionDataType.DOUBLE))),
                             new ArgumentType.Fixed(new ArrayList<>(
-                                    Arrays.asList(DataFusionDataType.BIGINT, DataFusionDataType.DOUBLE)))
-                    ));
+                                    Arrays.asList(DataFusionDataType.BIGINT, DataFusionDataType.DOUBLE)))));
         case FUNC_ABS:
             return createCommonNumericFuncSingleArg("ABS");
         case FUNC_ACOS:
@@ -298,8 +294,7 @@ public final class DataFusionBaseExprFactory {
                                     Arrays.asList(DataFusionDataType.BIGINT, DataFusionDataType.DOUBLE))),
                             new ArgumentType.Fixed(new ArrayList<>(Arrays.asList(DataFusionDataType.BIGINT)))));
         case FUNC_COALESCE:
-            return new DataFusionBaseExpr("COALESCE", -1,
-                    DataFusionBaseExprCategory.FUNC,
+            return new DataFusionBaseExpr("COALESCE", -1, DataFusionBaseExprCategory.FUNC,
                     Arrays.asList(DataFusionDataType.BIGINT, DataFusionDataType.DOUBLE), Arrays.asList(), true);
         case FUNC_NULLIF:
             return new DataFusionBaseExpr("NULLIF", 2, DataFusionBaseExprCategory.FUNC,

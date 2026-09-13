@@ -124,14 +124,18 @@ public class ClickHouseDistributedPlanEquivalenceOracle implements TestOracle<Cl
             execOrIgnore("CREATE VIEW " + db + "." + viewBare + " AS SELECT id, g, v FROM " + db + "." + dimBare,
                     created, viewBare);
 
-            execOrIgnore("CREATE TABLE " + db + "." + distFactBare + " AS " + db + "." + factBare
-                    + " ENGINE = Distributed('default', currentDatabase(), '" + factBare + "')", created,
-                    distFactBare);
-            execOrIgnore("CREATE TABLE " + db + "." + distDimBare + " AS " + db + "." + dimBare
-                    + " ENGINE = Distributed('default', currentDatabase(), '" + dimBare + "')", created, distDimBare);
-            execOrIgnore("CREATE TABLE " + db + "." + distViewBare + " AS " + db + "." + viewBare
-                    + " ENGINE = Distributed('default', currentDatabase(), '" + viewBare + "')", created,
-                    distViewBare);
+            execOrIgnore(
+                    "CREATE TABLE " + db + "." + distFactBare + " AS " + db + "." + factBare
+                            + " ENGINE = Distributed('default', currentDatabase(), '" + factBare + "')",
+                    created, distFactBare);
+            execOrIgnore(
+                    "CREATE TABLE " + db + "." + distDimBare + " AS " + db + "." + dimBare
+                            + " ENGINE = Distributed('default', currentDatabase(), '" + dimBare + "')",
+                    created, distDimBare);
+            execOrIgnore(
+                    "CREATE TABLE " + db + "." + distViewBare + " AS " + db + "." + viewBare
+                            + " ENGINE = Distributed('default', currentDatabase(), '" + viewBare + "')",
+                    created, distViewBare);
 
             Map<String, String> distributedNames = Map.of(factBare, distFactBare, dimBare, distDimBare, viewBare,
                     distViewBare);
@@ -140,7 +144,8 @@ public class ClickHouseDistributedPlanEquivalenceOracle implements TestOracle<Cl
             UnaryOperator<String> clusterRel = bare -> "cluster('default', currentDatabase(), '" + bare + "')";
             UnaryOperator<String> distributedRel = bare -> db + "." + distributedNames.get(bare);
 
-            List<Profile> profiles = List.of(new Profile("make_distributed_plan", localRel, "make_distributed_plan = 1"),
+            List<Profile> profiles = List.of(
+                    new Profile("make_distributed_plan", localRel, "make_distributed_plan = 1"),
                     new Profile("serialize_query_plan", localRel, "serialize_query_plan = 1"),
                     new Profile("cluster + local plan", clusterRel, "parallel_replicas_local_plan = 1"),
                     new Profile("cluster + no local plan", clusterRel, "parallel_replicas_local_plan = 0"),
@@ -222,8 +227,8 @@ public class ClickHouseDistributedPlanEquivalenceOracle implements TestOracle<Cl
         }
     }
 
-    private static void assertMultisetsEqual(Shape shape, String label, String baselineQuery,
-            List<String> baselineRows, String query, List<String> rows) {
+    private static void assertMultisetsEqual(Shape shape, String label, String baselineQuery, List<String> baselineRows,
+            String query, List<String> rows) {
         List<String> diff = multisetDiff(baselineRows, rows, DIFF_LIMIT);
         if (diff.isEmpty()) {
             return;

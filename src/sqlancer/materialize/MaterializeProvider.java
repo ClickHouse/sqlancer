@@ -58,12 +58,9 @@ public class MaterializeProvider extends SQLProviderAdapter<MaterializeGlobalSta
     }
 
     public enum Action implements AbstractAction<MaterializeGlobalState> {
-        DELETE(MaterializeDeleteGenerator::create),
-        DROP_INDEX(MaterializeDropIndexGenerator::create),
-        INSERT(MaterializeInsertGenerator::insert),
-        UPDATE(MaterializeUpdateGenerator::create),
-        CREATE_INDEX(MaterializeIndexGenerator::generate),
-        CREATE_VIEW(MaterializeViewGenerator::create);
+        DELETE(MaterializeDeleteGenerator::create), DROP_INDEX(MaterializeDropIndexGenerator::create),
+        INSERT(MaterializeInsertGenerator::insert), UPDATE(MaterializeUpdateGenerator::create),
+        CREATE_INDEX(MaterializeIndexGenerator::generate), CREATE_VIEW(MaterializeViewGenerator::create);
 
         private final SQLQueryProvider<MaterializeGlobalState> sqlQueryProvider;
 
