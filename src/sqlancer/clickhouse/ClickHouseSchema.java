@@ -435,6 +435,7 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
 
         private final String engine;
         private final String samplingKey;
+        private final boolean hasUnfinishedMutations;
 
         public ClickHouseTable(String tableName, List<ClickHouseColumn> columns, List<TableIndex> indexes,
                 boolean isView) {
@@ -448,9 +449,15 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
 
         public ClickHouseTable(String tableName, List<ClickHouseColumn> columns, List<TableIndex> indexes,
                 boolean isView, String engine, String samplingKey) {
+            this(tableName, columns, indexes, isView, engine, samplingKey, false);
+        }
+
+        public ClickHouseTable(String tableName, List<ClickHouseColumn> columns, List<TableIndex> indexes,
+                boolean isView, String engine, String samplingKey, boolean hasUnfinishedMutations) {
             super(tableName, columns, indexes, isView);
             this.engine = engine == null ? "" : engine;
             this.samplingKey = samplingKey == null ? "" : samplingKey;
+            this.hasUnfinishedMutations = hasUnfinishedMutations;
         }
 
         public String getEngine() {
@@ -471,8 +478,19 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
                     || engine.equals("VersionedCollapsingMergeTree");
         }
 
+        public boolean hasUnfinishedMutations() {
+            return hasUnfinishedMutations;
+        }
+
+        /*
+         * A table with an unfinished mutation is not stable either. The typical one is an `ALTER ... MODIFY COLUMN`
+         * whose conversion cannot succeed on the stored values (`String` -> `UInt64` over `''`): the new type is
+         * committed to the metadata before the mutation runs, the mutation keeps failing, and every read of the column
+         * converts the old parts on the fly and throws `CANNOT_PARSE_NUMBER`, `ATTEMPT_TO_READ_AFTER_EOF` or
+         * `CANNOT_PARSE_TEXT` "while reading from part". That is the server working as designed, not a finding.
+         */
         public boolean isStableForRepeatedReads() {
-            return !supportsFinal();
+            return !supportsFinal() && !hasUnfinishedMutations;
         }
     }
 
@@ -480,13 +498,14 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
         List<ClickHouseTable> databaseTables = new ArrayList<>();
         List<String> tableNames = getTableNames(con);
         java.util.Map<String, TableMeta> metaByName = getTableMeta(con, databaseName);
+        java.util.Set<String> tablesWithUnfinishedMutations = getTablesWithUnfinishedMutations(con, databaseName);
         for (String tableName : tableNames) {
             List<ClickHouseColumn> databaseColumns = getTableColumns(con, tableName);
             List<TableIndex> indexes = Collections.emptyList();
             boolean isView = matchesViewName(tableName);
             TableMeta meta = metaByName.getOrDefault(tableName, TableMeta.EMPTY);
             ClickHouseTable t = new ClickHouseTable(tableName, databaseColumns, indexes, isView, meta.engine,
-                    meta.samplingKey);
+                    meta.samplingKey, tablesWithUnfinishedMutations.contains(tableName));
             for (ClickHouseColumn c : databaseColumns) {
                 c.setTable(t);
             }
@@ -520,6 +539,21 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
             }
         }
         return meta;
+    }
+
+    private static java.util.Set<String> getTablesWithUnfinishedMutations(SQLConnection con, String databaseName)
+            throws SQLException {
+        java.util.Set<String> tables = new java.util.HashSet<>();
+        try (Statement s = con.createStatement()) {
+            String q = "SELECT DISTINCT table FROM system.mutations WHERE database = '"
+                    + databaseName.replace("'", "''") + "' AND NOT is_done";
+            try (ResultSet rs = s.executeQuery(q)) {
+                while (rs.next()) {
+                    tables.add(rs.getString(1));
+                }
+            }
+        }
+        return tables;
     }
 
     private static List<String> getTableNames(SQLConnection con) throws SQLException {
