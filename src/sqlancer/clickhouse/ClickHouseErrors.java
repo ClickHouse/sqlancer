@@ -20,6 +20,7 @@ public final class ClickHouseErrors {
 
                 "Unknown element '", "Cannot parse infinity.",
                 "Cannot parse number with a sign character but without any numeric character",
+                "Cannot parse number without any digits",
                 "Cannot parse number with multiple sign (+/-) characters or intermediate sign character",
                 "Cannot parse string", "Cannot read floating point value",
                 "Cyclic aliases: default expression and column type are incompatible", "Directory for table data",
