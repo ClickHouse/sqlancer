@@ -304,16 +304,27 @@ frequent, which is why `ClickHouseStatsToggleOracle` now pulls in `addExpectedEx
 
 Triage a run by these first; they are expected noise on a current head, not regressions.
 
-- **UNFILED — `NOT (NOT key)` in value position prunes valid parts.** Found by item 1's emission,
+- **FIX IN FLIGHT ([ClickHouse#116381](https://github.com/ClickHouse/ClickHouse/pull/116381)) —
+  `NOT (NOT key)` in value position prunes valid parts.** Found by item 1's emission,
   confirmed on head 26.8.1.1470. The projection says the predicate is true for every row, the WHERE
   form returns a subset, and `EXPLAIN indexes = 1` prints `Condition: (c1 in (-Inf, 3])`. Root cause
   is the `name == "not"` branch of `cloneDAGWithInversionPushDown` in
   `src/Storages/MergeTree/KeyCondition.cpp` treating `not` as purely logical and ignoring
-  `boolean_context`, so two flips cancel and `NOT NOT c1` degrades to bare `c1`. **No setting
-  disables it** — `materialize()`, `use_skip_indexes=0`, `allow_statistics_optimize=0`,
-  `query_plan_enable_optimizations=0` and `optimize_move_to_prewhere=0` all still return the wrong
-  rows — so `KeyCondition` cannot catch it. **NoREC and TLPWhere do** (`countIf(P)` = 2 vs
-  `count() WHERE P` = 1). Wrong since at least 24.8. Triage by `NOT (NOT` in the failing query.
+  `boolean_context`, so two flips cancel and `NOT NOT c1` degrades to bare `c1` — exactly as this
+  entry diagnosed. The fix gates that branch on `boolean_context`, so `not` stays an ordinary
+  function in a value position and the atom is opaque to index analysis; a truth-tested `NOT` is
+  still pushed down. **Delete this entry once it merges and head no longer reproduces.**
+  **No setting disables it** — `materialize()`, `use_skip_indexes=0`,
+  `allow_statistics_optimize=0`, `query_plan_enable_optimizations=0` and
+  `optimize_move_to_prewhere=0` all still return the wrong rows — so `KeyCondition` cannot catch
+  it. **NoREC and TLPWhere do** (`countIf(P)` = 2 vs `count() WHERE P` = 1). Wrong since at least
+  24.8, and reproduced on 26.7.1 and on master. Triage by `NOT (NOT` in the failing query. The same
+  shape reaches primary-key pruning, partition pruning, `minmax` skip indexes and statistics-based
+  part pruning, and it accounted for 20 of the 87 findings in the 2026-08-25 ClickHouse nightly,
+  across `KeyCondition`, `ViewEquivalence`, `SubqueryMaterialize`, `PartitionMirror`,
+  `CountOptimization`, `TLPGroupBy`, `TLPDistinct`, `TLPAggregate` and SQLancer++'s `NoREC` and
+  `QUERY_PARTITIONING` — so a run that still shows any of those with `NOT (NOT` in the query has
+  not picked the fix up yet.
   ```sql
   CREATE TABLE t (c1 Int32) ENGINE = MergeTree ORDER BY c1;
   INSERT INTO t VALUES (0); INSERT INTO t VALUES (100);
