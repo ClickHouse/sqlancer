@@ -28,7 +28,7 @@ public final class ClickHouseMutationGenerator {
     }
 
     private static List<ClickHouseColumn> updatableColumns(List<ClickHouseColumn> cols) {
-        return cols.stream().filter(c -> {
+        return cols.stream().filter(c -> !c.isAlias() && !c.isMaterialized()).filter(c -> {
             sqlancer.clickhouse.ClickHouseType term = c.getType().getTypeTerm().unwrap();
             return term instanceof sqlancer.clickhouse.ClickHouseType.Primitive
                     || term instanceof sqlancer.clickhouse.ClickHouseType.Decimal
