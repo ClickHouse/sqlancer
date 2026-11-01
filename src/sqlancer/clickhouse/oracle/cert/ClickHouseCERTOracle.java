@@ -64,7 +64,20 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
             throw new IgnoreMeException();
         }
         ClickHouseTable pivotTable = Randomly.fromList(tables);
+        String pivotName = quote(pivotTable.getName());
+        if (!executeLogged("SYSTEM STOP MERGES " + pivotName)) {
+            throw new IgnoreMeException();
+        }
+        try {
+            checkWithMergesStopped(pivotTable);
+        } finally {
+            executeLogged("SYSTEM START MERGES " + pivotName);
+        }
+    }
+
+    private void checkWithMergesStopped(ClickHouseTable pivotTable) throws SQLException {
         ensureLargeEnough(pivotTable);
+        List<String> partsBefore = activeParts(pivotTable);
 
         ClickHouseTableReference table = new ClickHouseTableReference(pivotTable, null);
         select = new ClickHouseSelect();
@@ -111,6 +124,9 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
             throw new IgnoreMeException();
         }
         queryPlan2Sequences = explainPlanSequence(q2);
+        if (!partsBefore.equals(activeParts(pivotTable))) {
+            throw new IgnoreMeException();
+        }
 
         if (queryPlan1Sequences.isEmpty() || queryPlan2Sequences.isEmpty()) {
             return;
@@ -292,6 +308,34 @@ public class ClickHouseCERTOracle extends CERTOracleBase<ClickHouseGlobalState>
 
             throw new IgnoreMeException();
         }
+    }
+
+    private boolean executeLogged(String sql) {
+        if (state.getOptions().logEachSelect()) {
+            state.getLogger().writeCurrent(sql);
+            state.getState().logStatement(sql);
+        }
+        try (Statement s = state.getConnection().createStatement()) {
+            s.execute(sql);
+            return true;
+        } catch (SQLException ignored) {
+            return false;
+        }
+    }
+
+    private List<String> activeParts(ClickHouseTable table) {
+        List<String> parts = new ArrayList<>();
+        String sql = String.format(
+                "SELECT name FROM system.parts WHERE database = '%s' AND table = '%s' AND active ORDER BY name",
+                state.getDatabaseName().replace("'", "''"), table.getName().replace("'", "''"));
+        try (Statement s = state.getConnection().createStatement(); ResultSet rs = s.executeQuery(sql)) {
+            while (rs.next()) {
+                parts.add(rs.getString(1));
+            }
+        } catch (SQLException ignored) {
+            throw new IgnoreMeException();
+        }
+        return parts;
     }
 
     private long countRows(ClickHouseTable table) {
