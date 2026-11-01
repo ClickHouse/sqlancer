@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import sqlancer.ComparatorHelper;
@@ -23,6 +24,8 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
         OFFSET_FORM_EQUIVALENCE, WITH_TIES_SUPERSET, LIMIT_BY_CAP, NEGATIVE_LIMIT_TAIL, NEGATIVE_LIMIT_BY_REVERSAL,
         NEGATIVE_WITH_TIES_SUPERSET
     }
+
+    private static final Pattern NEGATIVE_ZERO = Pattern.compile("(?<=^|[(,\\[{:])-0(?=$|[,)\\]}])");
 
     private final ClickHouseGlobalState state;
     private final ExpectedErrors readErrors = new ExpectedErrors();
@@ -267,7 +270,12 @@ public class ClickHouseLimitRankingOracle implements TestOracle<ClickHouseGlobal
         if (state.getOptions().logEachSelect()) {
             state.getState().logStatement(query);
         }
-        return ComparatorHelper.getResultSetFirstColumnAsString(query, readErrors, state);
+        List<String> rows = ComparatorHelper.getResultSetFirstColumnAsString(query, readErrors, state);
+        List<String> normalized = new ArrayList<>(rows.size());
+        for (String row : rows) {
+            normalized.add(row == null ? null : NEGATIVE_ZERO.matcher(row).replaceAll("0"));
+        }
+        return normalized;
     }
 
     private static List<ClickHouseColumn> projectableColumns(ClickHouseTable table) {
