@@ -23,7 +23,7 @@ public abstract class SQLProviderAdapter<G extends SQLGlobalState<O, ? extends A
     protected void checkViewsAreValid(G globalState) {
         List<? extends AbstractTable<?, ?, ?>> views = globalState.getSchema().getViews();
         for (AbstractTable<?, ?, ?> view : views) {
-            SQLQueryAdapter q = new SQLQueryAdapter("SELECT 1 FROM " + view.getName() + " LIMIT 1");
+            SQLQueryAdapter q = new SQLQueryAdapter(getViewValidityQuery(view.getName()));
             try {
                 if (!q.execute(globalState)) {
                     dropView(globalState, view.getName());
@@ -32,6 +32,10 @@ public abstract class SQLProviderAdapter<G extends SQLGlobalState<O, ? extends A
                 dropView(globalState, view.getName());
             }
         }
+    }
+
+    protected String getViewValidityQuery(String viewName) {
+        return "SELECT 1 FROM " + viewName + " LIMIT 1";
     }
 
     private void dropView(G globalState, String viewName) {

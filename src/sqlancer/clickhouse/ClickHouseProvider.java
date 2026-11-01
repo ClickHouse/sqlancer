@@ -133,6 +133,11 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
     }
 
     @Override
+    protected String getViewValidityQuery(String viewName) {
+        return "SELECT * FROM " + viewName + " LIMIT 0";
+    }
+
+    @Override
     public SQLConnection createDatabase(ClickHouseGlobalState globalState) throws SQLException {
         String host = globalState.getOptions().getHost();
         int port = globalState.getOptions().getPort();
