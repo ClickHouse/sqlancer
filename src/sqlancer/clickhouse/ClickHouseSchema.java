@@ -504,8 +504,10 @@ public class ClickHouseSchema extends AbstractSchema<ClickHouseGlobalState, Clic
             List<TableIndex> indexes = Collections.emptyList();
             boolean isView = matchesViewName(tableName);
             TableMeta meta = metaByName.getOrDefault(tableName, TableMeta.EMPTY);
+            boolean hasUnfinishedMutations = tablesWithUnfinishedMutations.contains(tableName)
+                    || (isView && !tablesWithUnfinishedMutations.isEmpty());
             ClickHouseTable t = new ClickHouseTable(tableName, databaseColumns, indexes, isView, meta.engine,
-                    meta.samplingKey, tablesWithUnfinishedMutations.contains(tableName));
+                    meta.samplingKey, hasUnfinishedMutations);
             for (ClickHouseColumn c : databaseColumns) {
                 c.setTable(t);
             }

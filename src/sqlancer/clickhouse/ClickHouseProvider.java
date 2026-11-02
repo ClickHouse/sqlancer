@@ -130,6 +130,7 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
                     }
                 });
         se.executeStatements();
+        globalState.updateSchema();
     }
 
     @Override
