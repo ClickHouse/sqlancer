@@ -202,7 +202,7 @@ public class ClickHouseColumnTransformerOracle implements TestOracle<ClickHouseG
     }
 
     private ClickHouseTable pickEligibleTable() {
-        List<ClickHouseTable> eligible = state.getSchema().getDatabaseTables().stream()
+        List<ClickHouseTable> eligible = state.getSchema().getTablesStableForRepeatedReads().stream()
                 .filter(ClickHouseColumnTransformerOracle::isEligibleTable).collect(Collectors.toList());
         if (eligible.isEmpty()) {
             throw new IgnoreMeException();
