@@ -74,7 +74,7 @@ public class ClickHouseTableGenerator {
                     globalState));
         }
 
-        ClickHouseEngine engine = pickEngine(columns);
+        List<ClickHouseSchema.ClickHouseColumn> storedColumns = new ArrayList<>();
         for (int i = 0; i < nrColumns; i++) {
             if (i != 0) {
                 sb.append(", ");
@@ -83,9 +83,13 @@ public class ClickHouseTableGenerator {
             String columnName = dummy.getName();
             ClickHouseColumnBuilder columnBuilder = new ClickHouseColumnBuilder();
             sb.append(columnBuilder.createColumn(columnName, dummy.getType(), globalState, columns));
+            if (columnBuilder.isStored()) {
+                storedColumns.add(dummy);
+            }
             columnNames.add(columnName);
             columnId++;
         }
+        ClickHouseEngine engine = pickEngine(storedColumns);
         if (Randomly.getBooleanWithSmallProbability()) {
             for (int i = 0; i < Randomly.smallNumber(); i++) {
                 addColumnsConstraint(gen);
@@ -113,7 +117,7 @@ public class ClickHouseTableGenerator {
         sb.append(") ENGINE = ");
         sb.append(engine);
         sb.append("(");
-        sb.append(renderEngineArgs(engine));
+        sb.append(renderEngineArgs(engine, storedColumns));
         sb.append(") ");
         if (isMergeTreeFamily(engine)) {
             Supplier<ClickHouseExpression> exprFactory = () -> gen.generateExpressionWithColumns(
@@ -332,9 +336,9 @@ public class ClickHouseTableGenerator {
         return hasSimpleAgg ? ClickHouseEngine.AggregatingMergeTree : ClickHouseEngine.MergeTree;
     }
 
-    private String renderEngineArgs(ClickHouseEngine engine) {
+    private String renderEngineArgs(ClickHouseEngine engine, List<ClickHouseSchema.ClickHouseColumn> cols) {
         if (engine == ClickHouseEngine.ReplacingMergeTree) {
-            List<ClickHouseSchema.ClickHouseColumn> candidates = columns.stream().filter(this::isValidReplacingVer)
+            List<ClickHouseSchema.ClickHouseColumn> candidates = cols.stream().filter(this::isValidReplacingVer)
                     .collect(Collectors.toList());
             if (candidates.isEmpty()) {
                 return "";
@@ -342,7 +346,7 @@ public class ClickHouseTableGenerator {
             return Randomly.fromList(candidates).getName();
         }
         if (engine == ClickHouseEngine.SummingMergeTree) {
-            List<ClickHouseSchema.ClickHouseColumn> candidates = columns.stream().filter(this::isValidSummingCol)
+            List<ClickHouseSchema.ClickHouseColumn> candidates = cols.stream().filter(this::isValidSummingCol)
                     .collect(Collectors.toList());
             if (candidates.isEmpty() || !Randomly.getBoolean()) {
                 return "";
@@ -352,15 +356,15 @@ public class ClickHouseTableGenerator {
         }
         if (engine == ClickHouseEngine.CollapsingMergeTree) {
 
-            List<ClickHouseSchema.ClickHouseColumn> signs = columns.stream()
-                    .filter(ClickHouseTableGenerator::isValidSign).collect(Collectors.toList());
+            List<ClickHouseSchema.ClickHouseColumn> signs = cols.stream().filter(ClickHouseTableGenerator::isValidSign)
+                    .collect(Collectors.toList());
             return Randomly.fromList(signs).getName();
         }
         if (engine == ClickHouseEngine.VersionedCollapsingMergeTree) {
 
-            List<ClickHouseSchema.ClickHouseColumn> signs = columns.stream()
-                    .filter(ClickHouseTableGenerator::isValidSign).collect(Collectors.toList());
-            List<ClickHouseSchema.ClickHouseColumn> vers = columns.stream().filter(this::isValidReplacingVer)
+            List<ClickHouseSchema.ClickHouseColumn> signs = cols.stream().filter(ClickHouseTableGenerator::isValidSign)
+                    .collect(Collectors.toList());
+            List<ClickHouseSchema.ClickHouseColumn> vers = cols.stream().filter(this::isValidReplacingVer)
                     .collect(Collectors.toList());
             return Randomly.fromList(signs).getName() + ", " + Randomly.fromList(vers).getName();
         }

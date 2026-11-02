@@ -16,6 +16,7 @@ import sqlancer.clickhouse.ClickHouseVisitor;
 public class ClickHouseColumnBuilder {
 
     private final StringBuilder sb = new StringBuilder();
+    private boolean stored = true;
 
     private static boolean allowAlias = true;
     private static boolean allowMaterialized = true;
@@ -76,6 +77,7 @@ public class ClickHouseColumnBuilder {
                 constraints.remove(Constraints.STATISTICS);
             }
         }
+        stored = !constraints.contains(Constraints.ALIAS) && !constraints.contains(Constraints.EPHEMERAL);
 
         if (!constraints.contains(Constraints.ALIAS)) {
             sb.append(dataType);
@@ -143,6 +145,10 @@ public class ClickHouseColumnBuilder {
             }
         }
         return sb.toString();
+    }
+
+    public boolean isStored() {
+        return stored;
     }
 
     private static String pickStatisticsKind(ClickHouseSchema.ClickHouseLancerDataType dataType) {
