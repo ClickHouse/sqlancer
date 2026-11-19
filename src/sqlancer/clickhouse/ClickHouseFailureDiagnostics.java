@@ -31,6 +31,13 @@ public final class ClickHouseFailureDiagnostics {
                         + " WHERE database = currentDatabase() AND table = " + literal + " ORDER BY mutation_id");
     }
 
+    public static void logRowPolicies(ClickHouseGlobalState state, String tableName) {
+        logRows(state, "row policies of " + tableName,
+                "SELECT short_name, select_filter, is_restrictive, apply_to_all, apply_to_list FROM system.row_policies"
+                        + " WHERE database = currentDatabase() AND table = " + asStringLiteral(tableName)
+                        + " ORDER BY short_name");
+    }
+
     private static void logRows(ClickHouseGlobalState state, String label, String query) {
         StringBuilder sb = new StringBuilder();
         sb.append("-- diagnostics: ").append(label);
@@ -80,7 +87,7 @@ public final class ClickHouseFailureDiagnostics {
         return "`" + name.replace("`", "``") + "`";
     }
 
-    private static String asStringLiteral(String name) {
+    public static String asStringLiteral(String name) {
         return "'" + name.replace("\\", "\\\\").replace("'", "\\'") + "'";
     }
 }
