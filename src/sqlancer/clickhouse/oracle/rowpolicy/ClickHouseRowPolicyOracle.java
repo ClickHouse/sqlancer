@@ -1,6 +1,9 @@
 package sqlancer.clickhouse.oracle.rowpolicy;
 
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -8,6 +11,7 @@ import sqlancer.ComparatorHelper;
 import sqlancer.IgnoreMeException;
 import sqlancer.Randomly;
 import sqlancer.clickhouse.ClickHouseErrors;
+import sqlancer.clickhouse.ClickHouseFailureDiagnostics;
 import sqlancer.clickhouse.ClickHouseProvider.ClickHouseGlobalState;
 import sqlancer.clickhouse.ClickHouseSchema;
 import sqlancer.clickhouse.ClickHouseSchema.ClickHouseTable;
@@ -56,6 +60,20 @@ public class ClickHouseRowPolicyOracle implements TestOracle<ClickHouseGlobalSta
             throw new IgnoreMeException();
         }
 
+        String fqTable = state.getDatabaseName() + "." + table.getName();
+        List<String> existingPolicies = rowPoliciesOn(table.getName());
+        if (!existingPolicies.isEmpty()) {
+            for (String name : existingPolicies) {
+                try {
+                    new SQLQueryAdapter("DROP ROW POLICY IF EXISTS " + name + " ON " + fqTable, errors, false)
+                            .execute(state);
+                } catch (SQLException ignored) {
+
+                }
+            }
+            throw new IgnoreMeException();
+        }
+
         ClickHouseExpressionGenerator gen = new ClickHouseExpressionGenerator(state).allowAggregates(false);
         gen.addColumns(columns);
         ClickHouseExpression predicate = gen.generatePredicate();
@@ -75,7 +93,6 @@ public class ClickHouseRowPolicyOracle implements TestOracle<ClickHouseGlobalSta
         }
 
         String policyName = "rp_" + table.getName() + "_" + POLICY_COUNTER.incrementAndGet();
-        String fqTable = state.getDatabaseName() + "." + table.getName();
         String predicateSql = ClickHouseVisitor.asString(predicate);
         String createPolicy = "CREATE ROW POLICY " + policyName + " ON " + fqTable + " USING (" + predicateSql
                 + ") TO CURRENT_USER";
@@ -107,8 +124,13 @@ public class ClickHouseRowPolicyOracle implements TestOracle<ClickHouseGlobalSta
             String filteredQuery = ClickHouseVisitor.asString(filtered);
             List<String> filteredRows = ComparatorHelper.getResultSetFirstColumnAsString(filteredQuery, errors, state);
 
-            ComparatorHelper.assumeResultSetsAreEqual(baselineRows, filteredRows, baselineQuery, List.of(filteredQuery),
-                    state);
+            try {
+                ComparatorHelper.assumeResultSetsAreEqual(baselineRows, filteredRows, baselineQuery,
+                        List.of(filteredQuery), state);
+            } catch (AssertionError e) {
+                logMismatchDiagnostics(table.getName(), filteredQuery);
+                throw e;
+            }
         } finally {
 
             try {
@@ -117,6 +139,33 @@ public class ClickHouseRowPolicyOracle implements TestOracle<ClickHouseGlobalSta
 
             }
         }
+    }
+
+    private List<String> rowPoliciesOn(String tableName) {
+        List<String> names = new ArrayList<>();
+        String query = "SELECT short_name FROM system.row_policies WHERE database = "
+                + ClickHouseFailureDiagnostics.asStringLiteral(state.getDatabaseName()) + " AND table = "
+                + ClickHouseFailureDiagnostics.asStringLiteral(tableName);
+        try (Statement s = state.getConnection().createStatement(); ResultSet rs = s.executeQuery(query)) {
+            while (rs.next()) {
+                names.add(rs.getString(1));
+            }
+        } catch (SQLException e) {
+            throw new IgnoreMeException();
+        }
+        return names;
+    }
+
+    private void logMismatchDiagnostics(String tableName, String filteredQuery) {
+        ClickHouseFailureDiagnostics.logRowPolicies(state, tableName);
+        ClickHouseFailureDiagnostics.logTableState(state, tableName);
+        String reread;
+        try {
+            reread = ComparatorHelper.getResultSetFirstColumnAsString(filteredQuery, errors, state).size() + " rows";
+        } catch (IgnoreMeException | SQLException | AssertionError e) {
+            reread = "unavailable";
+        }
+        state.getState().getLocalState().log("-- diagnostics: filtered query re-read: " + reread);
     }
 
 }
