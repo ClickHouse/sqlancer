@@ -108,7 +108,14 @@ public class ClickHouseProvider extends SQLProviderAdapter<ClickHouseGlobalState
 
         @Override
         protected ClickHouseSchema readSchema() throws SQLException {
-            return ClickHouseSchema.fromConnection(getConnection(), getDatabaseName());
+            try {
+                return ClickHouseSchema.fromConnection(getConnection(), getDatabaseName());
+            } catch (SQLException e) {
+                if (ClickHouseErrors.isToleratedException(e)) {
+                    throw new IgnoreMeException();
+                }
+                throw e;
+            }
         }
     }
 
