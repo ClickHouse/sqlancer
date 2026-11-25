@@ -115,7 +115,8 @@ public class ClickHouseVariantSubcolumnOracle implements TestOracle<ClickHouseGl
                 throw new IgnoreMeException();
             }
             int rows = 30 + r.getInteger(0, 41);
-            StringBuilder sb = new StringBuilder("INSERT INTO ").append(table).append(" (k, v) VALUES ");
+            StringBuilder sb = new StringBuilder("INSERT INTO ").append(table)
+                    .append(" (k, v) SETTINGS cast_string_to_variant_use_inference = 0 VALUES ");
             for (int i = 0; i < rows; i++) {
                 boolean asInt = Randomly.getBoolean();
                 if (i > 0) {
