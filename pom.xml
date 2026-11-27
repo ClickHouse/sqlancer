@@ -282,7 +282,7 @@
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
-      <version>33.4.0-jre</version>
+      <version>33.7.1-jre</version>
     </dependency>
     <!-- auto-service 1.1.1 (not 1.0.1): the 1.0.1 annotation processor is compiled against
          Guava 31.0.1 and calls APIs removed by the Guava 33.4.0-jre pin above, so its processor
