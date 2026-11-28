@@ -22,6 +22,7 @@ public final class ClickHouseErrors {
                 "Cannot parse number with a sign character but without any numeric character",
                 "Cannot parse number without any digits",
                 "Cannot parse number with multiple sign (+/-) characters or intermediate sign character",
+                "Cannot parse exponent while reading decimal", "Exponent is out of range while reading decimal",
                 "Cannot parse string", "Cannot read floating point value",
                 "Cyclic aliases: default expression and column type are incompatible", "Directory for table data",
                 "Directory not empty", "Expected one of: compound identifier, identifier, list of elements (version",
